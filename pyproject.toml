@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "histalign"
+dynamic = ["version"]
+description = 'Processing workflow for histological image alignments to the Allen CCF.'
+readme = "README.md"
+requires-python = "<=3.11"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Olivier Delree", email = "olivierdelree@protonmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = []
+
+[project.urls]
+Documentation = "https://github.com/olivierdelree/histalign#readme"
+Issues = "https://github.com/olivierdelree/histalign/issues"
+Source = "https://github.com/olivierdelree/histalign"
+
+[tool.hatch.version]
+path = "src/histalign/__about__.py"
+
+[project.scripts]
+histalign = "histalign:histalign"
+
+[tool.hatch.envs.default]
+dependencies = [
+  "click",
+]
