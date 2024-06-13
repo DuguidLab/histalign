@@ -22,9 +22,10 @@ class VolumeManager:
         self,
         kind: typing.Literal["normal", "annotation"] = "normal",
         origin: typing.Optional[tuple[int, int, int]] = None,
-        angle: int = 0,
+        ml_angle: int = 0,
         axes: tuple[int, int] = (0, 1),
         offset: int = 0,
+        **kwargs,
     ) -> np.ndarray:
         kind = kind.lower()
         if kind == "normal":
@@ -44,7 +45,7 @@ class VolumeManager:
                 *origin[:2],
                 origin[2] + offset,
             ),
-            normal=self.calculate_normals(angle, axes),
+            normal=self.calculate_normals(ml_angle, axes),
             autocrop=True,
         )
 

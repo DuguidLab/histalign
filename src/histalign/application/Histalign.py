@@ -8,6 +8,8 @@ import typing
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.application.ImageSettings import ImageSettings
+from histalign.application.RotatingLabel import RotatingLabel
 from histalign.application.VolumeManager import VolumeManager
 from histalign.application.VolumeSettings import VolumeSettings
 
@@ -16,8 +18,10 @@ class Histalign(QtWidgets.QWidget):
     volume_manager: VolumeManager
 
     alpha_slider: QtWidgets.QSlider
-    image_viewer: QtWidgets.QLabel
-    volume_settings: QtWidgets.QWidget
+    image_viewer: RotatingLabel
+    image_settings: ImageSettings
+    volume_viewer: QtWidgets.QLabel
+    volume_settings: VolumeSettings
 
     base_alpha_channel: typing.Optional[np.ndarray] = None
 
@@ -30,12 +34,27 @@ class Histalign(QtWidgets.QWidget):
 
         self.setWindowTitle("Histalign")
 
+        image = QtGui.QImage()
+        image.load(
+            "/home/odelree/data/histalign/resources/sub-MM424_exp-38hrb23ce2_conc1x"
+            "/png/A5 mcherry555 mecp488 dapi_image0000_"
+            "470_New 1_maximum_downsampled.png"
+        )
+        self.image_viewer = RotatingLabel(
+            pixmap=QtGui.QPixmap.fromImage(image),
+            alignment=QtCore.Qt.AlignCenter,
+        )
+        self.image_viewer.image = image
+
+        self.image_settings = ImageSettings()
+        self.image_settings.settings_values_changed.connect(
+            self.image_viewer.rotate_image
+        )
+
         self.volume_manager = VolumeManager(file_path)
 
-        self.image_viewer = QtWidgets.QLabel(
-            scaledContents=True,
-        )
-        self.image_viewer.setFixedSize(
+        self.volume_viewer = QtWidgets.QLabel(scaledContents=True)
+        self.volume_viewer.setFixedSize(
             self.volume_manager.average_volume.shape[0] * 2,
             self.volume_manager.average_volume.shape[1] * 2,
         )
@@ -54,11 +73,13 @@ class Histalign(QtWidgets.QWidget):
         self.alpha_slider.setValue(255 // 2)
 
         layout = QtWidgets.QGridLayout(
-            sizeConstraint=QtWidgets.QLayout.SetDefaultConstraint,
+            sizeConstraint=QtWidgets.QLayout.SetMaximumSize,
         )
-        layout.addWidget(self.alpha_slider, 0, 0)
-        layout.addWidget(self.image_viewer, 0, 1)
-        layout.addWidget(self.volume_settings, 0, 2)
+        layout.addWidget(self.alpha_slider, 0, 0, -1, 1)
+        layout.addWidget(self.image_viewer, 0, 1, -1, 1)
+        layout.addWidget(self.volume_viewer, 0, 1, -1, 1)
+        layout.addWidget(self.image_settings, 0, 2)
+        layout.addWidget(self.volume_settings, 1, 2)
 
         self.setLayout(layout)
 
@@ -88,4 +109,4 @@ class Histalign(QtWidgets.QWidget):
                 QtGui.QImage.Format_Alpha8,
             )
         )
-        self.image_viewer.setPixmap(QtGui.QPixmap.fromImage(initial_image))
+        self.volume_viewer.setPixmap(QtGui.QPixmap.fromImage(initial_image))
