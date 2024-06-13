@@ -48,7 +48,7 @@ class Histalign(QtWidgets.QWidget):
 
         self.image_settings = ImageSettings()
         self.image_settings.settings_values_changed.connect(
-            self.image_viewer.rotate_image
+            self.image_viewer.transform_image
         )
 
         self.volume_manager = VolumeManager(file_path)

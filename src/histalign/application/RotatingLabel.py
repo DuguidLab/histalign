@@ -16,16 +16,22 @@ class RotatingLabel(QtWidgets.QLabel):
         super().__init__(parent, **kwargs)
 
     @QtCore.Slot()
-    def rotate_image(self, settings: dict) -> None:
-        angle = settings.get("dv_angle")
-        if angle is None:
+    def transform_image(self, settings: dict) -> None:
+        try:
+            angle = settings["dv_angle"]
+            x_translation = settings["x_translation"]
+            y_translation = settings["y_translation"]
+        except KeyError:
             return
+
         if not isinstance(self.image, QtGui.QImage):
             return
-        self.setPixmap(
-            QtGui.QPixmap.fromImage(
-                self.image.transformed(
-                    QtGui.QTransform().rotate(float(angle), QtCore.Qt.ZAxis, 0)
-                )
-            )
+
+        transformed_image = self.image.transformed(
+            QtGui.QTransform().rotate(float(angle), QtCore.Qt.ZAxis, 0)
         )
+        transformed_image = transformed_image.transformed(
+            QtGui.QTransform().translate(float(x_translation), float(y_translation))
+        )
+
+        self.setPixmap(QtGui.QPixmap.fromImage(transformed_image))
