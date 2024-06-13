@@ -5,6 +5,7 @@
 import time
 import typing
 
+import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.application.VolumeManager import VolumeManager
@@ -14,8 +15,11 @@ from histalign.application.VolumeSettings import VolumeSettings
 class Histalign(QtWidgets.QWidget):
     volume_manager: VolumeManager
 
+    alpha_slider: QtWidgets.QSlider
     image_viewer: QtWidgets.QLabel
     volume_settings: QtWidgets.QWidget
+
+    base_alpha_channel: typing.Optional[np.ndarray] = None
 
     def __init__(
         self,
@@ -45,23 +49,43 @@ class Histalign(QtWidgets.QWidget):
             self.update_displayed_slice
         )
 
-        self.update_displayed_slice(self.volume_settings.settings_values)
+        self.alpha_slider = QtWidgets.QSlider(minimum=0, maximum=255)
+        self.alpha_slider.valueChanged.connect(lambda: self.update_displayed_slice())
+        self.alpha_slider.setValue(255 // 2)
 
         layout = QtWidgets.QGridLayout(
             sizeConstraint=QtWidgets.QLayout.SetDefaultConstraint,
         )
-        layout.addWidget(self.image_viewer, 0, 0)
-        layout.addWidget(self.volume_settings, 0, 1)
+        layout.addWidget(self.alpha_slider, 0, 0)
+        layout.addWidget(self.image_viewer, 0, 1)
+        layout.addWidget(self.volume_settings, 0, 2)
 
         self.setLayout(layout)
 
+        self.update_displayed_slice()
+
     @QtCore.Slot()
-    def update_displayed_slice(self, settings: dict) -> None:
+    def update_displayed_slice(self, settings: typing.Optional[dict] = None) -> None:
+        if settings is None:
+            settings = self.volume_settings.settings_values
+
         new_slice = self.volume_manager.get_slice_from_volume(**settings)
         initial_image = QtGui.QImage(
             new_slice.tobytes(),
             new_slice.shape[1],
             new_slice.shape[0],
             QtGui.QImage.Format_Grayscale8,
+        )
+        if self.base_alpha_channel is None:
+            self.base_alpha_channel = np.zeros(
+                (new_slice.shape[0], new_slice.shape[1]), dtype=np.uint8
+            )
+        initial_image.setAlphaChannel(
+            QtGui.QImage(
+                (self.base_alpha_channel + self.alpha_slider.value()).tobytes(),
+                new_slice.shape[1],
+                new_slice.shape[0],
+                QtGui.QImage.Format_Alpha8,
+            )
         )
         self.image_viewer.setPixmap(QtGui.QPixmap.fromImage(initial_image))
