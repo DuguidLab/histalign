@@ -67,6 +67,8 @@ class VolumeManager:
         elif extension == "npy":
             # If using NPY, assume it was already converted to 8-bit
             array = np.load(file_path)
+        else:
+            raise Exception("Unknown volume file type.")
 
         volume = vedo.Volume(array)
 
