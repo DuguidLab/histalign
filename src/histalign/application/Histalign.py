@@ -36,18 +36,12 @@ class Histalign(QtWidgets.QWidget):
         self.setWindowTitle("Histalign")
 
         # Set up histological slice widget
-        image = QtGui.QImage()
-        image.load(histology_slice_file_path)
-        self.image_viewer = ImageViewer(
-            pixmap=QtGui.QPixmap.fromImage(image),
-            alignment=QtCore.Qt.AlignCenter,
-        )
-        self.image_viewer.image = image
+        self.image_viewer = ImageViewer(histology_slice_file_path)
 
         # Set up histological slice settings widget
         self.image_settings = ImageSettings()
         self.image_settings.settings_values_changed.connect(
-            self.image_viewer.transform_image
+            self.image_viewer.transform_pixmap
         )
 
         # Set up volume manager
