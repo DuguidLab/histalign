@@ -9,7 +9,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.application.ImageSettings import ImageSettings
-from histalign.application.RotatingLabel import RotatingLabel
+from histalign.application.ImageViewer import ImageViewer
 from histalign.application.VolumeManager import VolumeManager
 from histalign.application.VolumeSettings import VolumeSettings
 
@@ -18,7 +18,7 @@ class Histalign(QtWidgets.QWidget):
     volume_manager: VolumeManager
 
     alpha_slider: QtWidgets.QSlider
-    image_viewer: RotatingLabel
+    image_viewer: ImageViewer
     image_settings: ImageSettings
     volume_viewer: QtWidgets.QLabel
     volume_settings: VolumeSettings
@@ -40,7 +40,7 @@ class Histalign(QtWidgets.QWidget):
             "/png/A5 mcherry555 mecp488 dapi_image0000_"
             "470_New 1_maximum_downsampled.png"
         )
-        self.image_viewer = RotatingLabel(
+        self.image_viewer = ImageViewer(
             pixmap=QtGui.QPixmap.fromImage(image),
             alignment=QtCore.Qt.AlignCenter,
         )

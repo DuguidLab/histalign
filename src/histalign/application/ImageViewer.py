@@ -7,7 +7,7 @@ import typing
 from PySide6 import QtCore, QtGui, QtWidgets
 
 
-class RotatingLabel(QtWidgets.QLabel):
+class ImageViewer(QtWidgets.QLabel):
     image: QtGui.QImage
 
     def __init__(
