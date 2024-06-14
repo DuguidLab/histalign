@@ -17,6 +17,7 @@ from histalign.application.VolumeSettings import VolumeSettings
 class Histalign(QtWidgets.QWidget):
     volume_manager: VolumeManager
 
+    alpha_push_button: QtWidgets.QPushButton
     alpha_slider: QtWidgets.QSlider
     image_viewer: ImageViewer
     image_settings: ImageSettings
@@ -64,14 +65,24 @@ class Histalign(QtWidgets.QWidget):
             self.update_displayed_slice
         )
 
+        # Set up transparency toggle (between histological and volume slice)
+        self.alpha_push_button = QtWidgets.QPushButton("X")
+        self.alpha_push_button.setMaximumWidth(20)
+        self.alpha_push_button.clicked.connect(self.toggle_alpha)
+
         # Set up transparency slider (between histological and volume slice)
         self.alpha_slider = QtWidgets.QSlider(minimum=0, maximum=255)
         self.alpha_slider.valueChanged.connect(lambda: self.update_displayed_slice())
         self.alpha_slider.setValue(255 // 2)
 
-        # Organise the layout
-        layout = QtWidgets.QGridLayout(sizeConstraint=QtWidgets.QLayout.SetMaximumSize)
-        layout.addWidget(self.alpha_slider, 0, 0, -1, 1)
+        # Set up transparency layout
+        transparency_layout = QtWidgets.QVBoxLayout()
+        transparency_layout.addWidget(self.alpha_push_button, 0, QtCore.Qt.AlignJustify)
+        transparency_layout.addWidget(self.alpha_slider, 1, QtCore.Qt.AlignJustify)
+
+        # Organise the main layout
+        layout = QtWidgets.QGridLayout()
+        layout.addLayout(transparency_layout, 0, 0, -1, 1)
         layout.addWidget(self.image_viewer, 0, 1, -1, 1)
         layout.addWidget(self.volume_viewer, 0, 1, -1, 1)
         layout.addWidget(self.image_settings, 0, 2)
@@ -106,3 +117,12 @@ class Histalign(QtWidgets.QWidget):
             )
         )
         self.volume_viewer.setPixmap(QtGui.QPixmap.fromImage(initial_image))
+
+    @QtCore.Slot()
+    def toggle_alpha(self) -> None:
+        value = self.alpha_slider.value()
+        toggled_value = 255 - value
+        if toggled_value > 255 // 2:
+            self.alpha_slider.setValue(255)
+        else:
+            self.alpha_slider.setValue(0)
