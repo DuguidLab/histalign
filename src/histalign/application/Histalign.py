@@ -27,7 +27,8 @@ class Histalign(QtWidgets.QWidget):
 
     def __init__(
         self,
-        file_path: typing.Optional[str] = None,
+        histology_slice_file_path: str,
+        average_volume_file_path: str,
         parent: typing.Optional[QtCore.QObject] = None,
     ) -> None:
         super().__init__(parent)
@@ -35,11 +36,7 @@ class Histalign(QtWidgets.QWidget):
         self.setWindowTitle("Histalign")
 
         image = QtGui.QImage()
-        image.load(
-            "/home/odelree/data/histalign/resources/sub-MM424_exp-38hrb23ce2_conc1x"
-            "/png/A5 mcherry555 mecp488 dapi_image0000_"
-            "470_New 1_maximum_downsampled.png"
-        )
+        image.load(histology_slice_file_path)
         self.image_viewer = ImageViewer(
             pixmap=QtGui.QPixmap.fromImage(image),
             alignment=QtCore.Qt.AlignCenter,
@@ -51,7 +48,7 @@ class Histalign(QtWidgets.QWidget):
             self.image_viewer.transform_image
         )
 
-        self.volume_manager = VolumeManager(file_path)
+        self.volume_manager = VolumeManager(average_volume_file_path)
 
         self.volume_viewer = QtWidgets.QLabel(scaledContents=True)
         self.volume_viewer.setFixedSize(
