@@ -31,10 +31,11 @@ class Histalign(QtWidgets.QWidget):
         average_volume_file_path: str,
         parent: typing.Optional[QtCore.QObject] = None,
     ) -> None:
+        # Initialisation
         super().__init__(parent)
-
         self.setWindowTitle("Histalign")
 
+        # Set up histological slice widget
         image = QtGui.QImage()
         image.load(histology_slice_file_path)
         self.image_viewer = ImageViewer(
@@ -43,19 +44,23 @@ class Histalign(QtWidgets.QWidget):
         )
         self.image_viewer.image = image
 
+        # Set up histological slice settings widget
         self.image_settings = ImageSettings()
         self.image_settings.settings_values_changed.connect(
             self.image_viewer.transform_image
         )
 
+        # Set up volume manager
         self.volume_manager = VolumeManager(average_volume_file_path)
 
+        # Set up volume viewer widget
         self.volume_viewer = QtWidgets.QLabel(scaledContents=True)
         self.volume_viewer.setFixedSize(
             self.volume_manager.average_volume.shape[0] * 2,
             self.volume_manager.average_volume.shape[1] * 2,
         )
 
+        # Set up volume viewer settings widget
         self.volume_settings = VolumeSettings(
             offset_minimum=-self.volume_manager.average_volume.shape[2] // 2,
             offset_maximum=self.volume_manager.average_volume.shape[2] // 2,
@@ -65,21 +70,21 @@ class Histalign(QtWidgets.QWidget):
             self.update_displayed_slice
         )
 
+        # Set up transparency slider (between histological and volume slice)
         self.alpha_slider = QtWidgets.QSlider(minimum=0, maximum=255)
         self.alpha_slider.valueChanged.connect(lambda: self.update_displayed_slice())
         self.alpha_slider.setValue(255 // 2)
 
-        layout = QtWidgets.QGridLayout(
-            sizeConstraint=QtWidgets.QLayout.SetMaximumSize,
-        )
+        # Organise the layout
+        layout = QtWidgets.QGridLayout(sizeConstraint=QtWidgets.QLayout.SetMaximumSize)
         layout.addWidget(self.alpha_slider, 0, 0, -1, 1)
         layout.addWidget(self.image_viewer, 0, 1, -1, 1)
         layout.addWidget(self.volume_viewer, 0, 1, -1, 1)
         layout.addWidget(self.image_settings, 0, 2)
         layout.addWidget(self.volume_settings, 1, 2)
-
         self.setLayout(layout)
 
+        # Retrieve default displayed volume slice
         self.update_displayed_slice()
 
     @QtCore.Slot()
