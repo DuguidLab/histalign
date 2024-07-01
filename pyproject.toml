@@ -39,5 +39,6 @@ dependencies = [
   "numpy",
   "pyside6",
   "pynrrd",
+  "pydantic",
   "vedo",
 ]

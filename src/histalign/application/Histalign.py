@@ -8,121 +8,55 @@ import typing
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application.ImageSettings import ImageSettings
-from histalign.application.ImageViewer import ImageViewer
-from histalign.application.VolumeManager import VolumeManager
-from histalign.application.VolumeSettings import VolumeSettings
+from histalign.application.AlignmentWidget import AlignmentWidget
+from histalign.application.AlphaDockWidget import AlphaDockWidget
+from histalign.application.HistologySettingsWidget import HistologySettingsWidget
+from histalign.application.SettingsDockWidget import SettingsDockWidget
+from histalign.application.VolumeSettingsWidget import VolumeSettingsWidget
 
 
-class Histalign(QtWidgets.QWidget):
-    volume_manager: VolumeManager
-
-    alpha_push_button: QtWidgets.QPushButton
-    alpha_slider: QtWidgets.QSlider
-    image_viewer: ImageViewer
-    image_settings: ImageSettings
-    volume_viewer: QtWidgets.QLabel
-    volume_settings: VolumeSettings
-
-    base_alpha_channel: typing.Optional[np.ndarray] = None
-
+class Histalign(QtWidgets.QMainWindow):
     def __init__(
         self,
         histology_slice_file_path: str,
         average_volume_file_path: str,
+        fullscreen: bool,
         parent: typing.Optional[QtCore.QObject] = None,
     ) -> None:
-        # Initialisation
         super().__init__(parent)
+
         self.setWindowTitle("Histalign")
 
-        # Set up histological slice widget
-        self.image_viewer = ImageViewer(histology_slice_file_path)
+        # Set up alignment widget
+        alignment_widget = AlignmentWidget(self)
+        alignment_widget.load_volume(average_volume_file_path)
+        alignment_widget.load_histological_slice(histology_slice_file_path)
 
-        # Set up histological slice settings widget
-        self.image_settings = ImageSettings()
-        self.image_settings.settings_values_changed.connect(
-            self.image_viewer.transform_pixmap
+        self.setCentralWidget(alignment_widget)
+
+        # Dock widgets
+        self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
+
+        # Set up alpha widget
+        alpha_dock_widget = AlphaDockWidget(self)
+        alpha_dock_widget.alpha_slider.valueChanged.connect(
+            alignment_widget.update_histology_alpha
         )
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, alpha_dock_widget)
 
-        # Set up volume manager
-        self.volume_manager = VolumeManager(average_volume_file_path)
-
-        # Set up volume viewer widget
-        self.volume_viewer = QtWidgets.QLabel(scaledContents=True)
-        self.volume_viewer.setFixedSize(
-            self.volume_manager.average_volume.shape[0] * 2,
-            self.volume_manager.average_volume.shape[1] * 2,
+        # Set up the settings widget
+        settings_dock_widget = SettingsDockWidget()
+        settings_dock_widget.volume_settings_widget.set_offset_spin_box_limits(
+            minimum=-alignment_widget.volume_manager.shape[2] // 2,
+            maximum=alignment_widget.volume_manager.shape[2] // 2,
         )
-
-        # Set up volume viewer settings widget
-        self.volume_settings = VolumeSettings(
-            offset_minimum=-self.volume_manager.average_volume.shape[2] // 2,
-            offset_maximum=self.volume_manager.average_volume.shape[2] // 2,
-            parent=self,
+        settings_dock_widget.volume_settings_widget.values_changed.connect(
+            alignment_widget.reslice_volume
         )
-        self.volume_settings.settings_values_changed.connect(
-            self.update_displayed_slice
+        settings_dock_widget.histology_settings_widget.values_changed.connect(
+            alignment_widget.update_histology_pixmap
         )
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, settings_dock_widget)
 
-        # Set up transparency toggle (between histological and volume slice)
-        self.alpha_push_button = QtWidgets.QPushButton("X")
-        self.alpha_push_button.setMaximumWidth(20)
-        self.alpha_push_button.clicked.connect(self.toggle_alpha)
-
-        # Set up transparency slider (between histological and volume slice)
-        self.alpha_slider = QtWidgets.QSlider(minimum=0, maximum=255)
-        self.alpha_slider.valueChanged.connect(lambda: self.update_displayed_slice())
-        self.alpha_slider.setValue(255 // 2)
-
-        # Set up transparency layout
-        transparency_layout = QtWidgets.QVBoxLayout()
-        transparency_layout.addWidget(self.alpha_push_button, 0, QtCore.Qt.AlignJustify)
-        transparency_layout.addWidget(self.alpha_slider, 1, QtCore.Qt.AlignJustify)
-
-        # Organise the main layout
-        layout = QtWidgets.QGridLayout()
-        layout.addLayout(transparency_layout, 0, 0, -1, 1)
-        layout.addWidget(self.image_viewer, 0, 1, -1, 1)
-        layout.addWidget(self.volume_viewer, 0, 1, -1, 1)
-        layout.addWidget(self.image_settings, 0, 2)
-        layout.addWidget(self.volume_settings, 1, 2)
-        self.setLayout(layout)
-
-        # Retrieve default displayed volume slice
-        self.update_displayed_slice()
-
-    @QtCore.Slot()
-    def update_displayed_slice(self, settings: typing.Optional[dict] = None) -> None:
-        if settings is None:
-            settings = self.volume_settings.settings_values
-
-        new_slice = self.volume_manager.get_slice_from_volume(**settings)
-        initial_image = QtGui.QImage(
-            new_slice.tobytes(),
-            new_slice.shape[1],
-            new_slice.shape[0],
-            QtGui.QImage.Format_Grayscale8,
-        )
-        if self.base_alpha_channel is None:
-            self.base_alpha_channel = np.zeros(
-                (new_slice.shape[0], new_slice.shape[1]), dtype=np.uint8
-            )
-        initial_image.setAlphaChannel(
-            QtGui.QImage(
-                (self.base_alpha_channel + self.alpha_slider.value()).tobytes(),
-                new_slice.shape[1],
-                new_slice.shape[0],
-                QtGui.QImage.Format_Alpha8,
-            )
-        )
-        self.volume_viewer.setPixmap(QtGui.QPixmap.fromImage(initial_image))
-
-    @QtCore.Slot()
-    def toggle_alpha(self) -> None:
-        value = self.alpha_slider.value()
-        toggled_value = 255 - value
-        if toggled_value > 255 // 2:
-            self.alpha_slider.setValue(255)
-        else:
-            self.alpha_slider.setValue(0)
+        if fullscreen:
+            self.showMaximized()

@@ -3,86 +3,66 @@
 # SPDX-License-Identifier: MIT
 
 import math
-import time
 import typing
 
 import nrrd
 import numpy as np
 import vedo
 
+from histalign.application.VolumeSettings import VolumeSettings
+
 
 class VolumeManager:
-    average_volume: vedo.Volume
-    annotation_volume: vedo.Volume
+    def __init__(self) -> None:
+        self._volume = None
 
-    def __init__(self, file_path: str) -> None:
-        self.load_volume(file_path)
+    @property
+    def shape(self):
+        if self._volume is None:
+            raise Exception("Tried accessing shape of volume without a volume loaded.")
 
-    def get_slice_from_volume(
-        self,
-        kind: typing.Literal["normal", "annotation"] = "normal",
-        origin: typing.Optional[tuple[int, int, int]] = None,
-        ml_angle: int = 0,
-        axes: tuple[int, int] = (0, 1),
-        offset: int = 0,
-        **kwargs,
+        return self._volume.shape
+
+    def load_volume(self, file_path: str) -> None:
+        file_extension = file_path.split(".")[-1]
+
+        match file_extension:
+            case "nrrd":
+                # If using NRRD, assume it is 16-bit
+                array = nrrd.read(file_path)[0]
+                array = np.interp(
+                    array, (array.min(), array.max()), (0, 2**8 - 1)
+                ).astype(np.uint8)
+            case "npy":
+                # If using NPY, assume it was already converted to 8-bit
+                array = np.load(file_path)
+            case _:
+                raise Exception("Unknown volume file type.")
+
+        self._volume = vedo.Volume(array)
+
+    def slice_volume(
+        self, settings: typing.Optional[VolumeSettings] = None
     ) -> np.ndarray:
-        kind = kind.lower()
-        if kind == "normal":
-            volume = self.average_volume
-        elif kind == "annotation":
-            if self.annotation_volume is None:
-                raise Exception("No volume for type 'annotation'.")
-            volume = self.annotation_volume
-        else:
-            raise Exception("Invalid volume type.")
+        if settings is None:
+            settings = VolumeSettings()
 
-        if origin is None:
-            origin = volume.center()
+        if settings.origin is None:
+            settings.origin = self._volume.center()
 
-        volume_slice = volume.slice_plane(
-            origin=(
-                *origin[:2],
-                origin[2] + offset,
-            ),
-            normal=self.calculate_normals(ml_angle, axes),
+        slice_mesh = self._volume.slice_plane(
+            origin=(*settings.origin[:-1], settings.origin[-1] + settings.offset),
+            normal=self.calculate_normals(settings.leaning_angle, settings.axes),
             autocrop=True,
         )
 
-        slice_array = volume_slice.pointdata["ImageScalars"].reshape(
-            volume_slice.metadata["shape"]
+        return slice_mesh.pointdata["ImageScalars"].reshape(
+            slice_mesh.metadata["shape"]
         )
-        return slice_array
-
-    def load_volume(
-        self, file_path: str, kind: typing.Literal["normal", "annotation"] = "normal"
-    ) -> None:
-        extension = file_path.split(".")[-1]
-        if extension == "nrrd":
-            # If using NRRD, assume it is 16-bit
-            array = nrrd.read(file_path)[0]
-            array = np.interp(
-                array, (array.min(), array.max()), (0, 2**8 - 1)
-            ).astype(np.uint8)
-        elif extension == "npy":
-            # If using NPY, assume it was already converted to 8-bit
-            array = np.load(file_path)
-        else:
-            raise Exception("Unknown volume file type.")
-
-        volume = vedo.Volume(array)
-
-        kind = kind.lower()
-        if kind == "normal":
-            self.average_volume = volume
-        elif kind == "annotation":
-            self.annotation_volume = volume
-        else:
-            raise Exception("Invalid volume type.")
 
     @staticmethod
-    def calculate_normals(angle: int, axes: tuple[int, int]) -> list[int | float]:
-        normals = [0, 0, 0]
+    def calculate_normals(angle: int, axes: tuple[int, int]) -> list[float]:
+        normals = [0.0] * 3
 
         normals[list({0, 1, 2} - set(axes))[0]] = math.cos(math.radians(angle))
 
