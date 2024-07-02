@@ -13,6 +13,7 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
     settings: VolumeSettings
 
     offset_spin_box: QtWidgets.QSpinBox
+    leaning_angle_spin_box: QtWidgets.QSpinBox
 
     values_changed: QtCore.Signal = QtCore.Signal(VolumeSettings)
 
@@ -34,16 +35,16 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
         self.offset_spin_box.setMaximum(0)
         self.offset_spin_box.valueChanged.connect(self.update_offset)
 
-        leaning_angle_spin_box = QtWidgets.QSpinBox()
-        leaning_angle_spin_box.setMinimum(-45)
-        leaning_angle_spin_box.setMaximum(45)
-        leaning_angle_spin_box.valueChanged.connect(self.update_leaning_angle)
+        self.leaning_angle_spin_box = QtWidgets.QSpinBox()
+        self.leaning_angle_spin_box.setMinimum(-45)
+        self.leaning_angle_spin_box.setMaximum(45)
+        self.leaning_angle_spin_box.valueChanged.connect(self.update_leaning_angle)
 
         layout = QtWidgets.QFormLayout()
         layout.addRow(title)
         layout.addRow(separator)
         layout.addRow("Offset", self.offset_spin_box)
-        layout.addRow("Leaning Angle", leaning_angle_spin_box)
+        layout.addRow("Leaning Angle", self.leaning_angle_spin_box)
 
         self.setLayout(layout)
 
@@ -61,4 +62,11 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
     @QtCore.Slot()
     def update_leaning_angle(self, new_angle: int) -> None:
         self.settings.leaning_angle = new_angle
+        self.values_changed.emit(self.settings)
+
+    @QtCore.Slot()
+    def reset_to_defaults(self) -> None:
+        self.offset_spin_box.setValue(0)
+        self.leaning_angle_spin_box.setValue(0)
+
         self.values_changed.emit(self.settings)

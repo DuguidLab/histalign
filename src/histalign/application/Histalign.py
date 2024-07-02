@@ -8,6 +8,7 @@ import typing
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.application.AlignmentButtonDockWidget import AlignmentButtonDockWidget
 from histalign.application.AlignmentWidget import AlignmentWidget
 from histalign.application.AlphaDockWidget import AlphaDockWidget
 from histalign.application.HistologySettingsWidget import HistologySettingsWidget
@@ -35,6 +36,7 @@ class Histalign(QtWidgets.QMainWindow):
         self.setCentralWidget(alignment_widget)
 
         # Dock widgets
+        self.setCorner(QtCore.Qt.TopRightCorner, QtCore.Qt.RightDockWidgetArea)
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
 
         # Set up alpha widget
@@ -57,6 +59,16 @@ class Histalign(QtWidgets.QMainWindow):
             alignment_widget.update_histology_pixmap
         )
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, settings_dock_widget)
+
+        # Set up alignment buttons
+        alignment_button_dock_widget = AlignmentButtonDockWidget()
+        alignment_button_dock_widget.reset_volume.clicked.connect(
+            settings_dock_widget.volume_settings_widget.reset_to_defaults
+        )
+        alignment_button_dock_widget.reset_histology.clicked.connect(
+            settings_dock_widget.histology_settings_widget.reset_to_defaults
+        )
+        self.addDockWidget(QtCore.Qt.TopDockWidgetArea, alignment_button_dock_widget)
 
         if fullscreen:
             self.showMaximized()
