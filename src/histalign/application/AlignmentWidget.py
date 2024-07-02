@@ -20,6 +20,9 @@ class AlignmentWidget(QtWidgets.QWidget):
     histology_pixmap: QtWidgets.QGraphicsPixmapItem
     histology_image = QtGui.QImage
 
+    volume_scale_ratio_changed = QtCore.Signal(float)
+    histology_scale_ratio_changed = QtCore.Signal(float)
+
     def __init__(self, parent: typing.Optional[QtCore.QObject]) -> None:
         super().__init__(parent)
 
@@ -86,6 +89,7 @@ class AlignmentWidget(QtWidgets.QWidget):
             self.histology_pixmap.pixmap().size(),
             self.volume_pixmap.sceneBoundingRect().size(),
         )
+        self.histology_scale_ratio_changed.emit(scale_ratio)
         initial_transform = QtGui.QTransform().scale(scale_ratio, scale_ratio)
         self.histology_pixmap.setTransform(initial_transform)
 
@@ -162,6 +166,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         volume_scale_ratio = self.calculate_scale_ratio(
             self.volume_pixmap.pixmap().size(), event.size()
         )
+        self.volume_scale_ratio_changed.emit(volume_scale_ratio)
         self.volume_pixmap.setTransform(
             QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
         )
