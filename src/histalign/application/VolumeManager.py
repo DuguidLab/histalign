@@ -48,7 +48,7 @@ class VolumeManager:
             settings = VolumeSettings()
 
         if settings.origin is None:
-            settings.origin = self._volume.center()
+            settings.origin = tuple(self._volume.center())
 
         slice_mesh = self._volume.slice_plane(
             origin=(*settings.origin[:-1], settings.origin[-1] + settings.offset),
