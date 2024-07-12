@@ -17,8 +17,10 @@ from histalign.application.AlphaDockWidget import AlphaDockWidget
 from histalign.application.HistologySettings import HistologySettings
 from histalign.application.HistologySettingsWidget import HistologySettingsWidget
 from histalign.application.SettingsDockWidget import SettingsDockWidget
+from histalign.application.ThumbnailDockWidget import ThumbnailDockWidget
 from histalign.application.VolumeSettings import VolumeSettings
 from histalign.application.VolumeSettingsWidget import VolumeSettingsWidget
+from histalign.application.Workspace import Workspace
 
 
 class Histalign(QtWidgets.QMainWindow):
@@ -26,6 +28,7 @@ class Histalign(QtWidgets.QMainWindow):
 
     def __init__(
         self,
+        image_directory: str,
         histology_slice_file_path: str,
         average_volume_file_path: str,
         fullscreen: bool,
@@ -43,8 +46,19 @@ class Histalign(QtWidgets.QMainWindow):
         self.setCentralWidget(alignment_widget)
 
         # Dock widgets
+        self.setCorner(QtCore.Qt.TopLeftCorner, QtCore.Qt.LeftDockWidgetArea)
+        self.setCorner(QtCore.Qt.BottomLeftCorner, QtCore.Qt.LeftDockWidgetArea)
         self.setCorner(QtCore.Qt.TopRightCorner, QtCore.Qt.RightDockWidgetArea)
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
+
+        # Set up thumbnail widget
+        workspace = Workspace()
+        workspace.parse_image_directory(image_directory)
+
+        thumbnail_dock_widget = ThumbnailDockWidget(self)
+        thumbnail_dock_widget.set_workspace(workspace)
+
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, thumbnail_dock_widget)
 
         # Set up alpha widget
         alpha_dock_widget = AlphaDockWidget(self)
