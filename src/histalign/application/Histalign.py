@@ -17,6 +17,7 @@ from histalign.application.AlignmentWidget import AlignmentWidget
 from histalign.application.AlphaDockWidget import AlphaDockWidget
 from histalign.application.HistologySettings import HistologySettings
 from histalign.application.HistologySettingsWidget import HistologySettingsWidget
+from histalign.application.MainMenuBar import MainMenuBar
 from histalign.application.SettingsDockWidget import SettingsDockWidget
 from histalign.application.ThumbnailDockWidget import ThumbnailDockWidget
 from histalign.application.VolumeSettings import VolumeSettings
@@ -27,6 +28,8 @@ from histalign.application.Workspace import Workspace
 class Histalign(QtWidgets.QMainWindow):
     alignment_parameters: AlignmentParameterAggregator
     workspace: Workspace
+
+    thumbnail_dock_widget: ThumbnailDockWidget
 
     def __init__(
         self,
@@ -40,6 +43,11 @@ class Histalign(QtWidgets.QMainWindow):
         self.logger = logging.getLogger(__name__)
 
         self.setWindowTitle("Histalign")
+        menu_bar = MainMenuBar()
+        menu_bar.create_project.connect(self.create_project)
+        menu_bar.open_project.connect(self.open_project)
+        menu_bar.open_image_directory.connect(self.open_image_directory)
+        self.setMenuBar(menu_bar)
 
         self.workspace = Workspace()
         self.workspace.parse_image_directory(image_directory)
@@ -57,11 +65,13 @@ class Histalign(QtWidgets.QMainWindow):
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
 
         # Set up thumbnail widget
-        thumbnail_dock_widget = ThumbnailDockWidget(self)
-        thumbnail_dock_widget.set_workspace(self.workspace)
-        thumbnail_dock_widget.widget().open_image.connect(self.open_image_in_aligner)
+        self.thumbnail_dock_widget = ThumbnailDockWidget(self)
+        self.thumbnail_dock_widget.set_workspace(self.workspace)
+        self.thumbnail_dock_widget.widget().open_image.connect(
+            self.open_image_in_aligner
+        )
 
-        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, thumbnail_dock_widget)
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.thumbnail_dock_widget)
 
         # Set up alpha widget
         alpha_dock_widget = AlphaDockWidget(self)
@@ -121,6 +131,22 @@ class Histalign(QtWidgets.QMainWindow):
         alignment_widget.histology_scale_ratio_changed.connect(
             lambda x: self.aggregate_settings({"histology_scaling_factor": x})
         )
+
+    @QtCore.Slot()
+    def create_project(self, project_directory: str) -> None:
+        workspace = Workspace(project_directory)
+        self.workspace = workspace
+
+        self.thumbnail_dock_widget.set_workspace(self.workspace)
+
+    @QtCore.Slot()
+    def open_project(self, project_path: str) -> None:
+        pass
+
+    @QtCore.Slot()
+    def open_image_directory(self, image_directory: str) -> None:
+        self.workspace.parse_image_directory(image_directory)
+        self.thumbnail_dock_widget.update_thumbnails()
 
     @QtCore.Slot()
     def open_image_in_aligner(self, index: int) -> None:
