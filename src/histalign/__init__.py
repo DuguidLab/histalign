@@ -12,11 +12,6 @@ from histalign.application import Histalign
 
 @click.command()
 @click.option(
-    "--image-directory",
-    required=True,
-    type=click.STRING,
-)
-@click.option(
     "--average-template",
     required=True,
     type=click.STRING,
@@ -27,14 +22,12 @@ from histalign.application import Histalign
     is_flag=True,
 )
 def histalign(
-    image_directory: str,
     average_template: str,
     fullscreen: bool = False,
 ) -> None:
     app = QtWidgets.QApplication()
 
     window = Histalign(
-        image_directory=image_directory,
         average_volume_file_path=average_template,
         fullscreen=fullscreen,
     )

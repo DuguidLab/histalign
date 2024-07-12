@@ -27,13 +27,12 @@ from histalign.application.Workspace import Workspace
 
 class Histalign(QtWidgets.QMainWindow):
     alignment_parameters: AlignmentParameterAggregator
-    workspace: Workspace
+    workspace: typing.Optional[Workspace]
 
     thumbnail_dock_widget: ThumbnailDockWidget
 
     def __init__(
         self,
-        image_directory: str,
         average_volume_file_path: str,
         fullscreen: bool,
         parent: typing.Optional[QtCore.QObject] = None,
@@ -49,8 +48,7 @@ class Histalign(QtWidgets.QMainWindow):
         menu_bar.open_image_directory.connect(self.open_image_directory)
         self.setMenuBar(menu_bar)
 
-        self.workspace = Workspace()
-        self.workspace.parse_image_directory(image_directory)
+        self.workspace = None
 
         # Set up alignment widget
         alignment_widget = AlignmentWidget(self)
@@ -66,10 +64,6 @@ class Histalign(QtWidgets.QMainWindow):
 
         # Set up thumbnail widget
         self.thumbnail_dock_widget = ThumbnailDockWidget(self)
-        self.thumbnail_dock_widget.set_workspace(self.workspace)
-        self.thumbnail_dock_widget.widget().open_image.connect(
-            self.open_image_in_aligner
-        )
 
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.thumbnail_dock_widget)
 
@@ -138,6 +132,9 @@ class Histalign(QtWidgets.QMainWindow):
         self.workspace = workspace
 
         self.thumbnail_dock_widget.set_workspace(self.workspace)
+        self.thumbnail_dock_widget.widget().open_image.connect(
+            self.open_image_in_aligner
+        )
 
     @QtCore.Slot()
     def open_project(self, project_path: str) -> None:
@@ -145,6 +142,9 @@ class Histalign(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory: str) -> None:
+        if not self.ensure_workspace("open an image directory"):
+            return
+
         self.workspace.parse_image_directory(image_directory)
         self.thumbnail_dock_widget.update_thumbnails()
 
@@ -187,3 +187,11 @@ class Histalign(QtWidgets.QMainWindow):
         new_aggregator = self.alignment_parameters.model_copy(update=updates)
         AlignmentParameterAggregator.model_validate(new_aggregator)
         self.alignment_parameters = new_aggregator
+
+    def ensure_workspace(self, action: str) -> bool:
+        if self.workspace is None:
+            message_box = QtWidgets.QMessageBox(self)
+            message_box.setText(f"You must have a project open in order to {action}.")
+            message_box.open()
+            return False
+        return True
