@@ -62,19 +62,19 @@ class Histalign(QtWidgets.QMainWindow):
         self.setCorner(QtCore.Qt.TopRightCorner, QtCore.Qt.RightDockWidgetArea)
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
 
-        # Set up thumbnail widget
+        # Set up thumbnail widget (left)
         self.thumbnail_dock_widget = ThumbnailDockWidget(self)
 
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.thumbnail_dock_widget)
 
-        # Set up alpha widget
+        # Set up alpha widget (top)
         alpha_dock_widget = AlphaDockWidget(self)
         alpha_dock_widget.alpha_slider.valueChanged.connect(
             alignment_widget.update_histology_alpha
         )
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, alpha_dock_widget)
+        self.addDockWidget(QtCore.Qt.TopDockWidgetArea, alpha_dock_widget)
 
-        # Set up the settings widget
+        # Set up the settings widget (right)
         settings_dock_widget = SettingsDockWidget()
         settings_dock_widget.volume_settings_widget.set_offset_spin_box_limits(
             minimum=-alignment_widget.volume_manager.shape[2] // 2,
@@ -94,7 +94,7 @@ class Histalign(QtWidgets.QMainWindow):
         )
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, settings_dock_widget)
 
-        # Set up alignment buttons
+        # Set up alignment buttons (bottom)
         alignment_button_dock_widget = AlignmentButtonDockWidget()
         alignment_button_dock_widget.save_button.clicked.connect(
             self.save_alignment_parameters
@@ -105,7 +105,7 @@ class Histalign(QtWidgets.QMainWindow):
         alignment_button_dock_widget.reset_histology.clicked.connect(
             settings_dock_widget.histology_settings_widget.reset_to_defaults
         )
-        self.addDockWidget(QtCore.Qt.TopDockWidgetArea, alignment_button_dock_widget)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, alignment_button_dock_widget)
 
         if fullscreen:
             self.showMaximized()
