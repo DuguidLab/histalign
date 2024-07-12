@@ -17,11 +17,6 @@ from histalign.application import Histalign
     type=click.STRING,
 )
 @click.option(
-    "--histology-slice",
-    required=True,
-    type=click.STRING,
-)
-@click.option(
     "--average-template",
     required=True,
     type=click.STRING,
@@ -33,7 +28,6 @@ from histalign.application import Histalign
 )
 def histalign(
     image_directory: str,
-    histology_slice: str,
     average_template: str,
     fullscreen: bool = False,
 ) -> None:
@@ -41,7 +35,6 @@ def histalign(
 
     window = Histalign(
         image_directory=image_directory,
-        histology_slice_file_path=histology_slice,
         average_volume_file_path=average_template,
         fullscreen=fullscreen,
     )

@@ -53,6 +53,17 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
         self.update_histology_pixmap()
 
+    def update_histological_slice(self, array: np.ndarray) -> None:
+        self.histology_image = QtGui.QImage(
+            array.tobytes(),
+            array.shape[1],
+            array.shape[0],
+            QtGui.QImage.Format.Format_Grayscale8,
+        )
+
+        self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
+        self.update_histology_pixmap()
+
     def update_volume_pixmap(
         self, settings: typing.Optional[VolumeSettings] = None
     ) -> None:
@@ -78,6 +89,9 @@ class AlignmentWidget(QtWidgets.QWidget):
     def update_histology_pixmap(
         self, settings: typing.Optional[HistologySettings] = None
     ) -> None:
+        if self.histology_pixmap.pixmap().isNull():
+            return
+
         if settings is None:
             if self._histology_settings is None:
                 settings = HistologySettings()

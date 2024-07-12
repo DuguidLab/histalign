@@ -16,6 +16,7 @@ COLUMN_COUNT: int = 2
 class ThumbnailScrollArea(QtWidgets.QScrollArea):
     thumbnail_labels: list[ThumbnailLabel]
 
+    open_image: QtCore.Signal = QtCore.Signal(int)
     swapped_thumbnails: QtCore.Signal = QtCore.Signal(int, int)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -72,6 +73,11 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
 
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
         match event.type():
+            case QtCore.QEvent.Type.MouseButtonDblClick:
+                widget = watched.childAt(event.position().toPoint())
+                if not isinstance(widget, ThumbnailLabel):
+                    return super().eventFilter(watched, event)
+                self.open_image.emit(widget.index)
             case QtCore.QEvent.Type.MouseButtonPress:
                 self._start_drag_position = event.position().toPoint()
             case QtCore.QEvent.Type.MouseMove:

@@ -70,6 +70,26 @@ class Workspace:
             self._thumbnail_thread = Thread(target=self._generate_thumbnails)
             self._thumbnail_thread.start()
 
+    def get_slice(self, index: int) -> Optional[HistologySlice]:
+        """Returns the `HistologySlice` at `index` or `None`.
+
+        Note that this method returns `None` when the index is out of range.
+
+        This method should not usually be called unless you need to retrieve some
+        information about the slice itself. Instead use `get_image` or `get_thumbnail`
+        if you only want to display the slice.
+
+        Args:
+            index (int): Index of the slice to return.
+
+        Returns:
+            Optional[HistologySlice]: The `HistologySlice` wrapper at `index` or `None`
+                                      if the index is out of range.
+        """
+        if index >= len(self._histology_slices):
+            return None
+        return self._histology_slices[index]
+
     def get_image(self, index: int) -> Optional[np.ndarray]:
         """Returns the image at `index` or `None`.
 

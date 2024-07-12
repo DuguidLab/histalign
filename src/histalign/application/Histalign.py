@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+import logging
 import time
 import typing
 
@@ -25,23 +26,27 @@ from histalign.application.Workspace import Workspace
 
 class Histalign(QtWidgets.QMainWindow):
     alignment_parameters: AlignmentParameterAggregator
+    workspace: Workspace
 
     def __init__(
         self,
         image_directory: str,
-        histology_slice_file_path: str,
         average_volume_file_path: str,
         fullscreen: bool,
         parent: typing.Optional[QtCore.QObject] = None,
     ) -> None:
         super().__init__(parent)
 
+        self.logger = logging.getLogger(__name__)
+
         self.setWindowTitle("Histalign")
+
+        self.workspace = Workspace()
+        self.workspace.parse_image_directory(image_directory)
 
         # Set up alignment widget
         alignment_widget = AlignmentWidget(self)
         alignment_widget.load_volume(average_volume_file_path)
-        alignment_widget.load_histological_slice(histology_slice_file_path)
 
         self.setCentralWidget(alignment_widget)
 
@@ -52,11 +57,9 @@ class Histalign(QtWidgets.QMainWindow):
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
 
         # Set up thumbnail widget
-        workspace = Workspace()
-        workspace.parse_image_directory(image_directory)
-
         thumbnail_dock_widget = ThumbnailDockWidget(self)
-        thumbnail_dock_widget.set_workspace(workspace)
+        thumbnail_dock_widget.set_workspace(self.workspace)
+        thumbnail_dock_widget.widget().open_image.connect(self.open_image_in_aligner)
 
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, thumbnail_dock_widget)
 
@@ -105,14 +108,10 @@ class Histalign(QtWidgets.QMainWindow):
 
         # Alignment parameters aggregator
         volume_size = alignment_widget.volume_pixmap.pixmap().size()
-        histology_size = alignment_widget.histology_pixmap.pixmap().size()
         self.alignment_parameters = AlignmentParameterAggregator(
             volume_file_path=average_volume_file_path,
             volume_pixel_width=volume_size.width(),
             volume_pixel_height=volume_size.height(),
-            histology_file_path=histology_slice_file_path,
-            histology_pixel_width=histology_size.width(),
-            histology_pixel_height=histology_size.height(),
         )
 
         # These need to be connected after instantiating the `alignment_parameters`
@@ -124,19 +123,41 @@ class Histalign(QtWidgets.QMainWindow):
         )
 
     @QtCore.Slot()
+    def open_image_in_aligner(self, index: int) -> None:
+        array = self.workspace.get_image(index)
+        if array is not None:
+            self.centralWidget().update_histological_slice(array)
+            self.update_aggregator(
+                updates={
+                    "histology_file_path": self.workspace.get_slice(index).file_path,
+                }
+            )
+        else:
+            self.logger.error(
+                f"Failed getting image at index {index} from the workspace."
+            )
+
+    @QtCore.Slot()
     def aggregate_settings(
         self, settings: dict | HistologySettings | VolumeSettings
     ) -> None:
         if not isinstance(settings, dict):
             settings = settings.model_dump()
 
-        new_alignment_parameters = self.alignment_parameters.model_copy(update=settings)
-
-        AlignmentParameterAggregator.model_validate(new_alignment_parameters)
-        self.alignment_parameters = new_alignment_parameters
+        self.update_aggregator(settings)
 
     @QtCore.Slot()
     def save_alignment_parameters(self) -> None:
+        # TODO: Disable save button when not histology is open
+        # Don't save settings if there aren't any open images
+        if self.centralWidget().histology_pixmap.pixmap().isNull():
+            return
+
         print(self.alignment_parameters.model_dump_json())
         with open("registration_parameters.json", "w") as json_handle:
             json_handle.write(self.alignment_parameters.model_dump_json())
+
+    def update_aggregator(self, updates: dict[str, typing.Any]) -> None:
+        new_aggregator = self.alignment_parameters.model_copy(update=updates)
+        AlignmentParameterAggregator.model_validate(new_aggregator)
+        self.alignment_parameters = new_aggregator

@@ -15,7 +15,7 @@ class AlignmentParameterAggregator(pydantic.BaseModel):
     volume_pixel_height: int = 500
 
     # Histology
-    histology_file_path: str
+    histology_file_path: str = ""
     rotation_angle: int = 0
     x_translation: int = 0
     y_translation: int = 0
