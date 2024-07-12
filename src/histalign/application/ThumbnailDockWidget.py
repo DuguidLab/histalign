@@ -11,23 +11,13 @@ from histalign.application.Workspace import Workspace
 
 
 class ThumbnailDockWidget(QtWidgets.QDockWidget):
-    workspace: Optional[Workspace]
-
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
-        self.workspace = None
+        self.setWidget(ThumbnailScrollArea())
 
-    def set_workspace(self, workspace: Workspace) -> None:
-        self.workspace = workspace
-
-        thumbnail_scroll_area = ThumbnailScrollArea()
-        thumbnail_scroll_area.populate_thumbnails(self.workspace)
-        thumbnail_scroll_area.swapped_thumbnails.connect(self.workspace.swap_slices)
-
-        self.setWidget(thumbnail_scroll_area)
-
-    def update_thumbnails(self) -> None:
-        self.widget().populate_thumbnails(self.workspace)
+    def update_thumbnails(self, workspace: Workspace) -> None:
+        self.widget().populate_thumbnails(workspace)
+        self.widget().swapped_thumbnails.connect(workspace.swap_slices)

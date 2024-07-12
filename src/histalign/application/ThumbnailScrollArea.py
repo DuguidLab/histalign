@@ -4,8 +4,10 @@
 
 from typing import Optional
 
+import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.application.HistologySlice import THUMBNAIL_DIMENSIONS
 from histalign.application.ThumbnailLabel import ThumbnailLabel
 from histalign.application.Workspace import Workspace
 
@@ -29,6 +31,31 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
 
         self.thumbnail_labels = []
         self._start_drag_position = None
+
+        self._initialise_widget()
+
+    def _initialise_widget(self) -> None:
+        layout = QtWidgets.QGridLayout()
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+
+        placeholder_pixmap = QtGui.QPixmap.fromImage(
+            QtGui.QImage(
+                np.zeros(THUMBNAIL_DIMENSIONS[::-1], dtype=np.uint8).tobytes(),
+                THUMBNAIL_DIMENSIONS[0],
+                THUMBNAIL_DIMENSIONS[1],
+                QtGui.QImage.Format.Format_Alpha8,
+            )
+        )
+        placeholder_thumbnail_label = ThumbnailLabel(0)
+        placeholder_thumbnail_label.setPixmap(placeholder_pixmap)
+        for i in range(COLUMN_COUNT):
+            layout.addWidget(placeholder_thumbnail_label, 0, i)
+            self.thumbnail_labels.append(placeholder_thumbnail_label)
+
+        container_widget = QtWidgets.QWidget()
+        container_widget.setLayout(layout)
+
+        self.setWidget(container_widget)
 
     def populate_thumbnails(self, workspace: Workspace) -> None:
         self.thumbnail_labels.clear()

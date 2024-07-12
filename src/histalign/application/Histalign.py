@@ -131,7 +131,7 @@ class Histalign(QtWidgets.QMainWindow):
         workspace = Workspace(project_directory)
         self.workspace = workspace
 
-        self.thumbnail_dock_widget.set_workspace(self.workspace)
+        # self.thumbnail_dock_widget.set_workspace(self.workspace)
         self.thumbnail_dock_widget.widget().open_image.connect(
             self.open_image_in_aligner
         )
@@ -146,7 +146,7 @@ class Histalign(QtWidgets.QMainWindow):
             return
 
         self.workspace.parse_image_directory(image_directory)
-        self.thumbnail_dock_widget.update_thumbnails()
+        self.thumbnail_dock_widget.update_thumbnails(self.workspace)
 
     @QtCore.Slot()
     def open_image_in_aligner(self, index: int) -> None:
