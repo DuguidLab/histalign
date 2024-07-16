@@ -11,11 +11,12 @@ from threading import Thread
 from typing import Iterator, Optional
 
 import numpy as np
+from PySide6 import QtCore, QtWidgets
 
 from histalign.application.HistologySlice import HistologySlice
 
 
-class Workspace:
+class Workspace(QtWidgets.QWidget):
     """Representation of the current logical workspace.
 
     This class manages the current working directory and keeps track of the images that
@@ -30,13 +31,21 @@ class Workspace:
 
     current_working_directory: str
 
-    def __init__(self, working_directory: Optional[str] = None) -> None:
+    generated_thumbnail: QtCore.Signal = QtCore.Signal(int, np.ndarray)
+
+    def __init__(
+        self,
+        working_directory: Optional[str] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
         """Creates a new workspace instance.
 
         Args:
             working_directory (str, optional): The working directory to use for this
                                                this workspace.
         """
+        super().__init__(parent)
+
         self.current_working_directory = working_directory or os.getcwd()
 
         self._histology_slices: list[HistologySlice] = []
@@ -196,3 +205,12 @@ class Workspace:
 
     def _generate_thumbnail(self, index: int) -> None:
         self._histology_slices[index].generate_thumbnail(self.current_working_directory)
+        # Using .copy() is a workaround to avoid having the thumbnail be deleted
+        # before it can be used by the connected slot (e.g., when loading a different
+        # image directory while thumbnails for the previous one are still being
+        # processed). Thumbnails are meant to be small but this should probably still
+        # be fixed.
+        # TODO: Avoid .copy()
+        self.generated_thumbnail.emit(
+            index, self._histology_slices[index].thumbnail_array.copy()
+        )

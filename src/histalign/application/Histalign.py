@@ -145,6 +145,7 @@ class Histalign(QtWidgets.QMainWindow):
         if not self.ensure_workspace("open an image directory"):
             return
 
+        self.thumbnail_dock_widget.widget().flush_thumbnails()
         self.workspace.parse_image_directory(image_directory)
         self.thumbnail_dock_widget.update_thumbnails(self.workspace)
 

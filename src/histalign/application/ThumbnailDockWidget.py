@@ -19,5 +19,5 @@ class ThumbnailDockWidget(QtWidgets.QDockWidget):
         self.setWidget(ThumbnailScrollArea())
 
     def update_thumbnails(self, workspace: Workspace) -> None:
-        self.widget().populate_thumbnails(workspace)
+        workspace.generated_thumbnail.connect(self.widget().update_thumbnail)
         self.widget().swapped_thumbnails.connect(workspace.swap_slices)

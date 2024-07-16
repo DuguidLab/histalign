@@ -16,8 +16,6 @@ COLUMN_COUNT: int = 2
 
 
 class ThumbnailScrollArea(QtWidgets.QScrollArea):
-    thumbnail_labels: list[ThumbnailLabel]
-
     open_image: QtCore.Signal = QtCore.Signal(int)
     swapped_thumbnails: QtCore.Signal = QtCore.Signal(int, int)
 
@@ -29,9 +27,12 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
 
         self.installEventFilter(self)
 
-        self.thumbnail_labels = []
         self._start_drag_position = None
 
+        self._initialise_widget()
+
+    def flush_thumbnails(self) -> None:
+        self.widget().deleteLater()
         self._initialise_widget()
 
     def _initialise_widget(self) -> None:
@@ -50,42 +51,43 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         placeholder_thumbnail_label.setPixmap(placeholder_pixmap)
         for i in range(COLUMN_COUNT):
             layout.addWidget(placeholder_thumbnail_label, 0, i)
-            self.thumbnail_labels.append(placeholder_thumbnail_label)
-
-        container_widget = QtWidgets.QWidget()
-        container_widget.setLayout(layout)
-
-        self.setWidget(container_widget)
-
-    def populate_thumbnails(self, workspace: Workspace) -> None:
-        self.thumbnail_labels.clear()
-
-        layout = QtWidgets.QGridLayout()
-        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
-
-        for index, thumbnail in enumerate(workspace.iterate_thumbnails()):
-            thumbnail_pixmap = QtGui.QPixmap().fromImage(
-                QtGui.QImage(
-                    thumbnail.tobytes(),
-                    thumbnail.shape[1],
-                    thumbnail.shape[0],
-                    QtGui.QImage.Format.Format_Grayscale8,
-                )
-            )
-            thumbnail_label = ThumbnailLabel(index)
-            thumbnail_label.setPixmap(thumbnail_pixmap)
-
-            layout.addWidget(
-                thumbnail_label, index // COLUMN_COUNT, index % COLUMN_COUNT
-            )
-
-            self.thumbnail_labels.append(thumbnail_label)
 
         container_widget = QtWidgets.QWidget()
         container_widget.setLayout(layout)
         container_widget.setAcceptDrops(True)
 
         self.setWidget(container_widget)
+
+    @QtCore.Slot()
+    def update_thumbnail(self, index: int, thumbnail: np.ndarray) -> None:
+        thumbnail_pixmap = QtGui.QPixmap.fromImage(
+            QtGui.QImage(
+                thumbnail.tobytes(),
+                thumbnail.shape[1],
+                thumbnail.shape[0],
+                QtGui.QImage.Format.Format_Grayscale8,
+            )
+        )
+        thumbnail_label = ThumbnailLabel(index, self.widget())
+        thumbnail_label.setPixmap(thumbnail_pixmap)
+
+        self.replace_grid_cell(index, thumbnail_label)
+
+    def replace_grid_cell(
+        self, index: int, replacement_widget: QtWidgets.QWidget
+    ) -> None:
+        layout = self.widget().layout()
+        old_widget_item = layout.itemAtPosition(
+            index // COLUMN_COUNT, index % COLUMN_COUNT
+        )
+        if old_widget_item is not None:
+            layout.takeAt(
+                layout.indexOf(old_widget_item.widget())
+            ).widget().deleteLater()
+
+        layout.addWidget(
+            replacement_widget, index // COLUMN_COUNT, index % COLUMN_COUNT
+        )
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         available_width = (
@@ -95,7 +97,9 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
             - self.widget().layout().spacing()
         )
 
-        for thumbnail_label in self.thumbnail_labels:
+        for thumbnail_label in self.widget().children():
+            if not isinstance(thumbnail_label, ThumbnailLabel):
+                continue
             thumbnail_label.resize(available_width // 2)
 
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
