@@ -30,6 +30,12 @@ class AlignmentWidget(QtWidgets.QWidget):
 
         self.view = QtWidgets.QGraphicsView(self.scene)
         self.view.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(0, 0, 0, 255)))
+        self.view.setVerticalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.view.setHorizontalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
 
         self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
         self._volume_settings = None
@@ -79,7 +85,7 @@ class AlignmentWidget(QtWidgets.QWidget):
             -self.volume_pixmap.pixmap().width() / 2,
             -self.volume_pixmap.pixmap().height() / 2,
         )
-        self.view.setSceneRect(self.volume_pixmap.boundingRect())
+        self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
 
     @QtCore.Slot()
     def reslice_volume(self, settings: VolumeSettings) -> None:
@@ -187,6 +193,11 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.volume_pixmap.setTransform(
             QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
         )
+        self.volume_pixmap.setOffset(
+            -self.volume_pixmap.pixmap().width() / 2,
+            -self.volume_pixmap.pixmap().height() / 2,
+        )
+        self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
 
         self.update_histology_pixmap()
 
