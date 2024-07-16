@@ -5,9 +5,12 @@
 import sys
 
 import click
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from histalign.application import Histalign
+
+
+PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
 
 
 @click.command()
@@ -22,6 +25,18 @@ def histalign(fullscreen: bool = False) -> None:
     window = Histalign(
         fullscreen=fullscreen,
     )
+
+    screen = app.screens()[0]
+    if (
+        screen.size().width() > PREFERRED_STARTUP_SIZE.width()
+        and screen.size().height() > PREFERRED_STARTUP_SIZE.height()
+    ):
+        window.resize(PREFERRED_STARTUP_SIZE)
+    else:
+        window.resize(
+            round(screen.size().width() * 0.75), round(screen.size().height() * 0.75)
+        )
+
     window.show()
 
     sys.exit(app.exec())
