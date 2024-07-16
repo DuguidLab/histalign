@@ -12,23 +12,14 @@ from histalign.application import Histalign
 
 @click.command()
 @click.option(
-    "--average-template",
-    required=True,
-    type=click.STRING,
-)
-@click.option(
     "--fullscreen",
     required=False,
     is_flag=True,
 )
-def histalign(
-    average_template: str,
-    fullscreen: bool = False,
-) -> None:
+def histalign(fullscreen: bool = False) -> None:
     app = QtWidgets.QApplication()
 
     window = Histalign(
-        average_volume_file_path=average_template,
         fullscreen=fullscreen,
     )
     window.show()

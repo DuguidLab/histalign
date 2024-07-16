@@ -189,20 +189,23 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(alpha_image))
 
     def resizeEvent(self, event) -> None:
-        volume_scale_ratio = self.calculate_scale_ratio(
-            self.volume_pixmap.pixmap().size(),
-            event.size(),
-            self.layout().contentsMargins(),
-        )
-        self.volume_scale_ratio_changed.emit(volume_scale_ratio)
-        self.volume_pixmap.setTransform(
-            QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
-        )
-        self.volume_pixmap.setOffset(
-            -self.volume_pixmap.pixmap().width() / 2,
-            -self.volume_pixmap.pixmap().height() / 2,
-        )
-        self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
+        try:
+            volume_scale_ratio = self.calculate_scale_ratio(
+                self.volume_pixmap.pixmap().size(),
+                event.size(),
+                self.layout().contentsMargins(),
+            )
+            self.volume_scale_ratio_changed.emit(volume_scale_ratio)
+            self.volume_pixmap.setTransform(
+                QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
+            )
+            self.volume_pixmap.setOffset(
+                -self.volume_pixmap.pixmap().width() / 2,
+                -self.volume_pixmap.pixmap().height() / 2,
+            )
+            self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
+        except ZeroDivisionError:
+            return
 
         self.update_histology_pixmap()
 

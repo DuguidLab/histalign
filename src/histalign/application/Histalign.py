@@ -30,10 +30,10 @@ class Histalign(QtWidgets.QMainWindow):
     workspace: typing.Optional[Workspace]
 
     thumbnail_dock_widget: ThumbnailDockWidget
+    settings_dock_widget: SettingsDockWidget
 
     def __init__(
         self,
-        average_volume_file_path: str,
         fullscreen: bool,
         parent: typing.Optional[QtCore.QObject] = None,
     ) -> None:
@@ -46,13 +46,13 @@ class Histalign(QtWidgets.QMainWindow):
         menu_bar.create_project.connect(self.create_project)
         menu_bar.open_project.connect(self.open_project)
         menu_bar.open_image_directory.connect(self.open_image_directory)
+        menu_bar.open_atlas.connect(self.open_atlas_volume)
         self.setMenuBar(menu_bar)
 
         self.workspace = None
 
         # Set up alignment widget
         alignment_widget = AlignmentWidget(self)
-        alignment_widget.load_volume(average_volume_file_path)
 
         self.setCentralWidget(alignment_widget)
 
@@ -75,24 +75,20 @@ class Histalign(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.TopDockWidgetArea, alpha_dock_widget)
 
         # Set up the settings widget (right)
-        settings_dock_widget = SettingsDockWidget()
-        settings_dock_widget.volume_settings_widget.set_offset_spin_box_limits(
-            minimum=-alignment_widget.volume_manager.shape[2] // 2,
-            maximum=alignment_widget.volume_manager.shape[2] // 2,
-        )
-        settings_dock_widget.volume_settings_widget.values_changed.connect(
+        self.settings_dock_widget = SettingsDockWidget()
+        self.settings_dock_widget.volume_settings_widget.values_changed.connect(
             alignment_widget.reslice_volume
         )
-        settings_dock_widget.volume_settings_widget.values_changed.connect(
+        self.settings_dock_widget.volume_settings_widget.values_changed.connect(
             self.aggregate_settings
         )
-        settings_dock_widget.histology_settings_widget.values_changed.connect(
+        self.settings_dock_widget.histology_settings_widget.values_changed.connect(
             alignment_widget.update_histology_pixmap
         )
-        settings_dock_widget.histology_settings_widget.values_changed.connect(
+        self.settings_dock_widget.histology_settings_widget.values_changed.connect(
             self.aggregate_settings
         )
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, settings_dock_widget)
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.settings_dock_widget)
 
         # Set up alignment buttons (bottom)
         alignment_button_dock_widget = AlignmentButtonDockWidget()
@@ -100,10 +96,10 @@ class Histalign(QtWidgets.QMainWindow):
             self.save_alignment_parameters
         )
         alignment_button_dock_widget.reset_volume.clicked.connect(
-            settings_dock_widget.volume_settings_widget.reset_to_defaults
+            self.settings_dock_widget.volume_settings_widget.reset_to_defaults
         )
         alignment_button_dock_widget.reset_histology.clicked.connect(
-            settings_dock_widget.histology_settings_widget.reset_to_defaults
+            self.settings_dock_widget.histology_settings_widget.reset_to_defaults
         )
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, alignment_button_dock_widget)
 
@@ -111,12 +107,7 @@ class Histalign(QtWidgets.QMainWindow):
             self.showMaximized()
 
         # Alignment parameters aggregator
-        volume_size = alignment_widget.volume_pixmap.pixmap().size()
-        self.alignment_parameters = AlignmentParameterAggregator(
-            volume_file_path=average_volume_file_path,
-            volume_pixel_width=volume_size.width(),
-            volume_pixel_height=volume_size.height(),
-        )
+        self.alignment_parameters = AlignmentParameterAggregator()
 
         # These need to be connected after instantiating the `alignment_parameters`
         alignment_widget.volume_scale_ratio_changed.connect(
@@ -158,6 +149,23 @@ class Histalign(QtWidgets.QMainWindow):
         self.thumbnail_dock_widget.widget().flush_thumbnails()
         self.workspace.parse_image_directory(image_directory)
         self.thumbnail_dock_widget.update_thumbnails(self.workspace)
+
+    @QtCore.Slot()
+    def open_atlas_volume(self, volume_path: str) -> None:
+        try:
+            self.centralWidget().load_volume(volume_path)
+        except ValueError:
+            self.logger.error("Could not open atlas volume.")
+            return
+
+        self.update_aggregator(updates={"volume_file_path": volume_path})
+        self.settings_dock_widget.volume_settings_widget.set_offset_spin_box_limits(
+            minimum=-self.centralWidget().volume_manager.shape[2] // 2,
+            maximum=self.centralWidget().volume_manager.shape[2] // 2,
+        )
+        self.centralWidget().resizeEvent(
+            QtGui.QResizeEvent(self.centralWidget().size(), self.centralWidget().size())
+        )
 
     @QtCore.Slot()
     def open_image_in_aligner(self, index: int) -> None:
