@@ -44,6 +44,8 @@ class AlignmentWidget(QtWidgets.QWidget):
 
         self.volume_manager = VolumeManager()
 
+        self.histology_image = QtGui.QImage()
+
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.view)
         self.setLayout(layout)
@@ -166,6 +168,9 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def update_histology_alpha(self, alpha: int) -> None:
+        if self.histology_image.isNull():
+            return
+
         alpha_image = self.histology_image.copy()
         alpha_image.setAlphaChannel(
             QtGui.QImage(
