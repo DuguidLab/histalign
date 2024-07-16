@@ -18,7 +18,7 @@ class AlignmentWidget(QtWidgets.QWidget):
     volume_pixmap: QtWidgets.QGraphicsPixmapItem
     volume_manager: VolumeManager
     histology_pixmap: QtWidgets.QGraphicsPixmapItem
-    histology_image = QtGui.QImage
+    histology_image: QtGui.QImage
 
     volume_scale_ratio_changed = QtCore.Signal(float)
     histology_scale_ratio_changed = QtCore.Signal(float)
