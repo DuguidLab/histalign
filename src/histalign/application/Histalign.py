@@ -138,7 +138,17 @@ class Histalign(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_project(self, project_path: str) -> None:
-        pass
+        try:
+            self.workspace = Workspace.load(project_path)
+        except ValueError:
+            message_box = QtWidgets.QMessageBox(self)
+            message_box.setText(f"Invalid project file.")
+            message_box.open()
+            return
+
+        self.thumbnail_dock_widget.widget().open_image.connect(
+            self.open_image_in_aligner
+        )
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory: str) -> None:
@@ -163,6 +173,10 @@ class Histalign(QtWidgets.QMainWindow):
             self.logger.error(
                 f"Failed getting image at index {index} from the workspace."
             )
+
+    @QtCore.Slot()
+    def save_project(self) -> None:
+        self.workspace.save()
 
     @QtCore.Slot()
     def aggregate_settings(
@@ -196,3 +210,7 @@ class Histalign(QtWidgets.QMainWindow):
             message_box.open()
             return False
         return True
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self.workspace is not None:
+            self.save_project()

@@ -199,6 +199,18 @@ class Workspace(QtWidgets.QWidget):
             self._histology_slices[index1],
         )
 
+    def save(self) -> None:
+        with open(Path(self.current_working_directory) / "project.txt", "w") as _:
+            pass
+
+    @classmethod
+    def load(cls, file_path: str) -> "Workspace":
+        file_path = Path(file_path)
+        if file_path.name != "project.txt":
+            raise ValueError
+
+        return cls(str(file_path.parent))
+
     def _generate_thumbnails(self) -> None:
         with ThreadPoolExecutor(max_workers=4) as executor:
             executor.map(self._generate_thumbnail, range(len(self._histology_slices)))
