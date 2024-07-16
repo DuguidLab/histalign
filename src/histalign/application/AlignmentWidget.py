@@ -102,6 +102,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         scale_ratio = self.calculate_scale_ratio(
             self.histology_pixmap.pixmap().size(),
             self.volume_pixmap.sceneBoundingRect().size(),
+            self.layout().contentsMargins(),
         )
         self.histology_scale_ratio_changed.emit(scale_ratio)
         initial_transform = QtGui.QTransform().scale(scale_ratio, scale_ratio)
@@ -178,7 +179,9 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     def resizeEvent(self, event) -> None:
         volume_scale_ratio = self.calculate_scale_ratio(
-            self.volume_pixmap.pixmap().size(), event.size()
+            self.volume_pixmap.pixmap().size(),
+            event.size(),
+            self.layout().contentsMargins(),
         )
         self.volume_scale_ratio_changed.emit(volume_scale_ratio)
         self.volume_pixmap.setTransform(
@@ -199,9 +202,11 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     @staticmethod
     def calculate_scale_ratio(
-        old_size: QtCore.QSize | QtCore.QSizeF, new_size: QtCore.QSize | QtCore.QSizeF
+        old_size: QtCore.QSize | QtCore.QSizeF,
+        new_size: QtCore.QSize | QtCore.QSizeF,
+        margins: QtCore.QMargins,
     ) -> float:
         return min(
-            new_size.width() / old_size.width(),
-            new_size.height() / old_size.height(),
+            (new_size.width() - margins.left() - margins.right()) / old_size.width(),
+            (new_size.height() - margins.top() - margins.bottom()) / old_size.height(),
         )
