@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+import hashlib
 import logging
 import os
 import time
@@ -24,29 +25,33 @@ class Workspace(QtWidgets.QWidget):
     to the user on the GUI as a series of thumbnails.
 
     Attributes:
+        project_directory (str): The project directory inside of which subdirectories
+                                 are created when working on different image
+                                 directories.
         current_working_directory (str): The current working directory. This is where
-                                         the cache and other project directories are
-                                         created.
+                                         the cache and registration results are stored
+                                         for the current image directory.
     """
 
+    project_directory: str
     current_working_directory: str
 
     generated_thumbnail: QtCore.Signal = QtCore.Signal(int, np.ndarray)
 
     def __init__(
         self,
-        working_directory: Optional[str] = None,
+        project_directory: Optional[str] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         """Creates a new workspace instance.
 
         Args:
-            working_directory (str, optional): The working directory to use for this
+            project_directory (str, optional): The project directory to use for this
                                                this workspace.
         """
         super().__init__(parent)
 
-        self.current_working_directory = working_directory or os.getcwd()
+        self.project_directory = project_directory or os.getcwd()
 
         self._histology_slices: list[HistologySlice] = []
         self._thumbnail_thread: Optional[Thread] = None
@@ -71,6 +76,14 @@ class Workspace(QtWidgets.QWidget):
             generate_thumbnails (bool, optional): Whether to generate and thumbnails for
                                                   the parsed images.
         """
+        current_directory_hash = hashlib.md5(
+            str(Path(directory_path).resolve()).encode("utf-8")
+        ).hexdigest()[:10]
+        self.current_working_directory = str(
+            Path(self.project_directory) / current_directory_hash
+        )
+        os.makedirs(self.current_working_directory, exist_ok=True)
+
         self._histology_slices = [
             HistologySlice(str(path)) for path in Path(directory_path).iterdir()
         ]
@@ -200,7 +213,7 @@ class Workspace(QtWidgets.QWidget):
         )
 
     def save(self) -> None:
-        with open(Path(self.current_working_directory) / "project.txt", "w") as _:
+        with open(Path(self.project_directory) / "project.txt", "w") as _:
             pass
 
     @classmethod
