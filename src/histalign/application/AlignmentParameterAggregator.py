@@ -26,3 +26,4 @@ class AlignmentParameterAggregator(pydantic.BaseModel):
     histology_scaling_factor: float = 1.0
     histology_pixel_width: int = 0
     histology_pixel_height: int = 0
+    downsampling_factor: float = 1.0

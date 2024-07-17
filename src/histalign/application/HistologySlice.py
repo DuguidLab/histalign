@@ -42,6 +42,7 @@ class HistologySlice:
     file_path: str
     image_array: Optional[np.ndarray] = None
     thumbnail_array: Optional[np.ndarray] = None
+    image_downsampling_factor: Optional[int] = None
 
     def __init__(self, file_path: str) -> None:
         """Creates a new wrapper around the image located at `file_path`.
@@ -232,6 +233,7 @@ class HistologySlice:
                 1.0,
                 (np.array(image_array.shape) / DOWNSAMPLE_TARGET_SHAPE).max(),
             )
+        self.image_downsampling_factor = downsampling_factor
         image_array = self.downsample(image_array, downsampling_factor)
 
         image_array = self.normalise_to_8_bit(image_array)

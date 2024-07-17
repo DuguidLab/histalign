@@ -172,9 +172,14 @@ class Histalign(QtWidgets.QMainWindow):
         array = self.workspace.get_image(index)
         if array is not None:
             self.centralWidget().update_histological_slice(array)
+
+            downsampling_factor = self.workspace.get_slice(
+                index
+            ).image_downsampling_factor
             self.update_aggregator(
                 updates={
                     "histology_file_path": self.workspace.get_slice(index).file_path,
+                    "downsampling_factor": downsampling_factor,
                 }
             )
         else:
