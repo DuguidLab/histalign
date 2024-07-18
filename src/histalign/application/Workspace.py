@@ -31,10 +31,13 @@ class Workspace(QtWidgets.QWidget):
         current_working_directory (str): The current working directory. This is where
                                          the cache and registration results are stored
                                          for the current image directory.
+        current_aligner_image_hash (str): Hash of the image currently opened and visible
+                                         in the aligner view.
     """
 
     project_directory: str
     current_working_directory: str
+    current_aligner_image_hash: str
 
     generated_thumbnail: QtCore.Signal = QtCore.Signal(int, np.ndarray)
 

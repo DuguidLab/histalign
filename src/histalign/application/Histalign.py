@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import logging
+import os
 import time
 import typing
 
@@ -173,9 +174,9 @@ class Histalign(QtWidgets.QMainWindow):
         if array is not None:
             self.centralWidget().update_histological_slice(array)
 
-            downsampling_factor = self.workspace.get_slice(
-                index
-            ).image_downsampling_factor
+            slice_ = self.workspace.get_slice(index)
+            self.workspace.current_aligner_image_hash = slice_.hash
+            downsampling_factor = slice_.image_downsampling_factor
             self.update_aggregator(
                 updates={
                     "histology_file_path": self.workspace.get_slice(index).file_path,
@@ -207,8 +208,11 @@ class Histalign(QtWidgets.QMainWindow):
         if self.centralWidget().histology_pixmap.pixmap().isNull():
             return
 
-        print(self.alignment_parameters.model_dump_json())
-        with open("registration_parameters.json", "w") as json_handle:
+        with open(
+            f"{self.workspace.current_working_directory}"
+            f"{os.sep}{self.workspace.current_aligner_image_hash}.json",
+            "w",
+        ) as json_handle:
             json_handle.write(self.alignment_parameters.model_dump_json())
 
     def update_aggregator(self, updates: dict[str, typing.Any]) -> None:
