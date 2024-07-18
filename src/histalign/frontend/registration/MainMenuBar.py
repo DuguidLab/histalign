@@ -7,7 +7,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 
 class MainMenuBar(QtWidgets.QMenuBar):
-    create_project: QtCore.Signal = QtCore.Signal(str)
+    create_project_request: QtCore.Signal = QtCore.Signal()
     open_project: QtCore.Signal = QtCore.Signal(str)
     open_image_directory: QtCore.Signal = QtCore.Signal(str)
     open_atlas: QtCore.Signal = QtCore.Signal(str)
@@ -18,7 +18,7 @@ class MainMenuBar(QtWidgets.QMenuBar):
         file_menu = self.addMenu("&File")
 
         create_workspace_action = QtGui.QAction("Create &project", self)
-        create_workspace_action.triggered.connect(self.create_project_picker)
+        create_workspace_action.triggered.connect(self.create_project_request.emit)
 
         open_workspace_action = QtGui.QAction("Open p&roject", self)
         open_workspace_action.triggered.connect(self.open_project_picker)
@@ -33,28 +33,6 @@ class MainMenuBar(QtWidgets.QMenuBar):
         file_menu.addAction(open_workspace_action)
         file_menu.addAction(open_image_directory_action)
         file_menu.addAction(open_atlas_action)
-
-    @QtCore.Slot()
-    def create_project_picker(self) -> None:
-        directory_path = self.open_directory_picker("Select a new project directory")
-
-        if directory_path == "":
-            return
-
-        try:
-            # Only check for a single item instead of converting iterator to a list
-            next(Path(directory_path).iterdir())
-
-            message_box = QtWidgets.QMessageBox(self.parent())
-            message_box.setText("Project directory should be empty.")
-            message_box.open()
-
-            return
-        except StopIteration:
-            pass
-
-        # Directory is empty, good to go
-        self.create_project.emit(directory_path)
 
     @QtCore.Slot()
     def open_project_picker(self) -> None:

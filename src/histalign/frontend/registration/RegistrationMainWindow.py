@@ -18,6 +18,7 @@ from histalign.frontend.registration.AlignmentButtonDockWidget import (
 from histalign.frontend.registration.AlignmentWidget import AlignmentWidget
 from histalign.frontend.registration.AlphaDockWidget import AlphaDockWidget
 from histalign.frontend.registration.MainMenuBar import MainMenuBar
+from histalign.frontend.registration.ProjectCreateDialog import ProjectCreateDialog
 from histalign.frontend.registration.SettingsDockWidget import SettingsDockWidget
 from histalign.frontend.registration.ThumbnailDockWidget import ThumbnailDockWidget
 
@@ -38,9 +39,11 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
         self.logger = logging.getLogger(__name__)
 
-        self.setWindowTitle("Histalign")
+        self.setWindowTitle("Histalign - Registration")
+
+        # Menu bar
         menu_bar = MainMenuBar()
-        menu_bar.create_project.connect(self.create_project)
+        menu_bar.create_project_request.connect(self.show_project_create_dialog)
         menu_bar.open_project.connect(self.open_project)
         menu_bar.open_image_directory.connect(self.open_image_directory)
         menu_bar.open_atlas.connect(self.open_atlas_volume)
@@ -115,11 +118,16 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         )
 
     @QtCore.Slot()
-    def create_project(self, project_directory: str) -> None:
-        workspace = Workspace(project_directory)
+    def show_project_create_dialog(self) -> None:
+        dialog = ProjectCreateDialog(self)
+        dialog.create_project.connect(self.create_project)
+        dialog.open()
+
+    @QtCore.Slot()
+    def create_project(self, project_settings: dict) -> None:
+        workspace = Workspace(project_settings["directory"])
         self.workspace = workspace
 
-        # self.thumbnail_dock_widget.set_workspace(self.workspace)
         self.thumbnail_dock_widget.widget().open_image.connect(
             self.open_image_in_aligner
         )
