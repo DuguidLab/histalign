@@ -6,7 +6,7 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application.VolumeSettings import VolumeSettings
+from histalign.backend.models.VolumeSettings import VolumeSettings
 
 
 class VolumeSettingsWidget(QtWidgets.QWidget):

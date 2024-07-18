@@ -7,10 +7,8 @@ from typing import Optional
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application.HistologySlice import THUMBNAIL_DIMENSIONS
-from histalign.application.ThumbnailLabel import ThumbnailLabel
-from histalign.application.Workspace import Workspace
-
+from histalign.backend.workspace.HistologySlice import THUMBNAIL_DIMENSIONS
+from histalign.frontend.registration.ThumbnailLabel import ThumbnailLabel
 
 COLUMN_COUNT: int = 2
 

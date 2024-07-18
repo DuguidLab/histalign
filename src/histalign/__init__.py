@@ -5,41 +5,50 @@
 import sys
 
 import click
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application import Histalign
+from histalign.frontend.registration import RegistrationMainWindow
 
 
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
 
 
+@click.group()
+def histalign() -> None:
+    pass
+
+
 @click.command()
 @click.option(
     "--fullscreen",
-    required=False,
     is_flag=True,
 )
-def histalign(fullscreen: bool = False) -> None:
+def register(fullscreen: bool = False) -> None:
     app = QtWidgets.QApplication()
 
-    window = Histalign(
-        fullscreen=fullscreen,
-    )
+    window = RegistrationMainWindow(fullscreen)
 
     screen = app.screens()[0]
-    if (
-        screen.size().width() > PREFERRED_STARTUP_SIZE.width()
-        and screen.size().height() > PREFERRED_STARTUP_SIZE.height()
-    ):
-        window.resize(PREFERRED_STARTUP_SIZE)
-    else:
-        window.resize(
-            round(screen.size().width() * 0.75), round(screen.size().height() * 0.75)
-        )
+    window.resize(get_startup_size(screen))
 
     window.show()
 
     sys.exit(app.exec())
+
+
+def get_startup_size(screen: QtGui.QScreen) -> QtCore.QSize:
+    if (
+        screen.size().width() > PREFERRED_STARTUP_SIZE.width()
+        and screen.size().height() > PREFERRED_STARTUP_SIZE.height()
+    ):
+        return PREFERRED_STARTUP_SIZE
+    else:
+        return QtCore.QSize(
+            round(screen.size().width() * 0.75), round(screen.size().height() * 0.75)
+        )
+
+
+histalign.add_command(register)
 
 
 if __name__ == "__main__":

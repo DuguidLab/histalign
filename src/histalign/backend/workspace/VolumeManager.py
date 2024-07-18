@@ -9,7 +9,7 @@ import nrrd
 import numpy as np
 import vedo
 
-from histalign.application.VolumeSettings import VolumeSettings
+from histalign.backend.models.VolumeSettings import VolumeSettings
 
 
 class VolumeManager:

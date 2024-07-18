@@ -6,7 +6,7 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application.HistologySettings import HistologySettings
+from histalign.backend.models.HistologySettings import HistologySettings
 
 
 class HistologySettingsWidget(QtWidgets.QWidget):

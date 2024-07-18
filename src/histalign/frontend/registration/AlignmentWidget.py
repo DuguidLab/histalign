@@ -7,9 +7,9 @@ import typing
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application.HistologySettings import HistologySettings
-from histalign.application.VolumeManager import VolumeManager
-from histalign.application.VolumeSettings import VolumeSettings
+from histalign.backend.models.HistologySettings import HistologySettings
+from histalign.backend.workspace.VolumeManager import VolumeManager
+from histalign.backend.models.VolumeSettings import VolumeSettings
 
 
 class AlignmentWidget(QtWidgets.QWidget):

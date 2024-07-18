@@ -4,29 +4,25 @@
 
 import logging
 import os
-import time
 import typing
 
-import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.application.AlignmentButtonDockWidget import AlignmentButtonDockWidget
-from histalign.application.AlignmentParameterAggregator import (
-    AlignmentParameterAggregator,
+from histalign.backend.models import AlignmentParameterAggregator
+from histalign.backend.models import HistologySettings
+from histalign.backend.models import VolumeSettings
+from histalign.backend.workspace import Workspace
+from histalign.frontend.registration.AlignmentButtonDockWidget import (
+    AlignmentButtonDockWidget,
 )
-from histalign.application.AlignmentWidget import AlignmentWidget
-from histalign.application.AlphaDockWidget import AlphaDockWidget
-from histalign.application.HistologySettings import HistologySettings
-from histalign.application.HistologySettingsWidget import HistologySettingsWidget
-from histalign.application.MainMenuBar import MainMenuBar
-from histalign.application.SettingsDockWidget import SettingsDockWidget
-from histalign.application.ThumbnailDockWidget import ThumbnailDockWidget
-from histalign.application.VolumeSettings import VolumeSettings
-from histalign.application.VolumeSettingsWidget import VolumeSettingsWidget
-from histalign.application.Workspace import Workspace
+from histalign.frontend.registration.AlignmentWidget import AlignmentWidget
+from histalign.frontend.registration.AlphaDockWidget import AlphaDockWidget
+from histalign.frontend.registration.MainMenuBar import MainMenuBar
+from histalign.frontend.registration.SettingsDockWidget import SettingsDockWidget
+from histalign.frontend.registration.ThumbnailDockWidget import ThumbnailDockWidget
 
 
-class Histalign(QtWidgets.QMainWindow):
+class RegistrationMainWindow(QtWidgets.QMainWindow):
     alignment_parameters: AlignmentParameterAggregator
     workspace: typing.Optional[Workspace]
 

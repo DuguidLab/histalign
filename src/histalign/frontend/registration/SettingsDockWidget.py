@@ -4,10 +4,12 @@
 
 import typing
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
-from histalign.application.HistologySettingsWidget import HistologySettingsWidget
-from histalign.application.VolumeSettingsWidget import VolumeSettingsWidget
+from histalign.frontend.registration.HistologySettingsWidget import (
+    HistologySettingsWidget,
+)
+from histalign.frontend.registration.VolumeSettingsWidget import VolumeSettingsWidget
 
 
 class SettingsDockWidget(QtWidgets.QDockWidget):

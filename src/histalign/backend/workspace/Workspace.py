@@ -14,7 +14,7 @@ from typing import Iterator, Optional
 import numpy as np
 from PySide6 import QtCore, QtWidgets
 
-from histalign.application.HistologySlice import HistologySlice
+from histalign.backend.workspace.HistologySlice import HistologySlice
 
 
 class Workspace(QtWidgets.QWidget):

@@ -4,10 +4,10 @@
 
 from typing import Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtWidgets
 
-from histalign.application.ThumbnailScrollArea import ThumbnailScrollArea
-from histalign.application.Workspace import Workspace
+from histalign.frontend.registration.ThumbnailScrollArea import ThumbnailScrollArea
+from histalign.backend.workspace.Workspace import Workspace
 
 
 class ThumbnailDockWidget(QtWidgets.QDockWidget):
