@@ -26,7 +26,6 @@ from histalign.frontend.registration.ThumbnailDockWidget import ThumbnailDockWid
 
 
 class RegistrationMainWindow(QtWidgets.QMainWindow):
-    alignment_parameters: AlignmentParameterAggregator
     workspace: typing.Optional[Workspace]
 
     thumbnail_dock_widget: ThumbnailDockWidget
@@ -179,11 +178,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.logger.error(
                 f"Failed getting image at index {index} from the workspace."
             )
-
-    def update_aggregator(self, updates: dict[str, typing.Any]) -> None:
-        new_aggregator = self.alignment_parameters.model_copy(update=updates)
-        AlignmentParameterAggregator.model_validate(new_aggregator)
-        self.alignment_parameters = new_aggregator
 
     def ensure_workspace(self, action: str) -> bool:
         if self.workspace is None:
