@@ -26,12 +26,15 @@ def histalign() -> None:
 def register(fullscreen: bool = False) -> None:
     app = QtWidgets.QApplication()
 
-    window = RegistrationMainWindow(fullscreen)
+    window = RegistrationMainWindow()
 
     screen = app.screens()[0]
     window.resize(get_startup_size(screen))
 
-    window.show()
+    if fullscreen:
+        window.showMaximized()
+    else:
+        window.show()
 
     sys.exit(app.exec())
 

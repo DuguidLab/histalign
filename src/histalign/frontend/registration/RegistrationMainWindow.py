@@ -28,14 +28,7 @@ from histalign.frontend.registration.ThumbnailDockWidget import ThumbnailDockWid
 class RegistrationMainWindow(QtWidgets.QMainWindow):
     workspace: typing.Optional[Workspace]
 
-    thumbnail_dock_widget: ThumbnailDockWidget
-    settings_dock_widget: SettingsDockWidget
-
-    def __init__(
-        self,
-        fullscreen: bool,
-        parent: typing.Optional[QtCore.QObject] = None,
-    ) -> None:
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         self.logger = logging.getLogger(__name__)
@@ -96,8 +89,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         )
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, alignment_button_dock_widget)
 
-        if fullscreen:
-            self.showMaximized()
 
     @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
