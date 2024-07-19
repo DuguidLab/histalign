@@ -6,4 +6,5 @@ from histalign.backend.models.AlignmentParameterAggregator import (
     AlignmentParameterAggregator,
 )
 from histalign.backend.models.HistologySettings import HistologySettings
+from histalign.backend.models.ProjectSettings import ProjectSettings
 from histalign.backend.models.VolumeSettings import VolumeSettings
