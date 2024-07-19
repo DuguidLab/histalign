@@ -9,15 +9,21 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Thread
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 import numpy as np
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore
 
+from histalign.backend.ccf.allen_downloads import get_atlas_path
+from histalign.backend.models import (
+    AlignmentParameterAggregator,
+    HistologySettings,
+    VolumeSettings,
+)
 from histalign.backend.workspace.HistologySlice import HistologySlice
 
 
-class Workspace(QtWidgets.QWidget):
+class Workspace(QtCore.QObject):
     """Representation of the current logical workspace.
 
     This class manages the current working directory and keeps track of the images that
@@ -37,14 +43,17 @@ class Workspace(QtWidgets.QWidget):
 
     project_directory: str
     current_working_directory: str
-    current_aligner_image_hash: str
+    current_aligner_image_hash: Optional[str] = None
+    atlas_resolution: int
+    alignment_parameters: AlignmentParameterAggregator
 
     generated_thumbnail: QtCore.Signal = QtCore.Signal(int, np.ndarray)
 
     def __init__(
         self,
+        atlas_resolution: int,
         project_directory: Optional[str] = None,
-        parent: Optional[QtWidgets.QWidget] = None,
+        parent: Optional[QtCore.QObject] = None,
     ) -> None:
         """Creates a new workspace instance.
 
@@ -54,7 +63,12 @@ class Workspace(QtWidgets.QWidget):
         """
         super().__init__(parent)
 
+        self.atlas_resolution = atlas_resolution
         self.project_directory = project_directory or os.getcwd()
+
+        self.alignment_parameters = AlignmentParameterAggregator(
+            volume_file_path=get_atlas_path(atlas_resolution),
+        )
 
         self._histology_slices: list[HistologySlice] = []
         self._thumbnail_thread: Optional[Thread] = None
@@ -132,10 +146,21 @@ class Workspace(QtWidgets.QWidget):
         if index >= len(self._histology_slices):
             return None
 
-        while True:
-            if self._histology_slices[index].image_array is None:
-                self._histology_slices[index].load_image(self.current_working_directory)
-            return self._histology_slices[index].image_array
+        if self._histology_slices[index].image_array is None:
+            self._histology_slices[index].load_image(self.current_working_directory)
+
+        histology_slice = self._histology_slices[index]
+
+        self.current_aligner_image_hash = histology_slice.hash
+
+        self._update_aggregator(
+            updates={
+                "histology_file_path": histology_slice.file_path,
+                "downsampling_factor": histology_slice.image_downsampling_factor,
+            }
+        )
+
+        return histology_slice.image_array
 
     def iterate_images(self) -> Iterator[np.ndarray]:
         """Returns an iterator over the parsed images.
@@ -227,6 +252,28 @@ class Workspace(QtWidgets.QWidget):
 
         return cls(str(file_path.parent))
 
+    @QtCore.Slot()
+    def aggregate_settings(
+        self, settings: dict | HistologySettings | VolumeSettings
+    ) -> None:
+        if isinstance(settings, HistologySettings) or isinstance(
+            settings, VolumeSettings
+        ):
+            settings = settings.model_dump()
+
+        self._update_aggregator(settings)
+
+    @QtCore.Slot()
+    def save_alignment(self) -> None:
+        if self.current_aligner_image_hash is None:
+            return
+
+        with open(
+            f"{self.current_working_directory}{os.sep}{self.current_aligner_image_hash}.json",
+            "w",
+        ) as handle:
+            handle.write(self.alignment_parameters.model_dump_json())
+
     def _generate_thumbnails(self) -> None:
         with ThreadPoolExecutor(max_workers=4) as executor:
             executor.map(self._generate_thumbnail, range(len(self._histology_slices)))
@@ -242,3 +289,8 @@ class Workspace(QtWidgets.QWidget):
         self.generated_thumbnail.emit(
             index, self._histology_slices[index].thumbnail_array.copy()
         )
+
+    def _update_aggregator(self, updates: dict[str, Any]) -> None:
+        new_aggregator = self.alignment_parameters.model_copy(update=updates)
+        AlignmentParameterAggregator.model_validate(new_aggregator)
+        self.alignment_parameters = new_aggregator

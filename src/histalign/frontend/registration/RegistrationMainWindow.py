@@ -3,14 +3,12 @@
 # SPDX-License-Identifier: MIT
 
 import logging
-import os
 import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend.ccf.allen_downloads import get_atlas_path
 from histalign.backend.models import AlignmentParameterAggregator
-from histalign.backend.models import HistologySettings
-from histalign.backend.models import VolumeSettings
 from histalign.backend.workspace import Workspace
 from histalign.frontend.registration.AlignmentButtonDockWidget import (
     AlignmentButtonDockWidget,
@@ -79,22 +77,15 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.settings_dock_widget.volume_settings_widget.values_changed.connect(
             alignment_widget.reslice_volume
         )
-        self.settings_dock_widget.volume_settings_widget.values_changed.connect(
-            self.aggregate_settings
-        )
         self.settings_dock_widget.histology_settings_widget.values_changed.connect(
             alignment_widget.update_histology_pixmap
         )
-        self.settings_dock_widget.histology_settings_widget.values_changed.connect(
-            self.aggregate_settings
-        )
+
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.settings_dock_widget)
 
         # Set up alignment buttons (bottom)
         alignment_button_dock_widget = AlignmentButtonDockWidget()
-        alignment_button_dock_widget.save_button.clicked.connect(
-            self.save_alignment_parameters
-        )
+        alignment_button_dock_widget.save_button.setEnabled(False)
         alignment_button_dock_widget.reset_volume.clicked.connect(
             self.settings_dock_widget.volume_settings_widget.reset_to_defaults
         )
@@ -106,17 +97,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         if fullscreen:
             self.showMaximized()
 
-        # Alignment parameters aggregator
-        self.alignment_parameters = AlignmentParameterAggregator()
-
-        # These need to be connected after instantiating the `alignment_parameters`
-        alignment_widget.volume_scale_ratio_changed.connect(
-            lambda x: self.aggregate_settings({"volume_scaling_factor": x})
-        )
-        alignment_widget.histology_scale_ratio_changed.connect(
-            lambda x: self.aggregate_settings({"histology_scaling_factor": x})
-        )
-
     @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
         dialog = ProjectCreateDialog(self)
@@ -125,8 +105,13 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def create_project(self, project_settings: dict) -> None:
-        workspace = Workspace(project_settings["directory"])
+        workspace = Workspace(
+            project_settings["resolution"], project_settings["directory"]
+        )
         self.workspace = workspace
+        self.connect_workspace()
+
+        self.open_atlas_volume(get_atlas_path(project_settings["resolution"]))
 
         self.thumbnail_dock_widget.widget().open_image.connect(
             self.open_image_in_aligner
@@ -136,6 +121,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     def open_project(self, project_path: str) -> None:
         try:
             self.workspace = Workspace.load(project_path)
+            self.connect_workspace()
         except ValueError:
             message_box = QtWidgets.QMessageBox(self)
             message_box.setText(f"Invalid project file.")
@@ -163,7 +149,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.logger.error("Could not open atlas volume.")
             return
 
-        self.update_aggregator(updates={"volume_file_path": volume_path})
+        self.findChild(AlignmentWidget).volume_scale_ratio_changed.connect(
+            lambda x: self.workspace.aggregate_settings({"volume_scaling_factor": x})
+        )
         self.settings_dock_widget.volume_settings_widget.set_offset_spin_box_limits(
             minimum=-self.centralWidget().volume_manager.shape[2] // 2,
             maximum=self.centralWidget().volume_manager.shape[2] // 2,
@@ -177,16 +165,12 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         array = self.workspace.get_image(index)
         if array is not None:
             self.centralWidget().update_histological_slice(array)
-
-            slice_ = self.workspace.get_slice(index)
-            self.workspace.current_aligner_image_hash = slice_.hash
-            downsampling_factor = slice_.image_downsampling_factor
-            self.update_aggregator(
-                updates={
-                    "histology_file_path": self.workspace.get_slice(index).file_path,
-                    "downsampling_factor": downsampling_factor,
-                }
+            self.findChild(AlignmentWidget).histology_scale_ratio_changed.connect(
+                lambda x: self.workspace.aggregate_settings(
+                    {"histology_scaling_factor": x}
+                )
             )
+            self.findChild(AlignmentButtonDockWidget).save_button.setEnabled(True)
         else:
             self.logger.error(
                 f"Failed getting image at index {index} from the workspace."
@@ -195,29 +179,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def save_project(self) -> None:
         self.workspace.save()
-
-    @QtCore.Slot()
-    def aggregate_settings(
-        self, settings: dict | HistologySettings | VolumeSettings
-    ) -> None:
-        if not isinstance(settings, dict):
-            settings = settings.model_dump()
-
-        self.update_aggregator(settings)
-
-    @QtCore.Slot()
-    def save_alignment_parameters(self) -> None:
-        # TODO: Disable save button when not histology is open
-        # Don't save settings if there aren't any open images
-        if self.centralWidget().histology_pixmap.pixmap().isNull():
-            return
-
-        with open(
-            f"{self.workspace.current_working_directory}"
-            f"{os.sep}{self.workspace.current_aligner_image_hash}.json",
-            "w",
-        ) as json_handle:
-            json_handle.write(self.alignment_parameters.model_dump_json())
 
     def update_aggregator(self, updates: dict[str, typing.Any]) -> None:
         new_aggregator = self.alignment_parameters.model_copy(update=updates)
@@ -231,6 +192,20 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             message_box.open()
             return False
         return True
+
+    def connect_workspace(self) -> None:
+        alignment_button_widget = self.findChild(AlignmentButtonDockWidget)
+        alignment_button_widget.save_button.clicked.connect(
+            self.workspace.save_alignment
+        )
+
+        settings_widget = self.findChild(SettingsDockWidget)
+        settings_widget.volume_settings_widget.values_changed.connect(
+            self.workspace.aggregate_settings
+        )
+        settings_widget.histology_settings_widget.values_changed.connect(
+            self.workspace.aggregate_settings
+        )
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         if self.workspace is not None:
