@@ -23,7 +23,7 @@ class AlignmentWidget(QtWidgets.QWidget):
     volume_scale_ratio_changed = QtCore.Signal(float)
     histology_scale_ratio_changed = QtCore.Signal(float)
 
-    def __init__(self, parent: typing.Optional[QtCore.QObject]) -> None:
+    def __init__(self, parent: typing.Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         self.scene = QtWidgets.QGraphicsScene(self)
