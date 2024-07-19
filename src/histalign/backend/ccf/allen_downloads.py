@@ -11,16 +11,22 @@ import allensdk
 from PySide6 import QtCore
 
 
+ALLOWED_RESOLUTIONS = (10, 25, 50, 100)
 BASE_ATLAS_URL = (
     "https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf"
 )
 
 
 def download_atlas(
-    resolution: Literal[10, 25, 50, 100],
-    atlas_type: Literal["average_volume", "ara_nissl"] = "average_volume",
+    resolution: int,
+    atlas_type: Literal["average_template", "ara_nissl"] = "average_template",
     data_directory: Optional[str] = None,
 ) -> str:
+    if resolution not in ALLOWED_RESOLUTIONS:
+        raise ValueError(
+            f"Invalid resolution. Allowed: {ALLOWED_RESOLUTIONS}, got {resolution}."
+        )
+
     if not data_directory:
         data_directory = QtCore.QStandardPaths.standardLocations(
             QtCore.QStandardPaths.StandardLocation.GenericDataLocation
