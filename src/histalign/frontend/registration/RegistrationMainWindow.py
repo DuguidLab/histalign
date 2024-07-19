@@ -18,6 +18,7 @@ from histalign.frontend.registration.AlphaDockWidget import AlphaDockWidget
 from histalign.frontend.registration.dialogs import (
     NoActiveProjectDialog,
     ProjectCreateDialog,
+    SaveProjectConfirmationDialog,
 )
 from histalign.frontend.registration.MainMenuBar import MainMenuBar
 from histalign.frontend.registration.SettingsDockWidget import SettingsDockWidget
@@ -179,10 +180,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
                 f"Failed getting image at index {index} from the workspace."
             )
 
-    @QtCore.Slot()
-    def save_project(self) -> None:
-        self.workspace.save()
-
     def update_aggregator(self, updates: dict[str, typing.Any]) -> None:
         new_aggregator = self.alignment_parameters.model_copy(update=updates)
         AlignmentParameterAggregator.model_validate(new_aggregator)
@@ -211,4 +208,14 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         if self.workspace is not None:
-            self.save_project()
+            dialog = SaveProjectConfirmationDialog(self)
+            result = dialog.exec()
+
+            match result:
+                case QtWidgets.QMessageBox.Save:
+                    self.workspace.save()
+                    event.accept()
+                case QtWidgets.QMessageBox.Discard:
+                    event.accept()
+                case QtWidgets.QMessageBox.Cancel:
+                    event.ignore()

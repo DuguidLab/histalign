@@ -128,3 +128,17 @@ class ProjectCreateDialog(QtWidgets.QDialog):
             }
         )
         self.close()
+
+
+class SaveProjectConfirmationDialog(QtWidgets.QMessageBox):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setWindowTitle("Save project")
+        self.setText("Do you want to save your project?")
+        self.setStandardButtons(
+            QtWidgets.QMessageBox.Save
+            | QtWidgets.QMessageBox.Discard
+            | QtWidgets.QMessageBox.Cancel
+        )
+        self.setIcon(QtWidgets.QMessageBox.Question)
