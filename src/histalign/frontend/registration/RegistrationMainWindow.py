@@ -15,8 +15,11 @@ from histalign.frontend.registration.AlignmentButtonDockWidget import (
 )
 from histalign.frontend.registration.AlignmentWidget import AlignmentWidget
 from histalign.frontend.registration.AlphaDockWidget import AlphaDockWidget
+from histalign.frontend.registration.dialogs import (
+    NoActiveProjectDialog,
+    ProjectCreateDialog,
+)
 from histalign.frontend.registration.MainMenuBar import MainMenuBar
-from histalign.frontend.registration.ProjectCreateDialog import ProjectCreateDialog
 from histalign.frontend.registration.SettingsDockWidget import SettingsDockWidget
 from histalign.frontend.registration.ThumbnailDockWidget import ThumbnailDockWidget
 
@@ -100,7 +103,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
         dialog = ProjectCreateDialog(self)
-        dialog.create_project.connect(self.create_project)
+        dialog.submitted.connect(self.create_project)
         dialog.open()
 
     @QtCore.Slot()
@@ -187,9 +190,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     def ensure_workspace(self, action: str) -> bool:
         if self.workspace is None:
-            message_box = QtWidgets.QMessageBox(self)
-            message_box.setText(f"You must have a project open in order to {action}.")
-            message_box.open()
+            dialog = NoActiveProjectDialog(action, self)
+            dialog.open()
             return False
         return True
 
