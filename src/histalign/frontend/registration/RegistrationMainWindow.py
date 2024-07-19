@@ -44,10 +44,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
         # Menu bar
         menu_bar = MainMenuBar()
-        menu_bar.create_project_request.connect(self.show_project_create_dialog)
-        menu_bar.open_project.connect(self.open_project)
-        menu_bar.open_image_directory.connect(self.open_image_directory)
-        menu_bar.open_atlas.connect(self.open_atlas_volume)
+        menu_bar.create_project_requested.connect(self.show_project_create_dialog)
+        menu_bar.open_project_requested.connect(self.open_project)
+        menu_bar.open_image_directory_requested.connect(self.open_image_directory)
         self.setMenuBar(menu_bar)
 
         self.workspace = None
@@ -120,6 +119,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.open_image_in_aligner
         )
 
+        self.menuBar().opened_project()
+
     @QtCore.Slot()
     def open_project(self, project_path: str) -> None:
         try:
@@ -134,6 +135,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.thumbnail_dock_widget.widget().open_image.connect(
             self.open_image_in_aligner
         )
+
+        self.menuBar().opened_project()
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory: str) -> None:
