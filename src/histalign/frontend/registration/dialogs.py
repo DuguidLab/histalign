@@ -8,6 +8,15 @@ from typing import Optional
 from PySide6 import QtCore, QtWidgets
 
 
+class InvalidProjectFileDialog(QtWidgets.QMessageBox):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setWindowTitle("Invalid project file")
+        self.setText("The selected project file is not valid.")
+        self.setIcon(QtWidgets.QMessageBox.Error)
+
+
 class NoActiveProjectDialog(QtWidgets.QMessageBox):
     def __init__(
         self, action: Optional[str] = None, parent: Optional[QtWidgets.QWidget] = None
