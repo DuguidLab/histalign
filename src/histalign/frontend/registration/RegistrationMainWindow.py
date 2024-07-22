@@ -237,6 +237,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_image_in_aligner(self, index: int) -> None:
+        if self.workspace.current_aligner_image_index == index:
+            return
+
         image = self.workspace.get_image(index)
         if image is None:
             self.logger.error(
