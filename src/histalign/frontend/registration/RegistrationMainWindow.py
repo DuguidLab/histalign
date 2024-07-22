@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import logging
+import os
 from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -37,8 +38,10 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         # Menu bar
         menu_bar = MainMenuBar()
         menu_bar.create_project_requested.connect(self.show_project_create_dialog)
-        menu_bar.open_project_requested.connect(self.open_project)
-        menu_bar.open_image_directory_requested.connect(self.open_image_directory)
+        menu_bar.open_project_requested.connect(self.show_project_open_dialog)
+        menu_bar.open_image_directory_requested.connect(
+            self.show_open_image_directory_dialog
+        )
 
         self.setMenuBar(menu_bar)
 
@@ -122,10 +125,36 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
                 case QtWidgets.QMessageBox.Cancel:
                     event.ignore()
 
+    @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
         dialog = ProjectCreateDialog(self)
         dialog.submitted.connect(self.create_project)
         dialog.open()
+
+    @QtCore.Slot()
+    def show_project_open_dialog(self) -> None:
+        project_file, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select a project file",
+            os.getcwd(),
+            "Project (project.json)",
+            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
+        )
+
+        if project_file != "":
+            self.open_project(project_file)
+
+    @QtCore.Slot()
+    def show_open_image_directory_dialog(self) -> None:
+        image_directory = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select an image directory",
+            os.getcwd(),
+            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
+        )
+
+        if image_directory != "":
+            self.open_image_directory(image_directory)
 
     @QtCore.Slot()
     def create_project(self, project_settings: dict) -> None:
