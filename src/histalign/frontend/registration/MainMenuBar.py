@@ -52,7 +52,7 @@ class MainMenuBar(QtWidgets.QMenuBar):
             self,
             "Select a project file",
             os.getcwd(),
-            "Project (*.txt)",
+            "Project (project.json)",
             options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
         )
 

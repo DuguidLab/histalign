@@ -132,8 +132,8 @@ class ProjectCreateDialog(QtWidgets.QDialog):
     def submit(self) -> None:
         self.submitted.emit(
             {
-                "resolution": int(self.resolution_widget.currentText()),
-                "directory": self.project_path_widget.text(),
+                "project_directory_path": self.project_path_widget.text(),
+                "atlas_resolution": int(self.resolution_widget.currentText()),
             }
         )
         self.close()
