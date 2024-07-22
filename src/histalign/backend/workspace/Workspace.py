@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 import time
 from typing import Any, Optional
 
@@ -58,6 +58,7 @@ class Workspace(QtCore.QObject):
 
         self._histology_slices: list[HistologySlice] = []
         self._thumbnail_thread: Optional[Thread] = None
+        self._stop_event = Event()
 
     def get_image(self, index: int) -> Optional[np.ndarray]:
         if index >= len(self._histology_slices):
@@ -156,6 +157,9 @@ class Workspace(QtCore.QObject):
         self._thumbnail_thread = Thread(target=self._generate_thumbnails)
         self._thumbnail_thread.start()
 
+    def stop(self) -> None:
+        self._stop_event.set()
+
     @QtCore.Slot()
     def save_alignment(self) -> None:
         if self.current_aligner_image_hash is None:
@@ -183,6 +187,9 @@ class Workspace(QtCore.QObject):
             executor.map(self._generate_thumbnail, range(len(self._histology_slices)))
 
     def _generate_thumbnail(self, index: int) -> None:
+        if self._stop_event.is_set():
+            return
+
         self._histology_slices[index].generate_thumbnail(self.current_working_directory)
 
         # Using .copy() is a workaround to avoid having the thumbnail be deleted

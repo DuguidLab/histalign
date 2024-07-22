@@ -125,6 +125,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
                 case QtWidgets.QMessageBox.Cancel:
                     event.ignore()
 
+            self.workspace.stop()
+
     @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
         if self.workspace is not None:
