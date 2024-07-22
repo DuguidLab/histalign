@@ -127,12 +127,26 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
+        if self.workspace is not None:
+            match SaveProjectConfirmationDialog(self).exec():
+                case QtWidgets.QMessageBox.Save:
+                    self.workspace.save()
+                case QtWidgets.QMessageBox.Cancel:
+                    return
+
         dialog = ProjectCreateDialog(self)
         dialog.submitted.connect(self.create_project)
         dialog.open()
 
     @QtCore.Slot()
     def show_project_open_dialog(self) -> None:
+        if self.workspace is not None:
+            match SaveProjectConfirmationDialog(self).exec():
+                case QtWidgets.QMessageBox.Save:
+                    self.workspace.save()
+                case QtWidgets.QMessageBox.Cancel:
+                    return
+
         project_file, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Select a project file",
