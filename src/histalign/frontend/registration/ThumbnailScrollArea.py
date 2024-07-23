@@ -21,6 +21,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         super().__init__(parent)
 
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.setWidgetResizable(True)
 
         self.installEventFilter(self)
