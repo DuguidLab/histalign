@@ -244,3 +244,6 @@ class HistologySlice:
         )
 
         return image_array
+
+    def __eq__(self, other: "HistologySlice") -> bool:
+        return self.hash == other.hash

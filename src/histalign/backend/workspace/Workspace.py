@@ -108,6 +108,7 @@ class Workspace(QtCore.QObject):
             self._histology_slices[index2],
             self._histology_slices[index1],
         )
+        self.save_order()
 
     def save(self) -> None:
         with open(f"{self.project_directory_path}{os.sep}project.json", "w") as handle:
@@ -120,6 +121,13 @@ class Workspace(QtCore.QObject):
                 "current_aligner_image_index": self.current_aligner_image_index,
             }
             json.dump(settings, handle)
+
+    def save_order(self, file_path: Optional[str] = None) -> None:
+        if file_path is None:
+            file_path = f"{self.current_working_directory}{os.sep}metadata.json"
+
+        with open(file_path, "w") as handle:
+            json.dump(self._serialise_slices(), handle)
 
     @staticmethod
     def load(file_path) -> "Workspace":
@@ -149,10 +157,42 @@ class Workspace(QtCore.QObject):
         os.makedirs(self.current_working_directory, exist_ok=True)
 
         # TODO: Filter paths to only valid images extensions
-        self._histology_slices = [
-            HistologySlice(str(path)) for path in Path(directory_path).iterdir()
-        ]
-        self.last_parsed_directory = directory_path
+        metadata_file = f"{self.current_working_directory}{os.sep}metadata.json"
+        if directory_path == self.last_parsed_directory:
+            try:
+                with open(metadata_file) as handle:
+                    contents = json.load(handle)
+            except FileNotFoundError:
+                self.logger.error(f"Could not find metadata file at '{metadata_file}'.")
+                self.last_parsed_directory = None
+                return self.parse_image_directory(directory_path)
+
+            contents_histology_slices = (
+                self._histology_slices or self._deserialise_slices(contents)
+            )
+
+            temp_histology_slices = [
+                HistologySlice(str(path)) for path in Path(directory_path).iterdir()
+            ]
+
+            # Remove slices if they were removed from the directory
+            i = 0
+            while i < len(contents_histology_slices):
+                if contents_histology_slices[i] not in temp_histology_slices:
+                    contents_histology_slices.pop(i)
+                else:
+                    temp_histology_slices.remove(contents_histology_slices[i])
+                    i += 1
+
+            # Add remaining slices to the end in arbitrary order
+            self._histology_slices = contents_histology_slices + temp_histology_slices
+        else:
+            self._histology_slices = [
+                HistologySlice(str(path)) for path in Path(directory_path).iterdir()
+            ]
+            self.last_parsed_directory = directory_path
+
+        self.save_order(metadata_file)
 
         self._thumbnail_thread = Thread(target=self._generate_thumbnails)
         self._thumbnail_thread.start()
@@ -201,3 +241,10 @@ class Workspace(QtCore.QObject):
         self.thumbnail_generated.emit(
             index, self._histology_slices[index].thumbnail_array.copy()
         )
+
+    def _serialise_slices(self) -> list[str]:
+        return [histology_slice.file_path for histology_slice in self._histology_slices]
+
+    @staticmethod
+    def _deserialise_slices(path_list: list[str]) -> list[HistologySlice]:
+        return [HistologySlice(file_path) for file_path in path_list]
