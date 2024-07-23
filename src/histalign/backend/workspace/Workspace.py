@@ -29,13 +29,12 @@ from histalign.backend.workspace.HistologySlice import HistologySlice
 class Workspace(QtCore.QObject):
     project_directory_path: str
     current_working_directory: str
-    atlas_file_path: str
     atlas_resolution: int
     last_parsed_directory: Optional[str] = None
 
     current_aligner_image_hash: Optional[str] = None
     current_aligner_image_index: Optional[int] = None
-    alignment_parameters: AlignmentParameterAggregator
+    alignment_parameters: AlignmentParameterAggregator = AlignmentParameterAggregator()
 
     thumbnail_generated: QtCore.Signal = QtCore.Signal(int, np.ndarray)
 
@@ -49,12 +48,7 @@ class Workspace(QtCore.QObject):
         self.project_directory_path = str(project_settings.project_directory_path)
         self.current_working_directory = self.project_directory_path
 
-        self.atlas_resolution = project_settings.atlas_resolution
-        self.atlas_file_path = get_atlas_path(self.atlas_resolution)
-
-        self.alignment_parameters = AlignmentParameterAggregator(
-            volume_file_path=self.atlas_file_path
-        )
+        self.update_atlas_resolution(project_settings.atlas_resolution)
 
         self._histology_slices: list[HistologySlice] = []
         self._thumbnail_thread: Optional[Thread] = None
@@ -113,9 +107,6 @@ class Workspace(QtCore.QObject):
     def update_atlas_resolution(self, resolution: int) -> None:
         ProjectSettings.validate_resolution(resolution)
         self.atlas_resolution = resolution
-        self.atlas_file_path = get_atlas_path(self.atlas_resolution)
-
-        self.aggregate_settings({"volume_file_path": self.atlas_file_path})
 
     def save(self) -> None:
         with open(f"{self.project_directory_path}{os.sep}project.json", "w") as handle:
@@ -211,6 +202,10 @@ class Workspace(QtCore.QObject):
     def save_alignment(self) -> None:
         if self.current_aligner_image_hash is None:
             return
+
+        self.aggregate_settings(
+            {"volume_file_path": get_atlas_path(self.atlas_resolution)}
+        )
 
         with open(
             f"{self.current_working_directory}{os.sep}{self.current_aligner_image_hash}.json",

@@ -9,7 +9,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import ProjectSettings
-from histalign.backend.workspace import Workspace
+from histalign.backend.workspace import AtlasHandler, Workspace
 from histalign.frontend.registration.AlignmentButtonDockWidget import (
     AlignmentButtonDockWidget,
 )
@@ -17,6 +17,7 @@ from histalign.frontend.registration.AlignmentWidget import AlignmentWidget
 from histalign.frontend.registration.AlphaDockWidget import AlphaDockWidget
 from histalign.frontend.registration.dialogs import (
     AtlasChangeDialog,
+    AtlasProgressDialog,
     InvalidProjectFileDialog,
     ProjectCreateDialog,
     SaveProjectConfirmationDialog,
@@ -118,6 +119,24 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.workspace.aggregate_settings
         )
 
+    def handle_atlas(self, atlas_resolution: int) -> None:
+        handler = AtlasHandler(atlas_resolution, self.centralWidget().volume_manager)
+
+        thread = QtCore.QThread()
+        thread.started.connect(handler.handle_atlas)
+        handler.atlas_loaded.connect(thread.quit)
+
+        dialog = AtlasProgressDialog(self)
+        dialog.canceled.connect(thread.exit)
+        handler.atlas_downloaded.connect(lambda: dialog.setLabelText("Loading atlas"))
+        handler.atlas_loaded.connect(dialog.close)
+        handler.atlas_loaded.connect(self.open_atlas_in_aligner)
+
+        handler.moveToThread(thread)
+
+        thread.start()
+        dialog.exec()
+
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         if self.workspace is not None:
             match SaveProjectConfirmationDialog(self).exec():
@@ -189,7 +208,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.workspace = Workspace(project_settings)
         self.connect_workspace()
 
-        self.open_atlas_in_aligner(self.workspace.atlas_file_path)
+        self.handle_atlas(self.workspace.atlas_resolution)
 
         self.menuBar().opened_project()
 
@@ -202,7 +221,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
         self.connect_workspace()
 
-        self.open_atlas_in_aligner(self.workspace.atlas_file_path)
+        self.handle_atlas(self.workspace.atlas_resolution)
 
         if self.workspace.last_parsed_directory is not None:
             self.open_image_directory(self.workspace.last_parsed_directory)
@@ -216,7 +235,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     def change_atlas_resolution(self, resolution: int) -> None:
         self.workspace.update_atlas_resolution(resolution)
 
-        self.open_atlas_in_aligner(self.workspace.atlas_file_path)
+        self.handle_atlas(self.workspace.atlas_resolution)
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory_path: str) -> None:
@@ -228,9 +247,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.workspace.parse_image_directory(image_directory_path)
 
     @QtCore.Slot()
-    def open_atlas_in_aligner(self, atlas_file_path: str) -> None:
+    def open_atlas_in_aligner(self) -> None:
         try:
-            self.centralWidget().load_volume(atlas_file_path)
+            self.centralWidget().update_volume_pixmap()
         except ValueError as error:
             self.logger.error("Could not open atlas volume.")
             self.logger.error(error)

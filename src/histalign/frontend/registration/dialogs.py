@@ -56,6 +56,20 @@ class AtlasChangeDialog(QtWidgets.QDialog):
         self.submitted.emit(int(self.findChild(QtWidgets.QComboBox).currentText()))
 
 
+class AtlasProgressDialog(QtWidgets.QProgressDialog):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(
+            parent, flags=QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowTitleHint
+        )
+
+        self.setWindowTitle(" ")
+        self.setLabelText("Downloading atlas")
+
+        self.setMinimum(0)
+        self.setMaximum(0)
+        self.setCancelButton(None)
+
+
 class InvalidProjectFileDialog(QtWidgets.QMessageBox):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)

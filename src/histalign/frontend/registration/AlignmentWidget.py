@@ -50,10 +50,6 @@ class AlignmentWidget(QtWidgets.QWidget):
         layout.addWidget(self.view)
         self.setLayout(layout)
 
-    def load_volume(self, file_path: str) -> None:
-        self.volume_manager.load_volume(file_path)
-        self.update_volume_pixmap()
-
     def load_histological_slice(self, file_path: str) -> None:
         self.histology_image = QtGui.QImage()
         self.histology_image.load(file_path)
