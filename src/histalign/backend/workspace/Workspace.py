@@ -110,6 +110,13 @@ class Workspace(QtCore.QObject):
         )
         self.save_order()
 
+    def update_atlas_resolution(self, resolution: int) -> None:
+        ProjectSettings.validate_resolution(resolution)
+        self.atlas_resolution = resolution
+        self.atlas_file_path = get_atlas_path(self.atlas_resolution)
+
+        self.aggregate_settings({"volume_file_path": self.atlas_file_path})
+
     def save(self) -> None:
         with open(f"{self.project_directory_path}{os.sep}project.json", "w") as handle:
             settings = {

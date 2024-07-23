@@ -13,6 +13,7 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
     create_project_requested: QtCore.Signal = QtCore.Signal()
     open_project_requested: QtCore.Signal = QtCore.Signal()
+    change_atlas_requested: QtCore.Signal = QtCore.Signal()
     open_image_directory_requested: QtCore.Signal = QtCore.Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -30,6 +31,11 @@ class MainMenuBar(QtWidgets.QMenuBar):
         open_project_action.triggered.connect(self.open_project_requested.emit)
         self.action_groups["none"].append(open_project_action)
 
+        change_atlas_action = QtGui.QAction("Change &atlas resolution", self)
+        change_atlas_action.setEnabled(False)
+        change_atlas_action.triggered.connect(self.change_atlas_requested.emit)
+        self.action_groups["project_required"].append(change_atlas_action)
+
         open_image_directory_action = QtGui.QAction("&Open image directory", self)
         open_image_directory_action.setEnabled(False)
         open_image_directory_action.setShortcut(QtGui.QKeySequence("Ctrl+o"))
@@ -41,6 +47,8 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
         file_menu.addAction(create_project_action)
         file_menu.addAction(open_project_action)
+        file_menu.addSeparator()
+        file_menu.addAction(change_atlas_action)
         file_menu.addSeparator()
         file_menu.addAction(open_image_directory_action)
 

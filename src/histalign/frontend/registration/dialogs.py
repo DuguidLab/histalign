@@ -8,6 +8,54 @@ from typing import Optional
 from PySide6 import QtCore, QtWidgets
 
 
+class AtlasChangeDialog(QtWidgets.QDialog):
+    submitted: QtCore.Signal = QtCore.Signal(int)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        layout = QtWidgets.QFormLayout()
+        layout.setSpacing(20)
+
+        resolution_layout = QtWidgets.QHBoxLayout()
+
+        label = QtWidgets.QLabel("Atlas resolution")
+
+        combo_box = QtWidgets.QComboBox()
+        combo_box.setFixedSize(60, 22)
+        combo_box.setEditable(True)
+        combo_box.lineEdit().setReadOnly(True)
+        combo_box.lineEdit().setAlignment(QtCore.Qt.AlignRight)
+        combo_box.lineEdit().selectionChanged.connect(
+            lambda: combo_box.lineEdit().deselect()
+        )
+        combo_box.addItem("10")
+        combo_box.addItem("25")
+        combo_box.addItem("50")
+        combo_box.addItem("100")
+
+        resolution_layout.addWidget(label, alignment=QtCore.Qt.AlignLeft)
+        resolution_layout.addWidget(combo_box, alignment=QtCore.Qt.AlignRight)
+
+        button_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+
+        button_box.button(QtWidgets.QDialogButtonBox.Ok).clicked.connect(self.submit)
+        button_box.button(QtWidgets.QDialogButtonBox.Cancel).clicked.connect(self.close)
+
+        layout.addRow(resolution_layout)
+        layout.addRow(button_box)
+
+        self.setLayout(layout)
+        self.setFixedSize(200, layout.sizeHint().height())
+
+    @QtCore.Slot()
+    def submit(self) -> None:
+        self.close()
+        self.submitted.emit(int(self.findChild(QtWidgets.QComboBox).currentText()))
+
+
 class InvalidProjectFileDialog(QtWidgets.QMessageBox):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)

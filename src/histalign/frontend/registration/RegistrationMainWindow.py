@@ -16,6 +16,7 @@ from histalign.frontend.registration.AlignmentButtonDockWidget import (
 from histalign.frontend.registration.AlignmentWidget import AlignmentWidget
 from histalign.frontend.registration.AlphaDockWidget import AlphaDockWidget
 from histalign.frontend.registration.dialogs import (
+    AtlasChangeDialog,
     InvalidProjectFileDialog,
     ProjectCreateDialog,
     SaveProjectConfirmationDialog,
@@ -39,6 +40,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         menu_bar = MainMenuBar()
         menu_bar.create_project_requested.connect(self.show_project_create_dialog)
         menu_bar.open_project_requested.connect(self.show_project_open_dialog)
+        menu_bar.change_atlas_requested.connect(
+            self.show_change_atlas_resolution_dialog
+        )
         menu_bar.open_image_directory_requested.connect(
             self.show_open_image_directory_dialog
         )
@@ -161,6 +165,12 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.open_project(project_file)
 
     @QtCore.Slot()
+    def show_change_atlas_resolution_dialog(self) -> None:
+        dialog = AtlasChangeDialog(self)
+        dialog.submitted.connect(self.change_atlas_resolution)
+        dialog.open()
+
+    @QtCore.Slot()
     def show_open_image_directory_dialog(self) -> None:
         image_directory = QtWidgets.QFileDialog.getExistingDirectory(
             self,
@@ -201,6 +211,12 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.open_image_in_aligner(self.workspace.current_aligner_image_index)
 
         self.menuBar().opened_project()
+
+    @QtCore.Slot()
+    def change_atlas_resolution(self, resolution: int) -> None:
+        self.workspace.update_atlas_resolution(resolution)
+
+        self.open_atlas_in_aligner(self.workspace.atlas_file_path)
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory_path: str) -> None:
