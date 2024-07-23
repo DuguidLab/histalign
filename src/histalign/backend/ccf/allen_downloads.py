@@ -20,21 +20,19 @@ BASE_ATLAS_URL = (
 def get_atlas_path(
     resolution: int,
     atlas_type: Literal["average_template", "ara_nissl"] = "average_template",
-    data_directory: Optional[str] = None,
 ):
     if resolution not in ALLOWED_RESOLUTIONS:
         raise ValueError(
             f"Invalid resolution. Allowed: {ALLOWED_RESOLUTIONS}, got {resolution}."
         )
 
+    data_directory = QtCore.QStandardPaths.standardLocations(
+        QtCore.QStandardPaths.StandardLocation.GenericDataLocation
+    )
     if not data_directory:
-        data_directory = QtCore.QStandardPaths.standardLocations(
-            QtCore.QStandardPaths.StandardLocation.GenericDataLocation
-        )
-        if not data_directory:
-            raise ValueError("Cannot find a data directory.")
+        raise ValueError("Cannot find a data directory.")
 
-        data_directory = data_directory[0]
+    data_directory = data_directory[0]
 
     atlas_file_name = f"{atlas_type}_{resolution}.nrrd"
     atlas_path = str(Path(data_directory) / atlas_file_name)
@@ -42,27 +40,25 @@ def get_atlas_path(
     if Path(atlas_path).exists():
         return atlas_path
     else:
-        return download_atlas(resolution, atlas_type, data_directory)
+        return download_atlas(resolution, atlas_type)
 
 
 def download_atlas(
     resolution: int,
     atlas_type: Literal["average_template", "ara_nissl"] = "average_template",
-    data_directory: Optional[str] = None,
 ) -> str:
     if resolution not in ALLOWED_RESOLUTIONS:
         raise ValueError(
             f"Invalid resolution. Allowed: {ALLOWED_RESOLUTIONS}, got {resolution}."
         )
 
+    data_directory = QtCore.QStandardPaths.standardLocations(
+        QtCore.QStandardPaths.StandardLocation.GenericDataLocation
+    )
     if not data_directory:
-        data_directory = QtCore.QStandardPaths.standardLocations(
-            QtCore.QStandardPaths.StandardLocation.GenericDataLocation
-        )
-        if not data_directory:
-            raise ValueError("Cannot find a data directory to download to.")
+        raise ValueError("Cannot find a data directory to download to.")
 
-        data_directory = data_directory[0]
+    data_directory = data_directory[0]
 
     atlas_file_name = f"{atlas_type}_{resolution}.nrrd"
     url = "/".join([BASE_ATLAS_URL, atlas_type, atlas_file_name])
