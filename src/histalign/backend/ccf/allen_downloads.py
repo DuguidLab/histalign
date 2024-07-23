@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 from pathlib import Path
+import shutil
 import ssl
 from typing import Literal, Optional
 from urllib.request import urlopen
@@ -67,8 +68,8 @@ def download_atlas(
     # Allen SSL certificate is apparently not valid...
     context = get_ssl_context(check_hostname=False, check_certificate=False)
 
-    with open(atlas_path, "wb") as handle:
-        handle.write(urlopen(url, context=context).read())
+    with urlopen(url, context=context) as response, open(atlas_path, "wb") as handle:
+        shutil.copyfileobj(response, handle)
 
     return atlas_path
 
