@@ -69,6 +69,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         )
         thumbnail_label = ThumbnailLabel(index, self.widget())
         thumbnail_label.setPixmap(thumbnail_pixmap)
+        thumbnail_label.resize(self.get_available_column_width())
 
         self.replace_grid_cell(index, thumbnail_label)
 
@@ -89,17 +90,23 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         )
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        available_width = (
-            event.size().width()
-            - self.widget().layout().contentsMargins().left()
-            - self.widget().layout().contentsMargins().right()
-            - self.widget().layout().spacing()
-        )
+        available_column_width = self.get_available_column_width()
 
         for thumbnail_label in self.widget().children():
             if not isinstance(thumbnail_label, ThumbnailLabel):
                 continue
-            thumbnail_label.resize(available_width // 2)
+            thumbnail_label.resize(available_column_width)
+
+    def get_available_column_width(self) -> int:
+        return (
+            self.width()
+            - self.contentsMargins().left()
+            - self.contentsMargins().right()
+            - self.widget().layout().contentsMargins().left()
+            - self.widget().layout().contentsMargins().right()
+            - (self.widget().layout().spacing() * (COLUMN_COUNT - 1))
+            - self.verticalScrollBar().width()
+        ) // COLUMN_COUNT
 
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
         match event.type():
