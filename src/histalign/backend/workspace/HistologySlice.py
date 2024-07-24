@@ -197,6 +197,12 @@ class HistologySlice:
 
     # noinspection PyUnboundLocalVariable
     def _load_image(self, downsampling_factor: int) -> np.ndarray:
+        if downsampling_factor < 1 and downsampling_factor != 0:
+            raise ValueError(
+                f"Invalid downsampling factor of {downsampling_factor}. "
+                f"Factor should be greater than 1 or equal to 0."
+            )
+
         start_time = time.perf_counter()
 
         match self.file_path.split(".")[-1]:
