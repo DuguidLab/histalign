@@ -19,6 +19,7 @@ import pydantic
 from PySide6 import QtCore, QtGui
 from skimage.transform import AffineTransform, rescale, warp
 
+from histalign.backend.ccf.allen_downloads import get_structure_path
 from histalign.backend.models.AlignmentParameterAggregator import (
     AlignmentParameterAggregator,
 )
@@ -27,20 +28,6 @@ from histalign.backend.quantification.quantification_methods import (
     get_average_fluorescence,
 )
 from histalign.backend.workspace.VolumeManager import VolumeManager
-
-
-BASE_MASK_URL = (
-    "https://download.alleninstitute.org/informatics-archive/"
-    "current-release/mouse_ccf/annotation/ccf_2017/structure_masks"
-)
-
-data_directories = QtCore.QStandardPaths.standardLocations(
-    QtCore.QStandardPaths.GenericDataLocation
-)
-if not data_directories:
-    raise ValueError("Cannot find a data directory.")
-MASK_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "structure_masks"
-os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
 
 
 class Quantifier:
@@ -325,46 +312,8 @@ class Quantifier:
 
         return image_array
 
-    def _load_structure_mask(
-        self, structure_name: str, resolution: int
-    ) -> VolumeManager:
-        structure_id = self._get_structure_id(structure_name, resolution)
-
-        mask_directory = MASK_ROOT_DIRECTORY / f"structure_masks_{resolution}"
-        mask_file_path = mask_directory / f"structure_{structure_id}.nrrd"
-
-        if not mask_file_path.exists():
-            self.logger.info("Mask file not found. Downloading it.")
-            self._download_structure_mask(structure_id, resolution)
-
+    @staticmethod
+    def _load_structure_mask(structure_name: str, resolution: int) -> VolumeManager:
         mask_volume = VolumeManager()
-        mask_volume.load_volume(str(mask_file_path))
+        mask_volume.load_volume(get_structure_path(structure_name, resolution))
         return mask_volume
-
-    @staticmethod
-    def _get_structure_id(structure_name: str, resolution: int) -> int:
-        reference_space_cache = ReferenceSpaceCache(
-            resolution=resolution,
-            reference_space_key=os.path.join("annotation", "ccf_2017"),
-            manifest=MASK_ROOT_DIRECTORY / "manifest.json",
-        )
-        return reference_space_cache.get_structure_tree().get_structures_by_name(
-            [structure_name]
-        )[0]["id"]
-
-    @staticmethod
-    def _download_structure_mask(structure_id: int, resolution: int) -> None:
-        structure_file_name = f"structure_{structure_id}.nrrd"
-        url = f"{BASE_MASK_URL}/structure_masks_{resolution}/{structure_file_name}"
-        output_file_path = (
-            MASK_ROOT_DIRECTORY / f"structure_masks_{resolution}" / structure_file_name
-        )
-
-        os.makedirs(output_file_path.parent, exist_ok=True)
-
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-
-        with open(output_file_path, "wb") as handle:
-            handle.write(urlopen(url, context=context).read())

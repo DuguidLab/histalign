@@ -9,13 +9,16 @@ import ssl
 from typing import Literal, Optional
 from urllib.request import urlopen
 
-import allensdk
 from PySide6 import QtCore
 
 
 ALLOWED_RESOLUTIONS = (10, 25, 50, 100)
 BASE_ATLAS_URL = (
     "https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf"
+)
+BASE_MASK_URL = (
+    "https://download.alleninstitute.org/informatics-archive/"
+    "current-release/mouse_ccf/annotation/ccf_2017/structure_masks"
 )
 
 data_directories = QtCore.QStandardPaths.standardLocations(
@@ -25,6 +28,8 @@ if not data_directories:
     raise ValueError("Cannot find a data directory.")
 ATLAS_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "atlases"
 os.makedirs(ATLAS_ROOT_DIRECTORY, exist_ok=True)
+MASK_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "structure_masks"
+os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
 
 
 def get_atlas_path(
@@ -59,6 +64,58 @@ def download_atlas(
         shutil.copyfileobj(response, handle)
 
     return str(atlas_path)
+
+
+def get_structure_path(structure_name: str, resolution: int) -> str:
+    ensure_valid_resolution(resolution)
+
+    structure_id = get_structure_id(structure_name, resolution)
+
+    mask_directory = MASK_ROOT_DIRECTORY / f"structure_masks_{resolution}"
+    mask_file_path = mask_directory / f"structure_{structure_id}.nrrd"
+
+    if mask_file_path.exists():
+        return str(mask_file_path)
+    else:
+        return download_structure_mask(structure_id, resolution)
+
+
+def get_structure_id(structure_name: str, resolution: int) -> int:
+    # This takes a long time to import (~4 seconds on my machine) so only "lazily"
+    # import it.
+    from allensdk.core.reference_space_cache import ReferenceSpaceCache
+
+    ensure_valid_resolution(resolution)
+
+    reference_space_cache = ReferenceSpaceCache(
+        resolution=resolution,
+        reference_space_key=os.path.join("annotation", "ccf_2017"),
+        manifest=MASK_ROOT_DIRECTORY / "manifest.json",
+    )
+    return reference_space_cache.get_structure_tree().get_structures_by_name(
+        [structure_name]
+    )[0]["id"]
+
+
+def download_structure_mask(structure_id: int, resolution) -> str:
+    ensure_valid_resolution(resolution)
+
+    structure_file_name = f"structure_{structure_id}.nrrd"
+    url = f"{BASE_MASK_URL}/structure_masks_{resolution}/{structure_file_name}"
+    output_file_path = (
+        MASK_ROOT_DIRECTORY / f"structure_masks_{resolution}" / structure_file_name
+    )
+
+    os.makedirs(output_file_path.parent, exist_ok=True)
+
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+
+    with open(output_file_path, "wb") as handle:
+        handle.write(urlopen(url, context=context).read())
+
+    return str(output_file_path)
 
 
 def get_ssl_context(
