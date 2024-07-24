@@ -285,6 +285,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             return
 
         self.centralWidget().update_histological_slice(image)
+        self.centralWidget().update_histology_alpha(
+            self.findChild(AlphaDockWidget).alpha_slider.value()
+        )
         self.findChild(AlignmentButtonDockWidget).save_button.setEnabled(True)
         self.findChild(AlignmentButtonDockWidget).reset_histology.setEnabled(True)
         self.findChild(SettingsDockWidget).histology_settings_widget.setEnabled(True)
