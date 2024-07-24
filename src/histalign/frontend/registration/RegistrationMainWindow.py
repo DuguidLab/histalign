@@ -185,7 +185,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def show_change_atlas_resolution_dialog(self) -> None:
-        dialog = AtlasChangeDialog(self)
+        dialog = AtlasChangeDialog(self.workspace.atlas_resolution, self)
         dialog.submitted.connect(self.change_atlas_resolution)
         dialog.open()
 

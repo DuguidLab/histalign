@@ -11,7 +11,9 @@ from PySide6 import QtCore, QtWidgets
 class AtlasChangeDialog(QtWidgets.QDialog):
     submitted: QtCore.Signal = QtCore.Signal(int)
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(
+        self, current_resolution: int, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
         super().__init__(parent)
 
         layout = QtWidgets.QFormLayout()
@@ -29,10 +31,10 @@ class AtlasChangeDialog(QtWidgets.QDialog):
         combo_box.lineEdit().selectionChanged.connect(
             lambda: combo_box.lineEdit().deselect()
         )
-        combo_box.addItem("10")
-        combo_box.addItem("25")
-        combo_box.addItem("50")
-        combo_box.addItem("100")
+        resolutions = [10, 25, 50, 100]
+        resolutions.remove(current_resolution)
+        for resolution in resolutions:
+            combo_box.addItem(str(resolution))
 
         resolution_layout.addWidget(label, alignment=QtCore.Qt.AlignLeft)
         resolution_layout.addWidget(combo_box, alignment=QtCore.Qt.AlignRight)
