@@ -11,6 +11,7 @@ class AlignmentParameterAggregator(pydantic.BaseModel):
     leaning_angle: int = 0
     offset: int = 0
     volume_scaling_factor: float = 1.0
+    resolution: int = 0
 
     # Histology
     histology_file_path: str = ""

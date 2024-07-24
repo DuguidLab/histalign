@@ -204,7 +204,10 @@ class Workspace(QtCore.QObject):
             return
 
         self.aggregate_settings(
-            {"volume_file_path": get_atlas_path(self.atlas_resolution)}
+            {
+                "volume_file_path": get_atlas_path(self.atlas_resolution),
+                "resolution": self.atlas_resolution,
+            }
         )
 
         with open(
