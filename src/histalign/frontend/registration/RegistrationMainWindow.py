@@ -227,7 +227,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.open_image_directory(self.workspace.last_parsed_directory)
 
         if self.workspace.current_aligner_image_hash is not None:
-            self.open_image_in_aligner(self.workspace.current_aligner_image_index)
+            self.open_image_in_aligner(
+                self.workspace.current_aligner_image_index, force_open=True
+            )
 
         self.menuBar().opened_project()
 
@@ -271,8 +273,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         )
 
     @QtCore.Slot()
-    def open_image_in_aligner(self, index: int) -> None:
-        if self.workspace.current_aligner_image_index == index:
+    def open_image_in_aligner(self, index: int, force_open: bool = False) -> None:
+        if self.workspace.current_aligner_image_index == index and not force_open:
             return
 
         image = self.workspace.get_image(index)
