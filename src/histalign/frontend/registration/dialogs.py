@@ -78,23 +78,7 @@ class InvalidProjectFileDialog(QtWidgets.QMessageBox):
 
         self.setWindowTitle("Invalid project file")
         self.setText("The selected project file is not valid.")
-        self.setIcon(QtWidgets.QMessageBox.Error)
-
-
-class NoActiveProjectDialog(QtWidgets.QMessageBox):
-    def __init__(
-        self, action: Optional[str] = None, parent: Optional[QtWidgets.QWidget] = None
-    ) -> None:
-        super().__init__(parent)
-
-        self.setWindowTitle("No active project")
-
-        if action is None:
-            self.setText("You must have a project open to do this.")
-        else:
-            self.setText(f"You must have a project open to {action}.")
-
-        self.setIcon(QtWidgets.QMessageBox.Warning)
+        self.setIcon(QtWidgets.QMessageBox.Critical)
 
 
 class ProjectCreateDialog(QtWidgets.QDialog):

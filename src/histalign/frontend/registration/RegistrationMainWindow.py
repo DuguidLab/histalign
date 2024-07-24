@@ -217,7 +217,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         try:
             self.workspace = Workspace.load(project_path)
         except ValueError:
-            return InvalidProjectFileDialog().open()
+            return InvalidProjectFileDialog(self).open()
 
         self.connect_workspace()
 
