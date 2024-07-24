@@ -235,9 +235,18 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def change_atlas_resolution(self, resolution: int) -> None:
+        old_resolution = self.workspace.atlas_resolution
+        old_offset = self.workspace.alignment_parameters.offset
+
         self.workspace.update_atlas_resolution(resolution)
 
         self.handle_atlas(self.workspace.atlas_resolution)
+
+        settings_widget = self.findChild(SettingsDockWidget).volume_settings_widget
+        settings_widget.settings.origin = None
+        settings_widget.offset_spin_box.setValue(
+            int(round(old_offset * (old_resolution / resolution)))
+        )
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory_path: str) -> None:
