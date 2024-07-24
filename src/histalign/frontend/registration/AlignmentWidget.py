@@ -65,6 +65,15 @@ class AlignmentWidget(QtWidgets.QWidget):
             QtGui.QImage.Format.Format_Grayscale8,
         )
 
+        self.histology_image.setAlphaChannel(
+            QtGui.QImage(
+                np.where(array > 5, 255, 0).astype(np.uint8).tobytes(),
+                array.shape[1],
+                array.shape[0],
+                QtGui.QImage.Format_Alpha8,
+            )
+        )
+
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
         self.update_histology_pixmap()
 
@@ -167,20 +176,22 @@ class AlignmentWidget(QtWidgets.QWidget):
         if self.histology_image.isNull():
             return
 
+        general_alpha = QtGui.QImage(
+            (
+                np.zeros(
+                    (self.histology_image.height(), self.histology_image.width()),
+                    dtype=np.uint8,
+                )
+                + alpha
+            ).tobytes(),
+            self.histology_image.width(),
+            self.histology_image.height(),
+            QtGui.QImage.Format_Alpha8,
+        )
+
         alpha_image = self.histology_image.copy()
         alpha_image.setAlphaChannel(
-            QtGui.QImage(
-                (
-                    np.zeros(
-                        (alpha_image.height(), alpha_image.width()),
-                        dtype=np.uint8,
-                    )
-                    + alpha
-                ).tobytes(),
-                alpha_image.width(),
-                alpha_image.height(),
-                QtGui.QImage.Format_Alpha8,
-            )
+            self.histology_image.createAlphaMask() and general_alpha
         )
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(alpha_image))
 
