@@ -91,6 +91,8 @@ class ProjectCreateDialog(QtWidgets.QDialog):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
+        self.setWindowTitle("Project creation")
+
         layout = QtWidgets.QFormLayout()
         layout.setSpacing(20)
 
