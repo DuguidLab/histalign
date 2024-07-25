@@ -126,6 +126,8 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                     return super().eventFilter(watched, event)
                 self.open_image.emit(widget.index)
             case QtCore.QEvent.Type.MouseButtonPress:
+                if isinstance(watched, QtWidgets.QScrollBar):
+                    return super().eventFilter(watched, event)
                 self._start_drag_position = event.position().toPoint()
             case QtCore.QEvent.Type.MouseMove:
                 if isinstance(watched, QtWidgets.QScrollBar):
