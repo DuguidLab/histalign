@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -11,6 +11,7 @@ from histalign.backend.workspace.HistologySlice import THUMBNAIL_DIMENSIONS
 from histalign.frontend.registration.ThumbnailLabel import ThumbnailLabel
 
 COLUMN_COUNT: int = 2
+SCROLL_THRESHOLD: int = 50
 
 
 class ThumbnailScrollArea(QtWidgets.QScrollArea):
@@ -27,6 +28,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self.installEventFilter(self)
 
         self._start_drag_position = None
+        self._scroll_timer = QtCore.QTimer()
 
         self._initialise_widget()
 
@@ -108,6 +110,14 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
             - self.verticalScrollBar().width()
         ) // COLUMN_COUNT
 
+    def drag_scroll(self, up_or_down: Literal["up", "down"], distance: int) -> None:
+        speed = (SCROLL_THRESHOLD - distance) // 4
+        if up_or_down == "up":
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - speed)
+        elif up_or_down == "down":
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + speed)
+
+    # noinspection PyTypeChecker
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
         match event.type():
             case QtCore.QEvent.Type.MouseButtonDblClick:
@@ -128,6 +138,8 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                     drag.setMimeData(QtCore.QMimeData())
                     drag.exec(QtCore.Qt.DropAction.MoveAction)
             case QtCore.QEvent.Type.Drop:
+                self._scroll_timer.stop()
+
                 source = event.source()
                 target = watched.childAt(event.position().toPoint())
 
@@ -156,6 +168,30 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                     )
 
                     self.swapped_thumbnails.emit(index1, index2)
+            case QtCore.QEvent.Type.DragMove:
+                widget = watched.parent()
+
+                distance_to_top = event.pos().y() - (widget.y() - watched.y())
+                distance_to_bottom = (
+                    widget.y() + widget.height() - watched.y() - event.pos().y()
+                )
+
+                if distance_to_top < SCROLL_THRESHOLD:
+                    QtCore.QObject.disconnect(self._scroll_timer, None, None, None)
+                    self._scroll_timer.timeout.connect(
+                        lambda: self.drag_scroll("up", distance_to_top)
+                    )
+                    if not self._scroll_timer.isActive():
+                        self._scroll_timer.start(25)
+                elif distance_to_bottom < SCROLL_THRESHOLD:
+                    QtCore.QObject.disconnect(self._scroll_timer, None, None, None)
+                    self._scroll_timer.timeout.connect(
+                        lambda: self.drag_scroll("down", distance_to_bottom)
+                    )
+                    if not self._scroll_timer.isActive():
+                        self._scroll_timer.start(25)
+                elif self._scroll_timer.isActive():
+                    self._scroll_timer.stop()
             case QtCore.QEvent.Type.DragEnter:
                 event.accept()
             case _:
