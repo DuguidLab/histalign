@@ -38,14 +38,16 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.rotation_angle_spin_box.valueChanged.connect(self.update_rotation_angle)
 
         self.x_translation_spin_box = QtWidgets.QSpinBox()
-        self.x_translation_spin_box.setMinimum(-100)
-        self.x_translation_spin_box.setMaximum(100)
+        self.x_translation_spin_box.setMinimum(-500)
+        self.x_translation_spin_box.setMaximum(500)
         self.x_translation_spin_box.valueChanged.connect(self.update_x_translation)
+        self.x_translation_spin_box.installEventFilter(self)
 
         self.y_translation_spin_box = QtWidgets.QSpinBox()
-        self.y_translation_spin_box.setMinimum(-100)
-        self.y_translation_spin_box.setMaximum(100)
+        self.y_translation_spin_box.setMinimum(-500)
+        self.y_translation_spin_box.setMaximum(500)
         self.y_translation_spin_box.valueChanged.connect(self.update_y_translation)
+        self.y_translation_spin_box.installEventFilter(self)
 
         self.x_scale_spin_box = QtWidgets.QDoubleSpinBox()
         self.x_scale_spin_box.setMinimum(0.01)
@@ -89,6 +91,28 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.setLayout(layout)
 
         self.settings = HistologySettings()
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if not watched.isEnabled():
+            return super().eventFilter(watched, event)
+
+        match event.type():
+            case QtCore.QEvent.Type.Wheel:
+                if event.angleDelta().y() > 0:  # Scroll up
+                    watched.setValue(watched.value() + 5 * watched.singleStep())
+                elif event.angleDelta().y() < 0:  # Scroll down
+                    watched.setValue(watched.value() - 5 * watched.singleStep())
+                else:  # Could be horizontal scrolling
+                    return super().eventFilter(watched, event)
+
+                # Reproduce selection behaviour as it is with up/down buttons
+                watched.lineEdit().setSelection(
+                    len(watched.lineEdit().text()), -watched.lineEdit().maxLength()
+                )
+            case _:
+                return super().eventFilter(watched, event)
+
+        return True
 
     @QtCore.Slot()
     def update_rotation_angle(self, new_angle: int) -> None:
