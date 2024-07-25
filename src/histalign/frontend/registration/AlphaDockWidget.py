@@ -6,6 +6,8 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.frontend.registration.helpers import get_dummy_title_bar
+
 
 class AlphaDockWidget(QtWidgets.QDockWidget):
     alpha_toggle_push_button: QtWidgets.QPushButton
@@ -17,6 +19,9 @@ class AlphaDockWidget(QtWidgets.QDockWidget):
     ) -> None:
         super().__init__(parent)
 
+        self.setContentsMargins(10, 10, 10, 0)
+
+        self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
         self.alpha_toggle_push_button = QtWidgets.QPushButton("X")

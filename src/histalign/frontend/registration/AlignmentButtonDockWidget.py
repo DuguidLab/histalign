@@ -6,6 +6,8 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.frontend.registration.helpers import get_dummy_title_bar
+
 
 class AlignmentButtonDockWidget(QtWidgets.QDockWidget):
     save_button: QtWidgets.QPushButton
@@ -18,6 +20,9 @@ class AlignmentButtonDockWidget(QtWidgets.QDockWidget):
     ) -> None:
         super().__init__(parent)
 
+        self.setContentsMargins(10, 0, 10, 10)
+
+        self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
         self.save_button = QtWidgets.QPushButton("Save")

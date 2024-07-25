@@ -41,6 +41,7 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
         self.leaning_angle_spin_box.valueChanged.connect(self.update_leaning_angle)
 
         layout = QtWidgets.QFormLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addRow(title)
         layout.addRow(separator)
         layout.addRow("Offset", self.offset_spin_box)

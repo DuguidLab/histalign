@@ -6,6 +6,7 @@ import typing
 
 from PySide6 import QtCore, QtWidgets
 
+from histalign.frontend.registration.helpers import get_dummy_title_bar
 from histalign.frontend.registration.HistologySettingsWidget import (
     HistologySettingsWidget,
 )
@@ -22,6 +23,9 @@ class SettingsDockWidget(QtWidgets.QDockWidget):
     ) -> None:
         super().__init__(parent)
 
+        self.setContentsMargins(0, 10, 10, 10)
+
+        self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
         self.histology_settings_widget = HistologySettingsWidget()

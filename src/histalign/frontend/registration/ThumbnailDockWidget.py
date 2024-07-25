@@ -7,6 +7,7 @@ from typing import Optional
 from PySide6 import QtWidgets
 
 from histalign.frontend.registration.ThumbnailScrollArea import ThumbnailScrollArea
+from histalign.frontend.registration.helpers import get_dummy_title_bar
 from histalign.backend.workspace.Workspace import Workspace
 
 
@@ -14,6 +15,9 @@ class ThumbnailDockWidget(QtWidgets.QDockWidget):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
+        self.setContentsMargins(10, 10, 0, 10)
+
+        self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
         self.setWidget(ThumbnailScrollArea())

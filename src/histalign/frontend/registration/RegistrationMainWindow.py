@@ -56,7 +56,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(alignment_widget)
 
         # Left dock widget (ThumbnailDockWidget)
-        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, ThumbnailDockWidget())
+        thumbnail_dock_widget = ThumbnailDockWidget()
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, thumbnail_dock_widget)
 
         # Top dock widget (AlphaDockWidget)
         alpha_dock_widget = AlphaDockWidget()
