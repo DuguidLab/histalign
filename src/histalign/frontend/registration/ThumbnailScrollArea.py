@@ -25,8 +25,6 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.setWidgetResizable(True)
 
-        self.installEventFilter(self)
-
         self._start_drag_position = None
         self._scroll_timer = QtCore.QTimer()
 
