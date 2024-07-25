@@ -36,9 +36,11 @@ histalign = "histalign:histalign"
 [tool.hatch.envs.default]
 dependencies = [
   "click",
+  "h5py",
   "numpy",
   "pyside6",
   "pynrrd",
   "pydantic",
+  "scikit-image",
   "vedo",
 ]
