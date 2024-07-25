@@ -23,8 +23,15 @@ def histalign() -> None:
     "--fullscreen",
     is_flag=True,
 )
-def register(fullscreen: bool = False) -> None:
+@click.option(
+    "--debug-ui",
+    is_flag=True,
+)
+def register(fullscreen: bool = False, debug_ui: bool = False) -> None:
     app = QtWidgets.QApplication()
+
+    if debug_ui:
+        app.setStyleSheet("* { border: 1px solid blue; }")
 
     window = RegistrationMainWindow()
 
