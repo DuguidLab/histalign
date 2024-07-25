@@ -13,6 +13,8 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
     create_project_requested: QtCore.Signal = QtCore.Signal()
     open_project_requested: QtCore.Signal = QtCore.Signal()
+    save_project_requested: QtCore.Signal = QtCore.Signal()
+    close_project_requested: QtCore.Signal = QtCore.Signal()
     change_atlas_requested: QtCore.Signal = QtCore.Signal()
     open_image_directory_requested: QtCore.Signal = QtCore.Signal()
 
@@ -31,6 +33,18 @@ class MainMenuBar(QtWidgets.QMenuBar):
         open_project_action.triggered.connect(self.open_project_requested.emit)
         self.action_groups["none"].append(open_project_action)
 
+        save_project_action = QtGui.QAction("&Save project", self)
+        save_project_action.setEnabled(False)
+        save_project_action.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        save_project_action.setShortcutContext(QtCore.Qt.ApplicationShortcut)
+        save_project_action.triggered.connect(self.save_project_requested.emit)
+        self.action_groups["project_required"].append(save_project_action)
+
+        close_project_action = QtGui.QAction("Close pro&ject", self)
+        close_project_action.setEnabled(False)
+        close_project_action.triggered.connect(self.close_project_requested.emit)
+        self.action_groups["project_required"].append(close_project_action)
+
         change_atlas_action = QtGui.QAction("Change &atlas resolution", self)
         change_atlas_action.setEnabled(False)
         change_atlas_action.triggered.connect(self.change_atlas_requested.emit)
@@ -47,6 +61,8 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
         file_menu.addAction(create_project_action)
         file_menu.addAction(open_project_action)
+        file_menu.addAction(save_project_action)
+        file_menu.addAction(close_project_action)
         file_menu.addSeparator()
         file_menu.addAction(change_atlas_action)
         file_menu.addSeparator()
@@ -55,3 +71,7 @@ class MainMenuBar(QtWidgets.QMenuBar):
     def opened_project(self) -> None:
         for action in self.action_groups["project_required"]:
             action.setEnabled(True)
+
+    def closed_project(self) -> None:
+        for action in self.action_groups["project_required"]:
+            action.setEnabled(False)

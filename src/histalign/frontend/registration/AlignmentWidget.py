@@ -37,14 +37,7 @@ class AlignmentWidget(QtWidgets.QWidget):
             QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
-        self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
-        self._volume_settings = None
-        self.histology_pixmap = self.scene.addPixmap(QtGui.QPixmap())
-        self._histology_settings = None
-
-        self.volume_manager = VolumeManager()
-
-        self.histology_image = QtGui.QImage()
+        self.clear()
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.view)
@@ -93,6 +86,24 @@ class AlignmentWidget(QtWidgets.QWidget):
             -self.volume_pixmap.pixmap().height() / 2,
         )
         self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
+
+    def clear(self) -> None:
+        if hasattr(self, "volume_pixmap"):
+            self.scene.removeItem(self.volume_pixmap)
+        self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
+        self._volume_settings = None
+        if hasattr(self, "histology_pixmap"):
+            self.scene.removeItem(self.histology_pixmap)
+        self.histology_pixmap = self.scene.addPixmap(QtGui.QPixmap())
+        self._histology_settings = None
+
+        self.volume_manager = VolumeManager()
+
+        self.histology_image = QtGui.QImage()
+
+        # Easiest way to trigger redraw
+        if self.layout():
+            self.resizeEvent(QtGui.QResizeEvent(self.size(), self.size()))
 
     @QtCore.Slot()
     def reslice_volume(self, settings: VolumeSettings) -> None:

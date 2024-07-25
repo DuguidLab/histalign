@@ -29,6 +29,8 @@ from histalign.frontend.registration.ThumbnailDockWidget import ThumbnailDockWid
 
 class RegistrationMainWindow(QtWidgets.QMainWindow):
     workspace: Optional[Workspace] = None
+    workspace_loaded: bool = False
+    workspace_dirtied: bool = False
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -41,6 +43,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         menu_bar = MainMenuBar()
         menu_bar.create_project_requested.connect(self.show_project_create_dialog)
         menu_bar.open_project_requested.connect(self.show_project_open_dialog)
+        menu_bar.save_project_requested.connect(self.save_project)
+        menu_bar.close_project_requested.connect(self.show_project_close_dialog)
         menu_bar.change_atlas_requested.connect(
             self.show_change_atlas_resolution_dialog
         )
@@ -121,6 +125,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         )
 
     def handle_atlas(self, atlas_resolution: int) -> None:
+        self.dirty_workspace()
+
         handler = AtlasHandler(atlas_resolution, self.centralWidget().volume_manager)
 
         thread = QtCore.QThread()
@@ -138,11 +144,19 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         thread.start()
         dialog.exec()
 
+    def dirty_workspace(self) -> None:
+        if self.workspace_loaded:
+            self.workspace_dirtied = True
+
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         if self.workspace is not None:
+            if not self.workspace_dirtied:
+                event.accept()
+                return
+
             match SaveProjectConfirmationDialog(self).exec():
                 case QtWidgets.QMessageBox.Save:
-                    self.workspace.save()
+                    self.save_project()
                     event.accept()
                 case QtWidgets.QMessageBox.Discard:
                     event.accept()
@@ -153,10 +167,10 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def show_project_create_dialog(self) -> None:
-        if self.workspace is not None:
+        if self.workspace is not None and self.workspace_dirtied:
             match SaveProjectConfirmationDialog(self).exec():
                 case QtWidgets.QMessageBox.Save:
-                    self.workspace.save()
+                    self.save_project()
                 case QtWidgets.QMessageBox.Cancel:
                     return
 
@@ -166,10 +180,10 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def show_project_open_dialog(self) -> None:
-        if self.workspace is not None:
+        if self.workspace is not None and self.workspace_dirtied:
             match SaveProjectConfirmationDialog(self).exec():
                 case QtWidgets.QMessageBox.Save:
-                    self.workspace.save()
+                    self.save_project()
                 case QtWidgets.QMessageBox.Cancel:
                     return
 
@@ -183,6 +197,17 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
         if project_file != "":
             self.open_project(project_file)
+
+    @QtCore.Slot()
+    def show_project_close_dialog(self) -> None:
+        if self.workspace_dirtied:
+            match SaveProjectConfirmationDialog(self).exec():
+                case QtWidgets.QMessageBox.Save:
+                    self.save_project()
+                case QtWidgets.QMessageBox.Cancel:
+                    return
+
+        self.close_project()
 
     @QtCore.Slot()
     def show_change_atlas_resolution_dialog(self) -> None:
@@ -213,6 +238,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
         self.menuBar().opened_project()
 
+        self.workspace_loaded = True
+        self.dirty_workspace()
+
     @QtCore.Slot()
     def open_project(self, project_path: str) -> None:
         try:
@@ -234,6 +262,35 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
         self.menuBar().opened_project()
 
+        self.workspace_loaded = True
+        self.workspace_dirtied = False
+
+    @QtCore.Slot()
+    def save_project(self) -> None:
+        self.workspace.save()
+        self.workspace_dirtied = False
+
+    @QtCore.Slot()
+    def close_project(self) -> None:
+        self.workspace.deleteLater()
+
+        self.findChild(ThumbnailDockWidget).widget().flush_thumbnails()
+
+        self.findChild(AlignmentButtonDockWidget).save_button.setEnabled(False)
+        self.findChild(AlignmentButtonDockWidget).reset_volume.clicked.emit()
+        self.findChild(AlignmentButtonDockWidget).reset_volume.setEnabled(False)
+        self.findChild(AlignmentButtonDockWidget).reset_histology.clicked.emit()
+        self.findChild(AlignmentButtonDockWidget).reset_histology.setEnabled(False)
+
+        self.findChild(SettingsDockWidget).volume_settings_widget.setEnabled(False)
+        self.findChild(SettingsDockWidget).histology_settings_widget.setEnabled(False)
+
+        self.findChild(AlignmentWidget).clear()
+
+        self.menuBar().closed_project()
+
+        self.workspace_loaded = False
+
     @QtCore.Slot()
     def change_atlas_resolution(self, resolution: int) -> None:
         old_resolution = self.workspace.atlas_resolution
@@ -251,6 +308,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_image_directory(self, image_directory_path: str) -> None:
+        self.dirty_workspace()
+
         thumbnail_widget = self.findChild(ThumbnailDockWidget)
         thumbnail_widget.update_thumbnails(self.workspace)
         thumbnail_widget.widget().flush_thumbnails()
@@ -286,6 +345,8 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     def open_image_in_aligner(self, index: int, force_open: bool = False) -> None:
         if self.workspace.current_aligner_image_index == index and not force_open:
             return
+
+        self.dirty_workspace()
 
         image = self.workspace.get_image(index)
         if image is None:
