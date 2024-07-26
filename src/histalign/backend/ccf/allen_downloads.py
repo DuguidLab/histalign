@@ -57,11 +57,7 @@ def download_atlas(
     url = "/".join([BASE_ATLAS_URL, atlas_type, atlas_file_name])
     atlas_path = ATLAS_ROOT_DIRECTORY / atlas_file_name
 
-    # Allen SSL certificate is apparently not valid...
-    context = get_ssl_context(check_hostname=False, check_certificate=False)
-
-    with urlopen(url, context=context) as response, open(atlas_path, "wb") as handle:
-        shutil.copyfileobj(response, handle)
+    download(url, atlas_path)
 
     return str(atlas_path)
 
@@ -101,21 +97,25 @@ def download_structure_mask(structure_id: int, resolution) -> str:
     ensure_valid_resolution(resolution)
 
     structure_file_name = f"structure_{structure_id}.nrrd"
-    url = f"{BASE_MASK_URL}/structure_masks_{resolution}/{structure_file_name}"
+    url = "/".join(
+        [BASE_MASK_URL, f"structure_masks_{resolution}", structure_file_name]
+    )
     output_file_path = (
         MASK_ROOT_DIRECTORY / f"structure_masks_{resolution}" / structure_file_name
     )
 
     os.makedirs(output_file_path.parent, exist_ok=True)
 
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-
-    with open(output_file_path, "wb") as handle:
-        handle.write(urlopen(url, context=context).read())
+    download(url, output_file_path)
 
     return str(output_file_path)
+
+
+def download(url: str | Path, file_path: str | Path) -> None:
+    # Allen SSL certificate is apparently not valid...
+    context = get_ssl_context(check_hostname=False, check_certificate=False)
+    with urlopen(url, context=context) as response, open(file_path, "wb") as handle:
+        shutil.copyfileobj(response, handle)
 
 
 def get_ssl_context(
