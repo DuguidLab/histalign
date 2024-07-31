@@ -35,9 +35,11 @@ histalign = "histalign:histalign"
 
 [tool.hatch.envs.default]
 dependencies = [
+  "allensdk",
   "click",
   "h5py",
   "numpy",
+  "opencv-python",
   "pyside6",
   "pynrrd",
   "pydantic",
