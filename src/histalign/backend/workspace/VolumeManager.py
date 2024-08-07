@@ -30,7 +30,9 @@ class VolumeManager:
         self._volume = io.load_volume(file_path, normalise_dtype=normalise_dtype)
 
     def slice_volume(
-        self, settings: typing.Optional[VolumeSettings] = None
+        self,
+        settings: typing.Optional[VolumeSettings] = None,
+        interpolation: str = "linear",
     ) -> np.ndarray:
         if settings is None:
             settings = VolumeSettings()
@@ -42,6 +44,7 @@ class VolumeManager:
             origin=(*settings.origin[:-1], settings.origin[-1] + settings.offset),
             normal=self.calculate_normals(settings.leaning_angle, settings.axes),
             autocrop=True,
+            mode=interpolation,
         )
 
         return slice_mesh.pointdata["ImageScalars"].reshape(
