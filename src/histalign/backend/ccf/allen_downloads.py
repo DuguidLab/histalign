@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+from functools import cache
 import os
 from pathlib import Path
 import shutil
 import ssl
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from urllib.request import urlopen
 
 from PySide6 import QtCore
@@ -30,6 +31,26 @@ ATLAS_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "atlases"
 os.makedirs(ATLAS_ROOT_DIRECTORY, exist_ok=True)
 MASK_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "structure_masks"
 os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
+
+
+def get_structure_names_list(resolution: int = 10) -> list[str]:
+    ensure_valid_resolution(resolution)
+
+    return list(get_structure_tree(resolution).get_name_map().values())
+
+
+def get_structure_tree(resolution: int) -> Any:
+    # This takes a long time to import (~4 seconds on my machine) so only "lazily"
+    # import it.
+    from allensdk.core.reference_space_cache import ReferenceSpaceCache
+
+    ensure_valid_resolution(resolution)
+
+    return ReferenceSpaceCache(
+        resolution=resolution,
+        reference_space_key=os.path.join("annotation", "ccf_2017"),
+        manifest=Path(data_directories[0]) / f"manifest_{resolution}.json",
+    ).get_structure_tree()
 
 
 def get_atlas_path(
@@ -77,20 +98,11 @@ def get_structure_path(structure_name: str, resolution: int) -> str:
 
 
 def get_structure_id(structure_name: str, resolution: int) -> int:
-    # This takes a long time to import (~4 seconds on my machine) so only "lazily"
-    # import it.
-    from allensdk.core.reference_space_cache import ReferenceSpaceCache
-
     ensure_valid_resolution(resolution)
 
-    reference_space_cache = ReferenceSpaceCache(
-        resolution=resolution,
-        reference_space_key=os.path.join("annotation", "ccf_2017"),
-        manifest=MASK_ROOT_DIRECTORY / "manifest.json",
-    )
-    return reference_space_cache.get_structure_tree().get_structures_by_name(
-        [structure_name]
-    )[0]["id"]
+    return get_structure_tree(resolution).get_structures_by_name([structure_name])[0][
+        "id"
+    ]
 
 
 def download_structure_mask(structure_id: int, resolution) -> str:
