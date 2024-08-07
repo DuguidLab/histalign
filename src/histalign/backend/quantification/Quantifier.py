@@ -20,6 +20,7 @@ from PySide6 import QtCore, QtGui
 from skimage.transform import AffineTransform, rescale, warp
 
 from histalign.backend.ccf.allen_downloads import get_structure_path
+import histalign.backend.io as io
 from histalign.backend.models.AlignmentParameterAggregator import (
     AlignmentParameterAggregator,
 )
@@ -93,7 +94,7 @@ class Quantifier:
                     resolution = parameters.resolution
                     mask_volume = self._load_structure_mask(structure_name, resolution)
 
-                full_size_histology_image = self._load_image(
+                full_size_histology_image = io.load_image(
                     parameters.histology_file_path
                 )
 
@@ -278,39 +279,6 @@ class Quantifier:
         return (
             registration_volume_scaling_factor / registration_histology_scaling_factor
         ) * histology_downsampling_factor
-
-    # noinspection PyUnboundLocalVariable
-    @staticmethod
-    def _load_image(file_path: str) -> np.ndarray:
-        match file_path.split(".")[-1]:
-            case "h5" | "hdf5":
-                with h5py.File(file_path, "r") as h5_handle:
-                    dataset_name = list(h5_handle.keys())
-
-                    if len(dataset_name) != 1:
-                        raise ValueError(
-                            f"Unexpected number of datasets found. "
-                            f"Expected 1, found {len(dataset_name)}. "
-                            f"Make sure the file only contains a single image."
-                        )
-
-                    image_array = h5_handle[dataset_name[0]][:]
-
-                    if len(image_array.shape) != 2:
-                        raise ValueError(
-                            f"Unexpected number of dataset dimensions. "
-                            f"Expected 2, found {len(image_array.shape)}. "
-                            f"Make sure the image has been project to only contain "
-                            f"XY data."
-                        )
-            case "npy":
-                image_array = np.load(file_path)
-            case "jpg" | "jpeg" | "png":
-                image_array = np.array(Image.open(file_path))
-            case other:
-                raise ValueError(f"Unrecognised file extension '{other}'.")
-
-        return image_array
 
     @staticmethod
     def _load_structure_mask(structure_name: str, resolution: int) -> VolumeManager:

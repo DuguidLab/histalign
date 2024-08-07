@@ -15,6 +15,8 @@ import numpy as np
 from PIL import Image
 from skimage.transform import resize
 
+import histalign.backend.io as io
+
 DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
 
 # NOTE: this is screen convention rather than matrix convention:
@@ -205,33 +207,7 @@ class HistologySlice:
 
         start_time = time.perf_counter()
 
-        match self.file_path.split(".")[-1]:
-            case "h5" | "hdf5":
-                with h5py.File(self.file_path, "r") as h5_handle:
-                    dataset_name = list(h5_handle.keys())
-
-                    if len(dataset_name) != 1:
-                        raise ValueError(
-                            f"Unexpected number of datasets found. "
-                            f"Expected 1, found {len(dataset_name)}. "
-                            f"Make sure the file only contains a single image."
-                        )
-
-                    image_array = h5_handle[dataset_name[0]][:]
-
-                    if len(image_array.shape) != 2:
-                        raise ValueError(
-                            f"Unexpected number of dataset dimensions. "
-                            f"Expected 2, found {len(image_array.shape)}. "
-                            f"Make sure the image has been project to only contain "
-                            f"XY data."
-                        )
-            case "npy":
-                image_array = np.load(self.file_path)
-            case "jpg" | "jpeg" | "png":
-                image_array = np.array(Image.open(self.file_path))
-            case other:
-                raise ValueError(f"Unrecognised file extension '{other}'.")
+        image_array = io.load_image(self.file_path)
 
         if downsampling_factor == 0:
             # If the image is smaller than DOWNSAMPLE_TARGET_SHAPE, don't downsample

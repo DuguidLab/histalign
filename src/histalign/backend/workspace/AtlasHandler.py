@@ -5,6 +5,7 @@
 import sys
 from typing import Optional
 
+import numpy as np
 from PySide6 import QtCore
 
 from histalign.backend.ccf.allen_downloads import get_atlas_path
@@ -31,5 +32,5 @@ class AtlasHandler(QtCore.QObject):
         atlas_file_path = get_atlas_path(self.atlas_resolution)
         self.atlas_downloaded.emit()
 
-        self.volume_manager.load_volume(atlas_file_path)
+        self.volume_manager.load_volume(atlas_file_path, np.uint8)
         self.atlas_loaded.emit()

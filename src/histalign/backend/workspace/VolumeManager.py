@@ -9,6 +9,7 @@ import nrrd
 import numpy as np
 import vedo
 
+import histalign.backend.io as io
 from histalign.backend.models.VolumeSettings import VolumeSettings
 
 
@@ -23,23 +24,10 @@ class VolumeManager:
 
         return self._volume.shape
 
-    def load_volume(self, file_path: str) -> None:
-        file_extension = file_path.split(".")[-1]
-
-        match file_extension:
-            case "nrrd":
-                # If using NRRD, assume it is 16-bit
-                array = nrrd.read(file_path)[0]
-                array = np.interp(
-                    array, (array.min(), array.max()), (0, 2**8 - 1)
-                ).astype(np.uint8)
-            case "npy":
-                # If using NPY, assume it was already converted to 8-bit
-                array = np.load(file_path)
-            case _:
-                raise ValueError("Unknown volume file type.")
-
-        self._volume = vedo.Volume(array)
+    def load_volume(
+        self, file_path: str, normalise_dtype: typing.Optional[np.dtype] = None
+    ) -> None:
+        self._volume = io.load_volume(file_path, normalise_dtype=normalise_dtype)
 
     def slice_volume(
         self, settings: typing.Optional[VolumeSettings] = None
