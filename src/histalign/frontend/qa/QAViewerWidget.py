@@ -38,6 +38,8 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.histology_pixmap = QtGui.QPixmap()
         self.histology_array = np.ndarray(shape=(0, 0))
 
+        self.setAlignment(QtCore.Qt.AlignCenter)
+
     def load_histology(self, file_path: str, result_path: Optional[str] = None) -> None:
         self.clear()
 
@@ -107,6 +109,10 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.histology_pixmap = QtGui.QPixmap()
         self.setPixmap(self.histology_pixmap)
         self.histology_array = np.ndarray(shape=(0, 0))
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.update_merged_pixmap()
 
     @QtCore.Slot()
     def add_contour(self, structure_name: str) -> None:

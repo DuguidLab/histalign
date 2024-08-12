@@ -46,20 +46,22 @@ class QAMainWindow(QtWidgets.QMainWindow):
 
         layout = QtWidgets.QGridLayout()
 
-        layout.addWidget(menu_bar, 0, 0, 1, -1, alignment=QtCore.Qt.AlignTop)
-        layout.addWidget(self.slice_names_combo_box, 1, 0)
-        layout.addWidget(selector_frame, 1, 1, 1, 3)
-        layout.addWidget(self.qa_viewer, 2, 0, 1, 3)
-        layout.addWidget(histogram_viewer, 2, 3, 1, 1)
+        layout.addWidget(self.slice_names_combo_box, 0, 0)
+        layout.addWidget(selector_frame, 0, 1, 1, 2)
+        layout.addWidget(self.qa_viewer, 1, 0, 1, 2)
+        layout.addWidget(histogram_viewer, 1, 2, 1, 1)
 
-        layout.setRowStretch(2, 10)
-        layout.setColumnStretch(2, 1)
-        layout.setColumnStretch(3, 1)
+        layout.setColumnStretch(1, 5)
+        layout.setColumnStretch(2, 3)
+        layout.setColumnMinimumWidth(1, 500)
+        layout.setColumnMinimumWidth(2, 300)
+        layout.setRowMinimumHeight(1, 500)
 
         layout.setContentsMargins(0, 0, 0, 0)
 
         central_widget = QtWidgets.QWidget()
         central_widget.setLayout(layout)
+        central_widget.setMinimumSize(layout.minimumSize())
         self.setCentralWidget(central_widget)
 
         self.setWindowTitle("Histalign - QA")
