@@ -146,9 +146,7 @@ class Workspace(QtCore.QObject):
         return workspace
 
     def parse_image_directory(self, directory_path: str) -> None:
-        current_directory_hash = hashlib.md5(
-            str(Path(directory_path).resolve()).encode("UTF-8")
-        ).hexdigest()[:10]
+        current_directory_hash = self.generate_directory_hash(directory_path)
         self.current_working_directory = (
             f"{self.project_directory_path}{os.sep}{current_directory_hash}"
         )
@@ -249,6 +247,12 @@ class Workspace(QtCore.QObject):
 
     def _serialise_slices(self) -> list[str]:
         return [histology_slice.file_path for histology_slice in self._histology_slices]
+
+    @staticmethod
+    def generate_directory_hash(file_path: str) -> str:
+        return hashlib.md5(str(Path(file_path).resolve()).encode("UTF-8")).hexdigest()[
+            :10
+        ]
 
     @staticmethod
     def _deserialise_slices(path_list: list[str]) -> list[HistologySlice]:

@@ -52,7 +52,7 @@ class HistologySlice:
         Args:
             file_path (str): Path to the image to wrap.
         """
-        self.hash = hashlib.md5(file_path.split(os.sep)[-1].encode("UTF-8")).hexdigest()
+        self.hash = self.generate_file_name_hash(file_path)
         self.file_path = os.path.abspath(file_path)
 
         self.image_array = None
@@ -196,6 +196,25 @@ class HistologySlice:
             (array.min(), array.max()),
             (0, 2**8 - 1),
         ).astype(np.uint8)
+
+    @staticmethod
+    def generate_file_name_hash(file_path: str) -> str:
+        """Generate a hash for this slice.
+
+        Note this function only uses the file name at the end of the file path to
+        generate the hash. If you require a hash that takes into account the whole,
+        resolved path, use `Workspace.generate_directory_hash()`.
+
+        Args:
+            file_path (str): File path to use when generating a hash. The file name will
+                             be extracted as the last part after splitting on the OS
+                             separator.
+
+        Returns:
+            str: The generated hash.
+        """
+        file_name = file_path.split(os.sep)[-1]
+        return hashlib.md5(file_name.encode("UTF-8")).hexdigest()
 
     # noinspection PyUnboundLocalVariable
     def _load_image(self, downsampling_factor: int) -> np.ndarray:

@@ -9,6 +9,7 @@ from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
+from histalign.backend.workspace.HistologySlice import HistologySlice
 from histalign.frontend.qa.HistogramViewerWidget import HistogramViewerWidget
 from histalign.frontend.qa.MainMenuBar import MainMenuBar
 from histalign.frontend.qa.QAViewerWidget import QAViewerWidget
@@ -77,9 +78,7 @@ class QAMainWindow(QtWidgets.QMainWindow):
             self.qa_viewer.clear()
             return
 
-        file_hash = hashlib.md5(
-            Path(file_path).resolve().name.encode("UTF-8")
-        ).hexdigest()
+        file_hash = HistologySlice.generate_file_name_hash(file_path)
         result_path = Path(self.current_directory) / f"{file_hash}.json"
         result_path = str(result_path) if result_path.exists() else None
 
