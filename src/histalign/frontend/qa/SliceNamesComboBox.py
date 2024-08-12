@@ -2,11 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
+
+from histalign.backend.workspace.HistologySlice import HistologySlice
 
 
 class SliceNamesComboBox(QtWidgets.QComboBox):
@@ -31,11 +34,21 @@ class SliceNamesComboBox(QtWidgets.QComboBox):
         with open(metadata_path) as handle:
             contents = json.load(handle)
 
+        metadata_root = Path(metadata_path).parent
         self.addItem("")
         for file_path in contents:
             file_name = Path(file_path).stem
             self.name_to_path_map[file_name] = file_path
             self.addItem(file_name)
+
+            if (
+                not Path(file_path).exists()
+                or not (
+                    metadata_root
+                    / f"{HistologySlice.generate_file_name_hash(file_path)}.json"
+                ).exists()
+            ):
+                self.model().item(self.findText(file_name)).setEnabled(False)
 
     def clear(self) -> None:
         super().clear()
