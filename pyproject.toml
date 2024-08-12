@@ -38,6 +38,7 @@ dependencies = [
   "allensdk",
   "click",
   "h5py",
+  "matplotlib",
   "numpy",
   "opencv-python",
   "pyside6",

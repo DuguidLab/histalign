@@ -40,7 +40,9 @@ class QAMainWindow(QtWidgets.QMainWindow):
         selector_frame.structure_added.connect(self.qa_viewer.add_contour)
         selector_frame.structure_removed.connect(self.qa_viewer.remove_contour)
 
-        histogram_viewer = HistogramViewerWidget()
+        histogram_viewer = HistogramViewerWidget(self.qa_viewer)
+        self.qa_viewer.contour_mask_generated.connect(histogram_viewer.add_histogram)
+        selector_frame.structure_removed.connect(histogram_viewer.remove_histogram)
 
         layout = QtWidgets.QGridLayout()
 

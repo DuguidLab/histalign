@@ -24,6 +24,9 @@ class QAViewerWidget(QtWidgets.QLabel):
     reverse_registrator: ReverseRegistrator
 
     histology_pixmap: QtGui.QPixmap
+    histology_array: np.ndarray
+
+    contour_mask_generated: QtCore.Signal = QtCore.Signal(str, np.ndarray)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -33,12 +36,13 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.reverse_registrator = ReverseRegistrator(True, True, "nearest")
 
         self.histology_pixmap = QtGui.QPixmap()
+        self.histology_array = np.ndarray(shape=(0, 0))
 
     def load_histology(self, file_path: str, result_path: Optional[str] = None) -> None:
         self.clear()
 
-        image = io.load_image(file_path, normalise_dtype=np.uint8)
-        match image.dtype:
+        self.histology_array = io.load_image(file_path, normalise_dtype=np.uint8)
+        match self.histology_array.dtype:
             case np.uint8:
                 image_format = QtGui.QImage.Format.Format_Grayscale8
             case np.uint16:
@@ -48,10 +52,10 @@ class QAViewerWidget(QtWidgets.QLabel):
 
         self.histology_pixmap = QtGui.QPixmap.fromImage(
             QtGui.QImage(
-                image.tobytes(),
-                image.shape[1],
-                image.shape[0],
-                image.shape[1],
+                self.histology_array.tobytes(),
+                self.histology_array.shape[1],
+                self.histology_array.shape[0],
+                self.histology_array.shape[1],
                 image_format,
             )
         )
@@ -102,6 +106,7 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.is_registered = False
         self.histology_pixmap = QtGui.QPixmap()
         self.setPixmap(self.histology_pixmap)
+        self.histology_array = np.ndarray(shape=(0, 0))
 
     @QtCore.Slot()
     def add_contour(self, structure_name: str) -> None:
@@ -112,6 +117,7 @@ class QAViewerWidget(QtWidgets.QLabel):
         structure_slice = self.reverse_registrator.get_reversed_image(
             self.registration_result, volume_name=structure_name
         )
+        self.contour_mask_generated.emit(structure_name, structure_slice)
         contours = cv2.findContours(
             structure_slice, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
         )[0]
