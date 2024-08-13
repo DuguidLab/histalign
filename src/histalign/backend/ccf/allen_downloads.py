@@ -27,9 +27,11 @@ data_directories = QtCore.QStandardPaths.standardLocations(
 )
 if not data_directories:
     raise ValueError("Cannot find a data directory.")
-ATLAS_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "atlases"
+DATA_ROOT = Path(data_directories[0]) / "histalign"
+
+ATLAS_ROOT_DIRECTORY = DATA_ROOT / "atlases"
 os.makedirs(ATLAS_ROOT_DIRECTORY, exist_ok=True)
-MASK_ROOT_DIRECTORY = Path(data_directories[0]) / "histalign" / "structure_masks"
+MASK_ROOT_DIRECTORY = DATA_ROOT / "structure_masks"
 os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
 
 
@@ -49,7 +51,7 @@ def get_structure_tree(resolution: int) -> Any:
     return ReferenceSpaceCache(
         resolution=resolution,
         reference_space_key=os.path.join("annotation", "ccf_2017"),
-        manifest=Path(data_directories[0]) / f"manifest_{resolution}.json",
+        manifest=str(DATA_ROOT / f"manifest.json"),
     ).get_structure_tree()
 
 
