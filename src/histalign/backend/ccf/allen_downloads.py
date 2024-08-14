@@ -35,6 +35,16 @@ MASK_ROOT_DIRECTORY = DATA_ROOT / "structure_masks"
 os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
 
 
+def get_structures_hierarchy_path() -> str:
+    path = DATA_ROOT / f"structures.json"
+
+    # Easiest option to have the Allen SDK do the work for us
+    if not path.exists():
+        get_structure_tree(100)
+
+    return str(path)
+
+
 def get_structure_names_list(resolution: int = 10) -> list[str]:
     ensure_valid_resolution(resolution)
 
