@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import json
+from functools import partial
 from typing import Optional
 
 import cv2
@@ -14,6 +15,7 @@ from histalign.backend.models.AlignmentParameterAggregator import (
     AlignmentParameterAggregator,
 )
 from histalign.backend.registration.ReverseRegistrator import ReverseRegistrator
+from histalign.backend.registration.ContourGeneratorThread import ContourGeneratorThread
 
 
 class QAViewerWidget(QtWidgets.QLabel):
@@ -39,6 +41,8 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.histology_array = np.ndarray(shape=(0, 0))
 
         self.setAlignment(QtCore.Qt.AlignCenter)
+
+        self._contour_generator_threads: dict[str, ContourGeneratorThread] = {}
 
     def load_histology(self, file_path: str, result_path: Optional[str] = None) -> None:
         self.clear()
@@ -120,20 +124,36 @@ class QAViewerWidget(QtWidgets.QLabel):
             print("Image not registered. Skipping adding contour.")
             return
 
-        structure_slice = self.reverse_registrator.get_reversed_image(
-            self.registration_result, volume_name=structure_name
+        new_thread = ContourGeneratorThread(structure_name, self.registration_result)
+        new_thread.mask_ready.connect(
+            lambda mask: self.contour_mask_generated.emit(structure_name, mask)
         )
-        self.contour_mask_generated.emit(structure_name, structure_slice)
-        contours = cv2.findContours(
-            structure_slice, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
-        )[0]
+        new_thread.contours_ready.connect(
+            partial(
+                self.process_contour_generator_result, structure_name=structure_name
+            )
+        )
+        new_thread.finished.connect(new_thread.deleteLater)
+        new_thread.start()
 
-        if contours:
-            self.contours_map[structure_name] = np.concatenate(contours).squeeze()
-            self.update_merged_pixmap()
+        self._contour_generator_threads[structure_name] = new_thread
+
+    @QtCore.Slot()
+    def process_contour_generator_result(
+        self, contours: np.ndarray, structure_name: str
+    ) -> None:
+        self.contours_map[structure_name] = contours
+        self.update_merged_pixmap()
 
     @QtCore.Slot()
     def remove_contour(self, structure_name: str) -> None:
+        # Since there's no easy way to stop the thread in the middle of working, instead
+        # ask it not to return its result when it's done if the contour is removed
+        # before the work is done.
+        thread = self._contour_generator_threads.get(structure_name)
+        if thread is not None:
+            thread.should_emit = False
+
         self.contours_map.pop(structure_name, None)
 
         self.update_merged_pixmap()
