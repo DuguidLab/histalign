@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: MIT
 
-from functools import cache
+import logging
 import os
-from pathlib import Path
 import shutil
 import ssl
-from typing import Any, Literal, Optional
+import urllib.error
+from pathlib import Path
+from typing import Any, Literal
 from urllib.request import urlopen
 
 from PySide6 import QtCore
@@ -33,6 +34,13 @@ ATLAS_ROOT_DIRECTORY = DATA_ROOT / "atlases"
 os.makedirs(ATLAS_ROOT_DIRECTORY, exist_ok=True)
 MASK_ROOT_DIRECTORY = DATA_ROOT / "structure_masks"
 os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+formatter = logging.Formatter(logging.BASIC_FORMAT)
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
 def get_structures_hierarchy_path() -> str:
@@ -138,8 +146,11 @@ def download_structure_mask(structure_id: int, resolution) -> str:
 def download(url: str | Path, file_path: str | Path) -> None:
     # Allen SSL certificate is apparently not valid...
     context = get_ssl_context(check_hostname=False, check_certificate=False)
-    with urlopen(url, context=context) as response, open(file_path, "wb") as handle:
-        shutil.copyfileobj(response, handle)
+    try:
+        with urlopen(url, context=context) as response, open(file_path, "wb") as handle:
+            shutil.copyfileobj(response, handle)
+    except urllib.error.HTTPError:
+        logger.error(f"URL not found ('{url}').")
 
 
 def get_ssl_context(
