@@ -67,6 +67,8 @@ class QAMainWindow(QtWidgets.QMainWindow):
 
         self.setWindowTitle("Histalign - QA")
 
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
+
     def open_results_directory(self, result_metadata_file_path: str) -> None:
         self.current_directory = str(Path(result_metadata_file_path).parent)
         self.qa_viewer.clear()
