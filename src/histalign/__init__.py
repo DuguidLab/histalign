@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+import logging
 import sys
 from typing import Callable
 
@@ -10,6 +11,14 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.frontend.qa import QAMainWindow
 from histalign.frontend.registration import RegistrationMainWindow
+
+
+if __name__ == "histalign":
+    logger = logging.getLogger(__name__)
+    formatter = logging.Formatter(logging.BASIC_FORMAT)
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
@@ -28,8 +37,22 @@ def default_options(function: Callable) -> click.option:
 
 
 @click.group()
-def histalign() -> None:
-    pass
+@click.option(
+    "-v",
+    "--verbose",
+    "verbosity",
+    required=False,
+    count=True,
+    help=(
+        "Set verbosity level. Level 0 is WARNING (default). Level 1 is INFO. "
+        "Level 2 is DEBUG."
+    ),
+)
+def histalign(verbosity: int) -> None:
+    if verbosity == 1:
+        logging.getLogger("histalign").setLevel(logging.INFO)
+    elif verbosity >= 2:
+        logging.getLogger("histalign").setLevel(logging.DEBUG)
 
 
 @histalign.command()

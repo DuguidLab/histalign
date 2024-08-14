@@ -35,12 +35,7 @@ os.makedirs(ATLAS_ROOT_DIRECTORY, exist_ok=True)
 MASK_ROOT_DIRECTORY = DATA_ROOT / "structure_masks"
 os.makedirs(MASK_ROOT_DIRECTORY, exist_ok=True)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
-formatter = logging.Formatter(logging.BASIC_FORMAT)
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+module_logger = logging.getLogger(__name__)
 
 
 def get_structures_hierarchy_path() -> str:
@@ -150,7 +145,7 @@ def download(url: str | Path, file_path: str | Path) -> None:
         with urlopen(url, context=context) as response, open(file_path, "wb") as handle:
             shutil.copyfileobj(response, handle)
     except urllib.error.HTTPError:
-        logger.error(f"URL not found ('{url}').")
+        module_logger.error(f"URL not found ('{url}').")
 
 
 def get_ssl_context(
