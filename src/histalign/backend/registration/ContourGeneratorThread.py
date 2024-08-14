@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+import logging
 from typing import Optional
 
 import cv2
@@ -48,15 +49,23 @@ class ContourGeneratorThread(QtCore.QThread):
     ) -> None:
         super().__init__(parent)
 
+        self.logger = logging.getLogger(__name__)
+
         self.structure_name = structure_name
         self.registration_parameters = registration_parameters
 
     def run(self) -> None:
         registrator = ReverseRegistrator(True, True)
 
-        structure_mask = registrator.get_reversed_image(
-            self.registration_parameters, volume_name=self.structure_name
-        )
+        try:
+            structure_mask = registrator.get_reversed_image(
+                self.registration_parameters, volume_name=self.structure_name
+            )
+        except FileNotFoundError:
+            self.logger.error(
+                f"Could not find structure file ('{self.structure_name}')."
+            )
+            return
 
         contours = cv2.findContours(
             structure_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE

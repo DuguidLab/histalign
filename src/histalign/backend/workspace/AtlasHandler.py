@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-import sys
+import logging
 from typing import Optional
 
 import numpy as np
@@ -24,6 +24,8 @@ class AtlasHandler(QtCore.QObject):
     ) -> None:
         super().__init__(parent)
 
+        self.logger = logging.getLogger(__name__)
+
         self.atlas_resolution = atlas_resolution
         self.volume_manager = volume_manager
 
@@ -32,5 +34,10 @@ class AtlasHandler(QtCore.QObject):
         atlas_file_path = get_atlas_path(self.atlas_resolution)
         self.atlas_downloaded.emit()
 
-        self.volume_manager.load_volume(atlas_file_path, np.uint8)
-        self.atlas_loaded.emit()
+        try:
+            self.volume_manager.load_volume(atlas_file_path, np.uint8)
+            self.atlas_loaded.emit()
+        except FileNotFoundError:
+            self.logger.error(
+                f"Could not load atlas. File not found ('{atlas_file_path}'.)"
+            )

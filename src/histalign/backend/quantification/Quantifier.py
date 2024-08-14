@@ -78,9 +78,16 @@ class Quantifier:
                     parameters.histology_file_path
                 )
 
-                mask_image = reverse_registrator.get_reversed_image(
-                    parameters, structure_name, full_size_histology_image
-                )
+                try:
+                    mask_image = reverse_registrator.get_reversed_image(
+                        parameters, structure_name, full_size_histology_image
+                    )
+                except FileNotFoundError:
+                    self.logger.error(
+                        f"Could not load mask volume for structure '{structure_name}'. "
+                        f"File not found. Skipping structure."
+                    )
+                    break
 
                 quantification_result = {
                     structure_name: self.quantification_method(
