@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-import hashlib
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -20,11 +20,18 @@ from histalign.frontend.qa.StructureSelectorFrame import StructureSelectorFrame
 class QAMainWindow(QtWidgets.QMainWindow):
     current_directory: str
 
+    structures_processing: list[str]
+
     slice_names_combo_box: QtWidgets.QComboBox
     qa_viewer: QAViewerWidget
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
+
+        self.logger = logging.getLogger(__name__)
+
+        self.structures_processing = []
+        self.update_status()
 
         menu_bar = MainMenuBar()
         menu_bar.open_results_directory_requested.connect(
@@ -40,6 +47,9 @@ class QAMainWindow(QtWidgets.QMainWindow):
         self.qa_viewer = QAViewerWidget()
         selector_frame.structure_added.connect(self.qa_viewer.add_contour)
         selector_frame.structure_removed.connect(self.qa_viewer.remove_contour)
+
+        selector_frame.structure_added.connect(self.add_structure_to_status)
+        self.qa_viewer.contour_processed.connect(self.remove_structure_from_status)
 
         histogram_viewer = HistogramViewerWidget(self.qa_viewer)
         self.qa_viewer.contour_mask_generated.connect(histogram_viewer.add_histogram)
@@ -74,6 +84,17 @@ class QAMainWindow(QtWidgets.QMainWindow):
         self.qa_viewer.clear()
         self.slice_names_combo_box.parse_results(result_metadata_file_path)
 
+    def update_status(self) -> None:
+        if self.structures_processing:
+            message = (
+                f"Processing {len(self.structures_processing)} "
+                f"structure{'s' if len(self.structures_processing) > 1 else ''}..."
+            )
+        else:
+            message = ""
+
+        self.statusBar().showMessage(message)
+
     @QtCore.Slot()
     def update_histology(self, file_path: str) -> None:
         if file_path == "":
@@ -98,3 +119,18 @@ class QAMainWindow(QtWidgets.QMainWindow):
 
         if results_metadata_file_path != "":
             self.open_results_directory(results_metadata_file_path)
+
+    @QtCore.Slot()
+    def add_structure_to_status(self, structure_name: str) -> None:
+        self.structures_processing.append(structure_name)
+        self.update_status()
+
+    @QtCore.Slot()
+    def remove_structure_from_status(self, structure_name: str) -> None:
+        try:
+            self.structures_processing.remove(structure_name)
+        except ValueError:
+            self.logger.error(
+                "Tried to remove non-existent structure from status list."
+            )
+        self.update_status()

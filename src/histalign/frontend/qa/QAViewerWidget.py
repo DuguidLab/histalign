@@ -29,6 +29,7 @@ class QAViewerWidget(QtWidgets.QLabel):
     histology_array: np.ndarray
 
     contour_mask_generated: QtCore.Signal = QtCore.Signal(str, np.ndarray)
+    contour_processed: QtCore.Signal = QtCore.Signal(str)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -134,6 +135,12 @@ class QAViewerWidget(QtWidgets.QLabel):
             )
         )
         new_thread.finished.connect(new_thread.deleteLater)
+
+        # Since the thread can fail if the URL/file is not available, connect its
+        # `finished` signal to having "processed" the contour instead of emitting it
+        # in `process_contour_generator_result()`.
+        new_thread.finished.connect(lambda: self.contour_processed.emit(structure_name))
+
         new_thread.start()
 
         self._contour_generator_threads[structure_name] = new_thread
