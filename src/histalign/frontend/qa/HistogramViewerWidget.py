@@ -43,6 +43,10 @@ class Canvas(FigureCanvasQTAgg):
         else:
             return super().eventFilter(watched, event)
 
+    def deleteLater(self) -> None:
+        plt.close(self.figure.figure)
+        super().deleteLater()
+
 
 class HistogramViewerWidget(QtWidgets.QScrollArea):
     viewer: QAViewerWidget
