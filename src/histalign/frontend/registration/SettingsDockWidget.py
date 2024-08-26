@@ -6,6 +6,9 @@ import typing
 
 from PySide6 import QtCore, QtWidgets
 
+from histalign.backend.models.HistologySettings import HistologySettings
+from histalign.backend.models.VolumeSettings import VolumeSettings
+from histalign.backend.workspace.Workspace import Workspace
 from histalign.frontend.registration.helpers import get_dummy_title_bar
 from histalign.frontend.registration.HistologySettingsWidget import (
     HistologySettingsWidget,
@@ -40,3 +43,11 @@ class SettingsDockWidget(QtWidgets.QDockWidget):
         container_widget.setLayout(layout)
 
         self.setWidget(container_widget)
+
+    def update_from_workspace(self, workspace: Workspace) -> None:
+        self.histology_settings_widget.update_from_settings(
+            HistologySettings(**workspace.alignment_parameters.model_dump())
+        )
+        self.volume_settings_widget.update_from_settings(
+            VolumeSettings(**workspace.alignment_parameters.model_dump())
+        )

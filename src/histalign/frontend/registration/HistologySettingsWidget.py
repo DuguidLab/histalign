@@ -114,6 +114,22 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         return True
 
+    def update_from_settings(self, settings: HistologySettings) -> None:
+        self.rotation_angle_spin_box.setValue(settings.rotation_angle)
+        self.update_rotation_angle(settings.rotation_angle)
+        self.x_translation_spin_box.setValue(settings.x_translation)
+        self.update_x_translation(settings.x_translation)
+        self.y_translation_spin_box.setValue(settings.y_translation)
+        self.update_y_translation(settings.y_translation)
+        self.x_scale_spin_box.setValue(settings.x_scale)
+        self.update_x_scale(settings.x_scale)
+        self.y_scale_spin_box.setValue(settings.y_scale)
+        self.update_y_scale(settings.y_scale)
+        self.x_shear_spin_box.setValue(settings.x_shear)
+        self.update_x_shear(settings.x_shear)
+        self.y_shear_spin_box.setValue(settings.y_shear)
+        self.update_y_shear(settings.y_shear)
+
     @QtCore.Slot()
     def update_rotation_angle(self, new_angle: int) -> None:
         self.settings.rotation_angle = new_angle

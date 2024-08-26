@@ -55,6 +55,12 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
         self.offset_spin_box.setMinimum(minimum)
         self.offset_spin_box.setMaximum(maximum)
 
+    def update_from_settings(self, settings: VolumeSettings) -> None:
+        self.offset_spin_box.setValue(settings.offset)
+        self.update_offset(settings.offset)
+        self.leaning_angle_spin_box.setValue(settings.leaning_angle)
+        self.update_leaning_angle(settings.leaning_angle)
+
     @QtCore.Slot()
     def update_offset(self, new_offset: int) -> None:
         self.settings.offset = new_offset

@@ -87,6 +87,10 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         # Bottom dock widget (AlignmentButtonDockWidget)
         alignment_button_dock_widget = AlignmentButtonDockWidget()
         alignment_button_dock_widget.save_button.setEnabled(False)
+        alignment_button_dock_widget.load_button.setEnabled(False)
+        alignment_button_dock_widget.save_button.clicked.connect(
+            lambda: alignment_button_dock_widget.load_button.setEnabled(True)
+        )
         alignment_button_dock_widget.reset_volume.setEnabled(False)
         alignment_button_dock_widget.reset_volume.clicked.connect(
             settings_dock_widget.volume_settings_widget.reset_to_defaults
@@ -108,6 +112,14 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         # TODO: Also connect reset button logic
         save_button = self.findChild(AlignmentButtonDockWidget).save_button
         save_button.clicked.connect(self.workspace.save_alignment)
+
+        load_button = self.findChild(AlignmentButtonDockWidget).load_button
+        load_button.clicked.connect(self.workspace.load_alignment)
+        load_button.clicked.connect(
+            lambda: self.findChild(SettingsDockWidget).update_from_workspace(
+                self.workspace
+            )
+        )
 
         self.centralWidget().volume_scale_ratio_changed.connect(
             lambda x: self.workspace.aggregate_settings({"volume_scaling_factor": x})
@@ -277,6 +289,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.findChild(ThumbnailDockWidget).widget().flush_thumbnails()
 
         self.findChild(AlignmentButtonDockWidget).save_button.setEnabled(False)
+        self.findChild(AlignmentButtonDockWidget).load_button.setEnabled(False)
         self.findChild(AlignmentButtonDockWidget).reset_volume.clicked.emit()
         self.findChild(AlignmentButtonDockWidget).reset_volume.setEnabled(False)
         self.findChild(AlignmentButtonDockWidget).reset_histology.clicked.emit()
@@ -360,5 +373,10 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
             self.findChild(AlphaDockWidget).alpha_slider.value()
         )
         self.findChild(AlignmentButtonDockWidget).save_button.setEnabled(True)
+
+        self.findChild(AlignmentButtonDockWidget).load_button.setEnabled(
+            os.path.exists(self.workspace.build_alignment_path())
+        )
+
         self.findChild(AlignmentButtonDockWidget).reset_histology.setEnabled(True)
         self.findChild(SettingsDockWidget).histology_settings_widget.setEnabled(True)

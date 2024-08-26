@@ -196,9 +196,19 @@ class Workspace(QtCore.QObject):
     def stop(self) -> None:
         self._stop_event.set()
 
+    def build_alignment_path(self) -> Optional[str]:
+        if self.current_aligner_image_hash is None:
+            return None
+
+        return (
+            f"{self.current_working_directory}{os.sep}"
+            f"{self.current_aligner_image_hash}.json"
+        )
+
     @QtCore.Slot()
     def save_alignment(self) -> None:
-        if self.current_aligner_image_hash is None:
+        alignment_path = self.build_alignment_path()
+        if alignment_path is None:
             return
 
         self.aggregate_settings(
@@ -208,11 +218,26 @@ class Workspace(QtCore.QObject):
             }
         )
 
-        with open(
-            f"{self.current_working_directory}{os.sep}{self.current_aligner_image_hash}.json",
-            "w",
-        ) as handle:
+        with open(alignment_path, "w") as handle:
             handle.write(self.alignment_parameters.model_dump_json())
+
+    @QtCore.Slot()
+    def load_alignment(self) -> bool:
+        alignment_path = self.build_alignment_path()
+        if alignment_path is None:
+            return False
+
+        with open(alignment_path) as handle:
+            alignment_parameters = AlignmentParameterAggregator(**json.load(handle))
+
+        alignment_parameters.offset = int(
+            round(
+                alignment_parameters.offset
+                * (alignment_parameters.resolution / self.atlas_resolution)
+            )
+        )
+
+        self.alignment_parameters = alignment_parameters
 
     @QtCore.Slot()
     def aggregate_settings(

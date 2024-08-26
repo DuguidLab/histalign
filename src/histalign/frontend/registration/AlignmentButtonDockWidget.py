@@ -11,6 +11,7 @@ from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 class AlignmentButtonDockWidget(QtWidgets.QDockWidget):
     save_button: QtWidgets.QPushButton
+    load_button: QtWidgets.QPushButton
     reset_volume: QtWidgets.QPushButton
     reset_histology: QtWidgets.QPushButton
 
@@ -26,12 +27,14 @@ class AlignmentButtonDockWidget(QtWidgets.QDockWidget):
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
         self.save_button = QtWidgets.QPushButton("Save")
+        self.load_button = QtWidgets.QPushButton("Load")
 
         self.reset_volume = QtWidgets.QPushButton("Reset atlas")
         self.reset_histology = QtWidgets.QPushButton("Reset histology")
 
         layout = QtWidgets.QHBoxLayout()
         layout.addWidget(self.save_button)
+        layout.addWidget(self.load_button)
         layout.addWidget(self.reset_volume)
         layout.addWidget(self.reset_histology)
 
