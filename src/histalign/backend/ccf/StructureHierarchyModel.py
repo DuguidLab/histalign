@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import json
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from PySide6 import QtCore, QtGui
 
@@ -15,6 +15,7 @@ class StructureHierarchyModel(QtGui.QStandardItemModel):
     def __init__(
         self,
         structures_hierarchy_path: Optional[str] = None,
+        root_text: str = "Basic cell groups and regions",
         parent: Optional[QtCore.QObject] = None,
     ) -> None:
         super().__init__(parent)
@@ -23,7 +24,7 @@ class StructureHierarchyModel(QtGui.QStandardItemModel):
             structures_hierarchy_path or get_structures_hierarchy_path()
         )
 
-        self.build_tree(structures_hierarchy_path)
+        self.build_tree(structures_hierarchy_path, root_text)
 
     def data(
         self,
@@ -59,7 +60,7 @@ class StructureHierarchyModel(QtGui.QStandardItemModel):
         for row in range(root.rowCount()):
             self.propagate_uncheck(root.child(row, 0))
 
-    def build_tree(self, structures_hierarchy_path: str) -> None:
+    def build_tree(self, structures_hierarchy_path: str, root_text: str) -> None:
         """Builds a `StructureNode` tree from a hierarchy file.
 
         This method is overly careful about the state of the hierarchy. It does not
@@ -73,6 +74,12 @@ class StructureHierarchyModel(QtGui.QStandardItemModel):
             structures_hierarchy_path (str): Path to the hierarchy file on disk. This
                                              should be a JSON file as obtained from the
                                              Allen SDK.
+            root_text (str): Text of the root node. If a node with that text exists, it
+                             will be used as the root of the model (note the root will
+                             not be a visible node, instead its children will be
+                             re-parented to the invisibleRootItem. If left empty, the
+                             root will be the invisibleRootItem and all nodes will be
+                             visible.
         """
 
         def find_node(nodes: list[StructureNode], id_: int) -> int:
@@ -123,6 +130,43 @@ class StructureHierarchyModel(QtGui.QStandardItemModel):
 
             if not processed_a_node:
                 raise ValueError(f"Found orphaned nodes: \n{nodes_to_insert}")
+
+        if root_text:
+            self.zoom_on(root_text)
+
+    def zoom_on(self, text: str, zoom_in: bool = True) -> None:
+        for node in self.iterate_nodes():
+            for i in range(node.rowCount()):
+                if node.child(i).text() == text:
+                    child = node.takeChild(i)
+                    self.clear()
+                    self.invisibleRootItem().appendRow(child)
+
+                    if zoom_in:
+                        self.zoom_in()
+
+                    return
+
+    def zoom_in(self) -> None:
+        initial_row_count = self.invisibleRootItem().rowCount()
+        for i in range(initial_row_count):
+            for j in range(self.invisibleRootItem().child(i).rowCount()):
+                self.invisibleRootItem().appendRow(
+                    self.invisibleRootItem().child(i).takeChild(j)
+                )
+        self.removeRows(0, initial_row_count)
+
+    def iterate_nodes(
+        self, root: Optional[QtGui.QStandardItem] = None
+    ) -> Iterator[QtGui.QStandardItem]:
+        """Yields nodes in a depth-first manner."""
+        if root is None:
+            root = self.invisibleRootItem()
+
+        for i in range(root.rowCount()):
+            child = root.child(i)
+            yield child
+            yield from self.iterate_nodes(child)
 
     @staticmethod
     def parse_hierarchy(structures_hierarchy_path: str) -> list[StructureNode]:
