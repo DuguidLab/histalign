@@ -130,22 +130,22 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.values_changed.emit(self.settings)
 
     @QtCore.Slot()
-    def update_x_scale(self, new_value: int) -> None:
+    def update_x_scale(self, new_value: float) -> None:
         self.settings.x_scale = round(new_value, 2)
         self.values_changed.emit(self.settings)
 
     @QtCore.Slot()
-    def update_y_scale(self, new_value: int) -> None:
+    def update_y_scale(self, new_value: float) -> None:
         self.settings.y_scale = round(new_value, 2)
         self.values_changed.emit(self.settings)
 
     @QtCore.Slot()
-    def update_x_shear(self, new_value: int) -> None:
+    def update_x_shear(self, new_value: float) -> None:
         self.settings.x_shear = round(new_value, 2)
         self.values_changed.emit(self.settings)
 
     @QtCore.Slot()
-    def update_y_shear(self, new_value: int) -> None:
+    def update_y_shear(self, new_value: float) -> None:
         self.settings.y_shear = round(new_value, 2)
         self.values_changed.emit(self.settings)
 
