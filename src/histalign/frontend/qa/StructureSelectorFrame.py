@@ -9,22 +9,15 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.StructureHierarchyModel import StructureHierarchyModel
 from histalign.backend.ccf.StructureNode import StructureNode
-from histalign.frontend.qa.PopUpTreeView import PopUpTreeView
+from histalign.frontend.qa.StructureFinderWidget import StructureFinderWidget
 from histalign.frontend.qa.StructureTagFrame import StructureTagFrame
-
-
-class AddTagButton(QtWidgets.QPushButton):
-    focus_lost: QtCore.Signal = QtCore.Signal()
-
-    def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
-        self.focus_lost.emit()
 
 
 class StructureSelectorFrame(QtWidgets.QFrame):
     structure_tags_mapping: dict[str, StructureTagFrame]
 
     add_tag_button: QtWidgets.QPushButton
-    structures_tree_view: PopUpTreeView
+    structure_finder_widget: StructureFinderWidget
     scroll_area: QtWidgets.QScrollArea
     tag_layout: QtWidgets.QHBoxLayout
 
@@ -38,23 +31,23 @@ class StructureSelectorFrame(QtWidgets.QFrame):
 
         self.structure_tags_mapping = {}
 
-        self.structures_tree_view = PopUpTreeView()
-        self.structures_tree_view.setModel(StructureHierarchyModel())
-        self.structures_tree_view.model().itemChanged.connect(
+        self.structure_finder_widget = StructureFinderWidget()
+        self.structure_finder_widget.structure_model.itemChanged.connect(
             self.handle_structure_change
         )
-        self.structures_tree_view.hide()
+        self.structure_finder_widget.layout().setContentsMargins(0, 10, 0, 0)
+        self.structure_finder_widget.layout().setSpacing(0)
+        self.structure_finder_widget.hide()
 
         layout = QtWidgets.QHBoxLayout()
         layout.setAlignment(QtCore.Qt.AlignLeft)
 
-        self.add_tag_button = AddTagButton("+")
+        self.add_tag_button = QtWidgets.QPushButton("+")
         self.add_tag_button.setFixedSize(22, 22)
 
-        self.add_tag_button.clicked.connect(self.show_popup_structures_tree_view)
-        self.add_tag_button.focus_lost.connect(self.structures_tree_view.hide)
+        self.add_tag_button.clicked.connect(self.show_popup_structure_finder_widget)
 
-        self.structures_tree_view.setFocusProxy(self.add_tag_button)
+        self.structure_finder_widget.setFocusProxy(self.add_tag_button)
 
         scroll_layout = QtWidgets.QHBoxLayout()
         scroll_layout.setAlignment(QtCore.Qt.AlignLeft)
@@ -109,24 +102,25 @@ class StructureSelectorFrame(QtWidgets.QFrame):
                 raise NotImplementedError
 
     @QtCore.Slot()
-    def show_popup_structures_tree_view(self) -> None:
-        if self.structures_tree_view.isVisible():
-            self.structures_tree_view.hide()
+    def show_popup_structure_finder_widget(self) -> None:
+        if self.structure_finder_widget.isVisible():
+            self.structure_finder_widget.hide()
             return
 
         # Assign own parent to popup, this way it can be shown over other widgets.
         # This relies on self being child of main window.
-        if self.structures_tree_view.parent() is None:
-            self.structures_tree_view.setParent(self.parent())
+        if self.structure_finder_widget.parent() is None:
+            self.structure_finder_widget.setParent(self.parent())
 
             # position = self.mapToParent(self.add_tag_button.geometry().bottomLeft())
             position = self.mapToParent(self.scroll_area.geometry().bottomLeft())
 
-            self.structures_tree_view.setGeometry(
+            self.structure_finder_widget.setGeometry(
                 position.x(),
                 position.y(),
-                self.scroll_area.width(),  # 400,
+                self.scroll_area.width(),
                 500,
             )
 
-        self.structures_tree_view.show()
+        self.structure_finder_widget.show()
+        self.structure_finder_widget.line_edit.setFocus()

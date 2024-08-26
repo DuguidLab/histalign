@@ -7,18 +7,11 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 
-class PopUpTreeView(QtWidgets.QTreeView):
-    focus_lost: QtCore.Signal = QtCore.Signal()
-
+class TreeView(QtWidgets.QTreeView):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
-
         self.setHeaderHidden(True)
-
-        self.setWindowFlags(QtCore.Qt.WindowType.FramelessWindowHint)
-
         self.setStyleSheet(
             f"""
             QTreeView {{
