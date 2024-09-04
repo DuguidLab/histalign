@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.qa.QAViewerWidget import QAViewerWidget
+from histalign.frontend.qa.viewer import QAViewerWidget
 
 
 class Canvas(FigureCanvasQTAgg):

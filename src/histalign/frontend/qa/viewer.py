@@ -2,25 +2,21 @@
 #
 # SPDX-License-Identifier: MIT
 
-import json
 from functools import partial
+import json
 from typing import Optional
 
-import cv2
-import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
+import numpy as np
 
 import histalign.backend.io as io
-from histalign.backend.models.AlignmentParameterAggregator import (
-    AlignmentParameterAggregator,
-)
-from histalign.backend.registration.ReverseRegistrator import ReverseRegistrator
-from histalign.backend.registration.ContourGeneratorThread import ContourGeneratorThread
+from histalign.backend.models import AlignmentSettings
+from histalign.backend.registration import ContourGeneratorThread, ReverseRegistrator
 
 
 class QAViewerWidget(QtWidgets.QLabel):
     is_registered: bool = False
-    registration_result: Optional[AlignmentParameterAggregator] = None
+    registration_result: Optional[AlignmentSettings] = None
     contours_map: dict[str, np.ndarray]
 
     reverse_registrator: ReverseRegistrator
@@ -70,9 +66,7 @@ class QAViewerWidget(QtWidgets.QLabel):
         if result_path is not None:
             self.is_registered = True
             with open(result_path) as handle:
-                self.registration_result = AlignmentParameterAggregator(
-                    **json.load(handle)
-                )
+                self.registration_result = AlignmentSettings(**json.load(handle))
 
         # Recompute contours when changing slices
         structure_names = self.contours_map.keys()
@@ -122,7 +116,6 @@ class QAViewerWidget(QtWidgets.QLabel):
     @QtCore.Slot()
     def add_contour(self, structure_name: str) -> None:
         if not self.is_registered:
-            print("Image not registered. Skipping adding contour.")
             return
 
         new_thread = ContourGeneratorThread(structure_name, self.registration_result)
