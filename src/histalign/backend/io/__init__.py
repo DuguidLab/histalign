@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+from pathlib import Path
 from typing import Optional
 
 import h5py
@@ -12,8 +13,11 @@ import vedo
 
 
 def load_image(
-    file_path: str, normalise_dtype: Optional[np.dtype] = None
+    file_path: str | Path, normalise_dtype: Optional[np.dtype] = None
 ) -> np.ndarray:
+    if isinstance(file_path, Path):
+        file_path = str(file_path)
+
     match file_path.split(".")[-1]:
         case "h5" | "hdf5":
             with h5py.File(file_path, "r") as h5_handle:
@@ -49,10 +53,13 @@ def load_image(
 
 
 def load_volume(
-    file_path: str,
+    file_path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     return_raw_array: bool = False,
 ) -> np.ndarray | vedo.Volume:
+    if isinstance(file_path, Path):
+        file_path = str(file_path)
+
     match file_path.split(".")[-1]:
         case "nrrd":
             array = nrrd.read(file_path)[0]
