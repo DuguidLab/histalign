@@ -2,13 +2,20 @@
 #
 # SPDX-License-Identifier: MIT
 
+import os
 from pathlib import Path
 from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
+from histalign.backend.models import ProjectSettings
+
 
 class AtlasChangeDialog(QtWidgets.QDialog):
+    label: QtWidgets.QLabel
+    combo_box: QtWidgets.QComboBox
+    button_box: QtWidgets.QDialogButtonBox
+
     submitted: QtCore.Signal = QtCore.Signal(int)
 
     def __init__(
@@ -16,13 +23,12 @@ class AtlasChangeDialog(QtWidgets.QDialog):
     ) -> None:
         super().__init__(parent)
 
-        layout = QtWidgets.QFormLayout()
-        layout.setSpacing(20)
-
-        resolution_layout = QtWidgets.QHBoxLayout()
-
+        #
         label = QtWidgets.QLabel("Atlas resolution")
 
+        self.label = label
+
+        #
         combo_box = QtWidgets.QComboBox()
         combo_box.setFixedSize(60, 22)
         combo_box.setEditable(True)
@@ -36,15 +42,28 @@ class AtlasChangeDialog(QtWidgets.QDialog):
         for resolution in resolutions:
             combo_box.addItem(str(resolution))
 
+        self.combo_box = combo_box
+
+        #
+        resolution_layout = QtWidgets.QHBoxLayout()
         resolution_layout.addWidget(label, alignment=QtCore.Qt.AlignLeft)
         resolution_layout.addWidget(combo_box, alignment=QtCore.Qt.AlignRight)
 
+        #
         button_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
 
         button_box.button(QtWidgets.QDialogButtonBox.Ok).clicked.connect(self.submit)
-        button_box.button(QtWidgets.QDialogButtonBox.Cancel).clicked.connect(self.close)
+        button_box.button(QtWidgets.QDialogButtonBox.Cancel).clicked.connect(
+            self.reject
+        )
+
+        self.button_box = button_box
+
+        #
+        layout = QtWidgets.QFormLayout()
+        layout.setSpacing(20)
 
         layout.addRow(resolution_layout)
         layout.addRow(button_box)
@@ -54,8 +73,8 @@ class AtlasChangeDialog(QtWidgets.QDialog):
 
     @QtCore.Slot()
     def submit(self) -> None:
-        self.close()
-        self.submitted.emit(int(self.findChild(QtWidgets.QComboBox).currentText()))
+        self.submitted.emit(int(self.combo_box.currentText()))
+        self.accept()
 
 
 class AtlasProgressDialog(QtWidgets.QProgressDialog):
@@ -81,12 +100,13 @@ class InvalidProjectFileDialog(QtWidgets.QMessageBox):
         self.setIcon(QtWidgets.QMessageBox.Critical)
 
 
-class ProjectCreateDialog(QtWidgets.QDialog):
+class CreateProjectDialog(QtWidgets.QDialog):
+    orientation_widget: QtWidgets.QComboBox
     resolution_widget: QtWidgets.QComboBox
     project_path_widget: QtWidgets.QLineEdit
     submit_button: QtWidgets.QPushButton
 
-    submitted: QtCore.Signal = QtCore.Signal(dict)
+    submitted: QtCore.Signal = QtCore.Signal(ProjectSettings)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -95,6 +115,25 @@ class ProjectCreateDialog(QtWidgets.QDialog):
 
         layout = QtWidgets.QFormLayout()
         layout.setSpacing(20)
+
+        orientation_layout = QtWidgets.QHBoxLayout()
+        orientation_layout.setAlignment(QtCore.Qt.AlignRight)
+        orientation_layout.setSpacing(20)
+
+        orientation_widget = QtWidgets.QComboBox()
+        orientation_widget.setFixedSize(95, 22)
+        orientation_widget.setEditable(True)
+        orientation_widget.lineEdit().setReadOnly(True)
+        orientation_widget.lineEdit().setAlignment(QtCore.Qt.AlignRight)
+        orientation_widget.lineEdit().selectionChanged.connect(
+            lambda: orientation_widget.lineEdit().deselect()
+        )
+        orientation_widget.addItem("Coronal")
+        orientation_widget.addItem("Horizontal")
+        orientation_widget.addItem("Sagittal")
+
+        orientation_layout.addWidget(orientation_widget)
+        self.orientation_widget = orientation_widget
 
         resolution_layout = QtWidgets.QHBoxLayout()
         resolution_layout.setAlignment(QtCore.Qt.AlignRight)
@@ -146,8 +185,11 @@ class ProjectCreateDialog(QtWidgets.QDialog):
         submit_button.clicked.connect(self.submit)
         self.submit_button = submit_button
 
-        button_box.button(QtWidgets.QDialogButtonBox.Cancel).clicked.connect(self.close)
+        button_box.button(QtWidgets.QDialogButtonBox.Cancel).clicked.connect(
+            self.reject
+        )
 
+        layout.addRow("Orientation", orientation_layout)
         layout.addRow("Atlas resolution", resolution_layout)
         layout.addRow(project_picker_layout)
         layout.addRow(button_box)
@@ -157,6 +199,7 @@ class ProjectCreateDialog(QtWidgets.QDialog):
 
     def show_directory_picker(self) -> None:
         choice = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
             caption="Select an empty project directory",
             options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
         )
@@ -169,23 +212,43 @@ class ProjectCreateDialog(QtWidgets.QDialog):
         path = Path(path)
 
         valid = False
-        try:
-            next(path.iterdir())
-        except FileNotFoundError:
-            pass
-        except StopIteration:
-            valid = True
+        if path.is_dir():
+            try:
+                next(path.iterdir())
+            except FileNotFoundError:
+                pass
+            except StopIteration:
+                valid = True
 
         self.submit_button.setEnabled(valid)
 
     @QtCore.Slot()
     def submit(self) -> None:
         self.submitted.emit(
-            {
-                "project_directory_path": self.project_path_widget.text(),
-                "atlas_resolution": int(self.resolution_widget.currentText()),
-            }
+            ProjectSettings(
+                project_path=self.project_path_widget.text(),
+                orientation=self.orientation_widget.currentText().lower(),
+                resolution=self.resolution_widget.currentText(),
+            )
         )
+        self.accept()
+
+
+class OpenProjectDialog(QtWidgets.QWidget):
+    submitted: QtCore.Signal = QtCore.Signal(str)
+
+    def open(self) -> None:
+        project_file, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select a project file",
+            os.getcwd(),
+            "Project (project.json)",
+            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
+        )
+
+        if project_file != "":
+            self.submitted.emit(project_file)
+
         self.close()
 
 

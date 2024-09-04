@@ -7,11 +7,9 @@ import sys
 from typing import Callable
 
 import click
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
-from histalign.frontend.qa import QAMainWindow
-from histalign.frontend.registration import RegistrationMainWindow
-
+from histalign.frontend import ApplicationWidget
 
 if __name__ == "histalign":
     logger = logging.getLogger(__name__)
@@ -24,90 +22,88 @@ if __name__ == "histalign":
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
 
 
-def default_options(function: Callable) -> click.option:
+def common_options(function: Callable) -> click.option:
     return click.option(
-        "--fullscreen",
-        is_flag=True,
+        "-v",
+        "--verbose",
+        "verbosity",
+        required=False,
+        count=True,
+        help=(
+            "Set verbosity level. Level 0 is WARNING (default). Level 1 is INFO. "
+            "Level 2 is DEBUG."
+        ),
     )(
         click.option(
-            "--debug-ui",
+            "--fullscreen",
             is_flag=True,
-        )(function)
+            help="Whether to start the application in fullscreen.",
+        )(
+            click.option(
+                "--debug-ui",
+                is_flag=True,
+                help=(
+                    "Whether to enable UI debugging. "
+                    "This adds a border around elements."
+                ),
+            )(function)
+        )
     )
 
 
-@click.group()
-@click.option(
-    "-v",
-    "--verbose",
-    "verbosity",
-    required=False,
-    count=True,
-    help=(
-        "Set verbosity level. Level 0 is WARNING (default). Level 1 is INFO. "
-        "Level 2 is DEBUG."
-    ),
-)
-def histalign(verbosity: int) -> None:
+@click.group(invoke_without_command=True)
+@common_options
+@click.pass_context
+def histalign(
+    context: click.Context, verbosity: int, fullscreen: bool, debug_ui: bool
+) -> None:
+    if not context.invoked_subcommand:
+        start_app(verbosity, fullscreen, debug_ui, callback="open_centralised_window")
+
+
+@histalign.command()
+@common_options
+def register(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
+    start_app(verbosity, fullscreen, debug_ui, callback="open_registration_window")
+
+
+@histalign.command()
+@common_options
+def qa(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
+    start_app(verbosity, fullscreen, debug_ui, callback="open_qa_window")
+
+
+def quantify() -> None:
+    pass
+
+
+def visualise() -> None:
+    pass
+
+
+def start_app(
+    verbosity: int,
+    fullscreen: bool,
+    debug_ui: bool,
+    *args,
+    callback: str,
+    **kwargs,
+) -> None:
     if verbosity == 1:
         logging.getLogger("histalign").setLevel(logging.INFO)
     elif verbosity >= 2:
         logging.getLogger("histalign").setLevel(logging.DEBUG)
 
-
-@histalign.command()
-@default_options
-def register(fullscreen: bool = False, debug_ui: bool = False) -> None:
     app = QtWidgets.QApplication()
 
     if debug_ui:
         app.setStyleSheet("* { border: 1px solid blue; }")
 
-    window = RegistrationMainWindow()
-
-    screen = app.screens()[0]
-    window.resize(get_startup_size(screen))
-
-    if fullscreen:
-        window.showMaximized()
-    else:
-        window.show()
-
-    sys.exit(app.exec())
-
-
-@histalign.command()
-@default_options
-def qa(fullscreen: bool = False, debug_ui: bool = False) -> None:
-    app = QtWidgets.QApplication()
-
-    if debug_ui:
-        app.setStyleSheet("* { border: 1px solid blue; }")
-
-    window = QAMainWindow()
+    window = ApplicationWidget(fullscreen=fullscreen)
+    getattr(window, callback)()
     window.show()
 
-    screen = app.screens()[0]
-    window.resize(get_startup_size(screen))
-
-    if fullscreen:
-        window.showMaximized()
-    else:
-        window.show()
-
     sys.exit(app.exec())
-
-
-def get_startup_size(screen: QtGui.QScreen) -> QtCore.QSize:
-    if (
-        screen.size().width() > PREFERRED_STARTUP_SIZE.width()
-        and screen.size().height() > PREFERRED_STARTUP_SIZE.height()
-    ):
-        return PREFERRED_STARTUP_SIZE
-    else:
-        return QtCore.QSize(
-            round(screen.size().width() * 0.75), round(screen.size().height() * 0.75)
-        )
 
 
 if __name__ == "__main__":
