@@ -2,4 +2,333 @@
 #
 # SPDX-License-Identifier: MIT
 
-from histalign.backend.registration.ReverseRegistrator import ReverseRegistrator
+import logging
+from pathlib import Path
+from typing import Optional
+
+from PIL import Image
+from PySide6 import QtCore, QtGui
+import cv2
+import numpy as np
+from skimage.transform import AffineTransform, rescale, warp
+
+from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
+from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
+import histalign.backend.io as io
+from histalign.backend.models import (
+    AlignmentSettings,
+)
+from histalign.backend.workspace import VolumeSlicer
+
+
+class ReverseRegistrator:
+    fast_rescale: bool
+    fast_transform: bool
+    interpolation: str
+
+    def __init__(
+        self,
+        fast_rescale: bool = False,
+        fast_transform: bool = False,
+        interpolation: str = "bilinear",
+    ) -> None:
+        self.logger = logging.getLogger(__name__)
+
+        self.fast_rescale = fast_rescale
+        self.fast_transform = fast_transform
+        self.interpolation = interpolation
+
+        self._volume_path: Optional[str] = None
+        self._volume_slicer: Optional[VolumeSlicer] = None
+
+    def get_reversed_image(
+        self,
+        settings: AlignmentSettings,
+        volume_name: str,
+        histology_image: Optional[np.ndarray] = None,
+    ) -> Optional[np.ndarray]:
+        match volume_name.lower():
+            case "atlas":
+                volume_path = settings.volume_path
+                if not Path(volume_path).exists():
+                    self.logger.warning(
+                        "Atlas path included in the results does not exist on the "
+                        "current filesystem. "
+                        "Retrieving atlas manually (may incur download)."
+                    )
+                    volume_path = get_atlas_path(settings.volume_settings.resolution)
+                    if not Path(volume_path).exists():
+                        download_atlas()
+            case _:
+                try:
+                    volume_path = get_structure_mask_path(
+                        volume_name, settings.volume_settings.resolution
+                    )
+                    if not Path(volume_path).exists():
+                        download_structure_mask(
+                            volume_name, resolution=settings.volume_settings.resolution
+                        )
+                except KeyError:
+                    raise ValueError(
+                        f"Could not resolve `volume_name` with value '{volume_name}' "
+                        f"as a structure name."
+                    )
+
+        if volume_path != self._volume_path:
+            self._volume_path = volume_path
+            self._volume_slicer = VolumeSlicer(
+                path=volume_path,
+                resolution=settings.volume_settings.resolution,
+                lazy=False,
+            )
+
+        if histology_image is None:
+            histology_image = io.load_image(settings.histology_path)
+
+        volume_final_scaling = self._get_volume_scaling_factor(settings)
+
+        volume_image = self._volume_slicer.slice(
+            settings.volume_settings, interpolation="linear"
+        )
+        volume_image = self._rescale(
+            volume_image,
+            volume_final_scaling,
+            fast=self.fast_rescale,
+            interpolation=self.interpolation,
+        )
+        volume_image = self._transform_image(
+            volume_image,
+            settings,
+            fast=self.fast_transform,
+            interpolation=self.interpolation,
+        )
+        return self._crop_down(volume_image, histology_image.shape)
+
+    @staticmethod
+    def _rescale(
+        image: np.ndarray, scaling: float, fast: bool, interpolation: str
+    ) -> np.ndarray:
+        # NOTE: PIL's resize is much faster but less accurate.
+        #       However, it is appropriate for masks.
+        match interpolation:
+            case "nearest":
+                resample = Image.Resampling.NEAREST
+                order = 0
+            case "bilinear":
+                resample = Image.Resampling.BILINEAR
+                order = 1
+            case _:
+                raise ValueError(f"Unknown interpolation '{interpolation}'")
+
+        if fast:
+            return np.array(
+                Image.fromarray(image.T).resize(
+                    np.round(np.array(image.shape) * scaling).astype(int).tolist(),
+                    resample=resample,
+                )
+            ).T
+        else:
+            return rescale(
+                image,
+                scaling,
+                preserve_range=True,
+                clip=True,
+                order=order,
+            ).astype(image.dtype)
+
+    @staticmethod
+    def _transform_image(
+        image: np.ndarray,
+        alignment_settings: AlignmentSettings,
+        fast: bool,
+        interpolation: str,
+    ) -> np.ndarray:
+        histology_settings = alignment_settings.histology_settings
+
+        initial_width = image.shape[1]
+        initial_height = image.shape[0]
+
+        effective_width = histology_settings.scale_x * initial_width
+        effective_height = histology_settings.scale_y * initial_height
+
+        x_displacement = histology_settings.shear_x * effective_height
+        y_displacement = histology_settings.shear_y * effective_width
+
+        q_transform = (
+            QtGui.QTransform()
+            .translate(  # Translation to apply rotation around the center of the image
+                initial_width / 2,
+                initial_height / 2,
+            )
+            .rotate(  # Regular rotation
+                histology_settings.rotation,
+            )
+            .translate(  # Translation to get back to position before rotation
+                -initial_width / 2,
+                -initial_height / 2,
+            )
+            .translate(  # Regular translation
+                histology_settings.translation_x
+                * alignment_settings.histology_downsampling,
+                histology_settings.translation_y
+                * alignment_settings.histology_downsampling,
+            )
+            .translate(  # Translation to apply scaling from the center of the image
+                -(effective_width - initial_width) / 2,
+                -(effective_height - initial_height) / 2,
+            )
+            .scale(  # Regular scaling
+                histology_settings.scale_x,
+                histology_settings.scale_y,
+            )
+            .translate(  # Translation to apply shearing from the center of the image
+                -x_displacement / 2,
+                -y_displacement / 2,
+            )
+            .shear(  # Regular shearing
+                histology_settings.shear_x,
+                histology_settings.shear_y,
+            )
+        )
+
+        matrix = (
+            str(q_transform).replace("PySide6.QtGui.QTransform(", "").replace(")", "")
+        )
+        matrix = (
+            np.array([float(value) for value in matrix.split(", ")]).reshape(3, 3).T
+        )
+
+        match interpolation:
+            case "nearest":
+                flag = cv2.INTER_NEAREST
+                order = 0
+            case "bilinear":
+                flag = cv2.INTER_LINEAR
+                order = 1
+            case _:
+                raise ValueError(f"Unknown interpolation '{interpolation}'")
+
+        # NOTE: OpenCV's warp is much faster but seemingly less accurate
+        if fast:
+            return cv2.warpPerspective(
+                image,
+                matrix,
+                image.shape[::-1],
+                flags=flag | cv2.WARP_INVERSE_MAP,
+            )
+        else:
+            sk_transform = AffineTransform(matrix=matrix)
+            return warp(
+                image, sk_transform, order=order, preserve_range=True, clip=True
+            ).astype(image.dtype)
+
+    @staticmethod
+    def _crop_down(image: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
+        top_left = ReverseRegistrator._get_top_left_point(image.shape, shape)
+
+        return image[
+            top_left[0] : top_left[0] + shape[0],
+            top_left[1] : top_left[1] + shape[1],
+        ]
+
+    @staticmethod
+    def _get_top_left_point(
+        larger_shape: tuple[int, ...], smaller_shape: tuple[int, ...]
+    ) -> tuple[int, int]:
+        if len(larger_shape) != 2 or len(smaller_shape) != 2:
+            raise ValueError(
+                f"Invalid shapes, should be 2-dimensional. "
+                f"Got {len(larger_shape)}D and {len(smaller_shape)}D."
+            )
+
+        ratios = np.array(larger_shape) / np.array(smaller_shape)
+        if np.min(ratios) < 1.0:
+            raise ValueError(
+                f"Large image has at least one dimension that is smaller than smaller "
+                f"image (larger: {larger_shape} vs "
+                f"smaller: {smaller_shape})."
+            )
+
+        maximum = np.max(ratios)
+
+        if ratios[0] == maximum:
+            top_left = ((larger_shape[0] - smaller_shape[0]) // 2, 0)
+        else:
+            top_left = (0, (larger_shape[1] - smaller_shape[1]) // 2)
+
+        return top_left
+
+    @staticmethod
+    def _get_volume_scaling_factor(settings: AlignmentSettings) -> float:
+        return (
+            settings.volume_scaling / settings.histology_scaling
+        ) * settings.histology_downsampling
+
+
+class ContourGeneratorThread(QtCore.QThread):
+    """Thread class for handling contour generation for the QA GUI.
+
+    Since instances are throwaways, they can use their own ReverseRegistrator as we
+    don't need to optimise keeping the loaded volume into memory.
+
+    Attributes:
+        should_emit (bool): Whether the thread should report its results or drop them.
+                            It should drop them if its processing took too long and its
+                            work is no longer required by the GUI (e.g., the contour
+                            was removed from the list of selected contours before the
+                            thread returned).
+
+    Signals:
+        mask_ready (np.ndarray): Emits the structure mask after reverse registration.
+        contours_ready (np.ndarray): Emits the contour(s) of the mask as a single numpy
+                                     array of shape (N, 2), representing N points' I and
+                                     J coordinates (i.e., matrix coordinates). This
+                                     array can be empty if no contour was found.
+    """
+
+    structure_name: str
+    alignment_settings: AlignmentSettings
+
+    should_emit: bool = True
+
+    mask_ready: QtCore.Signal = QtCore.Signal(np.ndarray)
+    contours_ready: QtCore.Signal = QtCore.Signal(np.ndarray)
+
+    def __init__(
+        self,
+        structure_name: str,
+        alignment_settings: AlignmentSettings,
+        parent: Optional[QtCore.QObject] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.logger = logging.getLogger(__name__)
+
+        self.structure_name = structure_name
+        self.alignment_settings = alignment_settings
+
+    def run(self) -> None:
+        registrator = ReverseRegistrator(True, True)
+
+        try:
+            structure_mask = registrator.get_reversed_image(
+                self.alignment_settings, volume_name=self.structure_name
+            )
+        except FileNotFoundError:
+            self.logger.error(
+                f"Could not find structure file ('{self.structure_name}')."
+            )
+            return
+
+        contours = cv2.findContours(
+            structure_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
+        )[0]
+
+        if contours:
+            contours = np.concatenate(contours).squeeze()
+        else:
+            contours = np.array([])
+
+        if self.should_emit:
+            self.mask_ready.emit(structure_mask)
+            self.contours_ready.emit(contours)
