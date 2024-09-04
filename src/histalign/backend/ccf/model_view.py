@@ -3,15 +3,43 @@
 # SPDX-License-Identifier: MIT
 
 import json
+from dataclasses import dataclass
 from typing import Any, Iterator, Optional
 
 from PySide6 import QtCore, QtGui
 
-from histalign.backend.ccf.StructureNode import StructureNode
-from histalign.backend.ccf.allen_downloads import get_structures_hierarchy_path
+from histalign.backend.ccf.paths import get_structures_hierarchy_path
 
 
-class StructureHierarchyModel(QtGui.QStandardItemModel):
+@dataclass
+class StructureNode(QtGui.QStandardItem):
+    acronym: str
+    rgb_triplet: list[int]
+    graph_id: int
+    graph_order: int
+    id: int
+    name: str
+    structure_id_path: list[int]
+    structure_set_ids: list[int]
+
+    def __post_init__(self) -> None:
+        super().__init__()
+
+    def data(
+        self, role: QtCore.Qt.ItemDataRole = QtCore.Qt.ItemDataRole.DisplayRole
+    ) -> Any:
+        match role:
+            case QtCore.Qt.ItemDataRole.DisplayRole:
+                return self.name
+            case _:
+                return super().data(role)
+
+    def uncheck(self) -> None:
+        if self.checkState() == QtCore.Qt.CheckState.Checked:
+            self.setCheckState(QtCore.Qt.CheckState.Unchecked)
+
+
+class StructureModel(QtGui.QStandardItemModel):
     def __init__(
         self,
         structures_hierarchy_path: Optional[str] = None,
