@@ -2,28 +2,33 @@
 #
 # SPDX-License-Identifier: MIT
 
-import typing
+from typing import Optional
 
-import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
+import numpy as np
 
-from histalign.backend.models.HistologySettings import HistologySettings
-from histalign.backend.workspace.VolumeManager import VolumeManager
-from histalign.backend.models.VolumeSettings import VolumeSettings
+from histalign.backend.models import (
+    AlignmentSettings,
+    HistologySettings,
+    VolumeSettings,
+)
+from histalign.backend.workspace import VolumeSlicer
+from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 
 class AlignmentWidget(QtWidgets.QWidget):
     scene: QtWidgets.QGraphicsScene
     view: QtWidgets.QGraphicsView
     volume_pixmap: QtWidgets.QGraphicsPixmapItem
-    volume_manager: VolumeManager
+    volume_slicer: Optional[VolumeSlicer] = None
     histology_pixmap: QtWidgets.QGraphicsPixmapItem
     histology_image: QtGui.QImage
 
-    volume_scale_ratio_changed = QtCore.Signal(float)
-    histology_scale_ratio_changed = QtCore.Signal(float)
+    alignment_settings: Optional[AlignmentSettings] = None
+    volume_settings: Optional[VolumeSettings] = None
+    histology_settings: Optional[HistologySettings] = None
 
-    def __init__(self, parent: typing.Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         self.scene = QtWidgets.QGraphicsScene(self)
@@ -37,48 +42,70 @@ class AlignmentWidget(QtWidgets.QWidget):
             QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
-        self.clear()
+        self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
+        self.histology_pixmap = self.scene.addPixmap(QtGui.QPixmap())
+        self.histology_image = QtGui.QImage()
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.view)
         self.setLayout(layout)
 
-    def load_histological_slice(self, file_path: str) -> None:
-        self.histology_image = QtGui.QImage()
-        self.histology_image.load(file_path)
-
-        self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
-        self.update_histology_pixmap()
-
-    def update_histological_slice(self, array: np.ndarray) -> None:
-        self.histology_image = QtGui.QImage(
-            array.tobytes(),
-            array.shape[1],
-            array.shape[0],
-            QtGui.QImage.Format.Format_Grayscale8,
+    def prepare_slicer(self) -> None:
+        self.volume_slicer = VolumeSlicer(
+            path=self.alignment_settings.volume_path,
+            resolution=self.alignment_settings.volume_settings.resolution,
         )
 
-        self.histology_image.setAlphaChannel(
-            QtGui.QImage(
-                np.where(array > 5, 255, 0).astype(np.uint8).tobytes(),
+    def update_histological_slice(self, array: Optional[np.ndarray]) -> None:
+        if array is None:
+            self.histology_image = QtGui.QImage()
+        else:
+            self.histology_image = QtGui.QImage(
+                array.tobytes(),
                 array.shape[1],
                 array.shape[0],
-                QtGui.QImage.Format_Alpha8,
+                array.shape[1],
+                QtGui.QImage.Format.Format_Grayscale8,
             )
-        )
+
+            self.histology_image.setAlphaChannel(
+                QtGui.QImage(
+                    np.where(array > 5, 255, 0).astype(np.uint8).tobytes(),
+                    array.shape[1],
+                    array.shape[0],
+                    array.shape[1],
+                    QtGui.QImage.Format_Alpha8,
+                )
+            )
 
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
         self.update_histology_pixmap()
 
-    def update_volume_pixmap(
-        self, settings: typing.Optional[VolumeSettings] = None
-    ) -> None:
-        if settings is None:
-            settings = self._volume_settings
-        self._volume_settings = settings
+    def resizeEvent(self, event) -> None:
+        try:
+            volume_scale_ratio = self.compute_scaling(
+                self.volume_pixmap.pixmap().size(),
+                event.size(),
+                self.layout().contentsMargins(),
+            )
+            self.alignment_settings.volume_scaling = volume_scale_ratio
+            self.volume_pixmap.setTransform(
+                QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
+            )
+            self.volume_pixmap.setOffset(
+                -self.volume_pixmap.pixmap().width() / 2,
+                -self.volume_pixmap.pixmap().height() / 2,
+            )
+            self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
+        except ZeroDivisionError:
+            return
 
+        self.update_histology_pixmap()
+
+    @QtCore.Slot()
+    def update_volume_pixmap(self) -> None:
         pixmap = self.convert_8_bit_numpy_to_pixmap(
-            self.volume_manager.slice_volume(settings)
+            self.volume_slicer.slice(self.volume_settings)
         )
         self.volume_pixmap.setPixmap(pixmap)
         self.volume_pixmap.setOffset(
@@ -87,60 +114,29 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
         self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
 
-    def clear(self) -> None:
-        if hasattr(self, "volume_pixmap"):
-            self.scene.removeItem(self.volume_pixmap)
-        self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
-        self._volume_settings = None
-        if hasattr(self, "histology_pixmap"):
-            self.scene.removeItem(self.histology_pixmap)
-        self.histology_pixmap = self.scene.addPixmap(QtGui.QPixmap())
-        self._histology_settings = None
-
-        self.volume_manager = VolumeManager()
-
-        self.histology_image = QtGui.QImage()
-
-        # Easiest way to trigger redraw
-        if self.layout():
-            self.resizeEvent(QtGui.QResizeEvent(self.size(), self.size()))
-
     @QtCore.Slot()
-    def reslice_volume(self, settings: VolumeSettings) -> None:
-        self.update_volume_pixmap(settings)
-
-    @QtCore.Slot()
-    def update_histology_pixmap(
-        self, settings: typing.Optional[HistologySettings] = None
-    ) -> None:
+    def update_histology_pixmap(self) -> None:
         if self.histology_pixmap.pixmap().isNull():
             return
 
-        if settings is None:
-            if self._histology_settings is None:
-                settings = HistologySettings()
-            else:
-                settings = self._histology_settings
-        self._histology_settings = settings
-
-        scale_ratio = self.calculate_scale_ratio(
+        scale_ratio = self.compute_scaling(
             self.histology_pixmap.pixmap().size(),
             self.volume_pixmap.sceneBoundingRect().size(),
             self.layout().contentsMargins(),
         )
-        self.histology_scale_ratio_changed.emit(scale_ratio)
+        self.alignment_settings.histology_scaling = scale_ratio
         initial_transform = QtGui.QTransform().scale(scale_ratio, scale_ratio)
         self.histology_pixmap.setTransform(initial_transform)
 
         # Scaling variables
         initial_width = self.histology_pixmap.pixmap().width()
         initial_height = self.histology_pixmap.pixmap().height()
-        effective_width = settings.x_scale * initial_width
-        effective_height = settings.y_scale * initial_height
+        effective_width = self.histology_settings.scale_x * initial_width
+        effective_height = self.histology_settings.scale_y * initial_height
 
         # Shearing variables
-        x_displacement = settings.x_shear * effective_height
-        y_displacement = settings.y_shear * effective_width
+        displacement_x = self.histology_settings.shear_x * effective_height
+        displacement_y = self.histology_settings.shear_y * effective_width
 
         transform = (
             initial_transform.translate(  # Translation to center on (0, 0)
@@ -152,31 +148,31 @@ class AlignmentWidget(QtWidgets.QWidget):
                 initial_height / 2,
             )
             .rotate(  # Regular rotation
-                settings.rotation_angle,
+                self.histology_settings.rotation,
             )
             .translate(  # Translation to get back to position before rotation
                 -initial_width / 2,
                 -initial_height / 2,
             )
             .translate(  # Regular translation
-                settings.x_translation,
-                settings.y_translation,
+                self.histology_settings.translation_x,
+                self.histology_settings.translation_y,
             )
             .translate(  # Translation to apply scaling from the center of the image
                 -(effective_width - initial_width) / 2,
                 -(effective_height - initial_height) / 2,
             )
             .scale(  # Regular scaling
-                settings.x_scale,
-                settings.y_scale,
+                self.histology_settings.scale_x,
+                self.histology_settings.scale_y,
             )
             .translate(  # Translation to apply shearing from the center of the image
-                -x_displacement / 2,
-                -y_displacement / 2,
+                -displacement_x / 2,
+                -displacement_y / 2,
             )
             .shear(  # Regular shearing
-                settings.x_shear,
-                settings.y_shear,
+                self.histology_settings.shear_x,
+                self.histology_settings.shear_y,
             )
         )
 
@@ -197,6 +193,7 @@ class AlignmentWidget(QtWidgets.QWidget):
             ).tobytes(),
             self.histology_image.width(),
             self.histology_image.height(),
+            self.histology_image.width(),
             QtGui.QImage.Format_Alpha8,
         )
 
@@ -206,39 +203,19 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(alpha_image))
 
-    def resizeEvent(self, event) -> None:
-        try:
-            volume_scale_ratio = self.calculate_scale_ratio(
-                self.volume_pixmap.pixmap().size(),
-                event.size(),
-                self.layout().contentsMargins(),
-            )
-            self.volume_scale_ratio_changed.emit(volume_scale_ratio)
-            self.volume_pixmap.setTransform(
-                QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
-            )
-            self.volume_pixmap.setOffset(
-                -self.volume_pixmap.pixmap().width() / 2,
-                -self.volume_pixmap.pixmap().height() / 2,
-            )
-            self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
-        except ZeroDivisionError:
-            return
-
-        self.update_histology_pixmap()
-
     @staticmethod
     def convert_8_bit_numpy_to_pixmap(array: np.ndarray) -> QtGui.QPixmap:
         image = QtGui.QImage(
             array.tobytes(),
             array.shape[1],
             array.shape[0],
+            array.shape[1],
             QtGui.QImage.Format_Grayscale8,
         )
         return QtGui.QPixmap.fromImage(image)
 
     @staticmethod
-    def calculate_scale_ratio(
+    def compute_scaling(
         old_size: QtCore.QSize | QtCore.QSizeF,
         new_size: QtCore.QSize | QtCore.QSizeF,
         margins: QtCore.QMargins,
@@ -247,3 +224,38 @@ class AlignmentWidget(QtWidgets.QWidget):
             (new_size.width() - margins.left() - margins.right()) / old_size.width(),
             (new_size.height() - margins.top() - margins.bottom()) / old_size.height(),
         )
+
+
+class AlignmentButtonDockWidget(QtWidgets.QDockWidget):
+    save_button: QtWidgets.QPushButton
+    load_button: QtWidgets.QPushButton
+    reset_volume: QtWidgets.QPushButton
+    reset_histology: QtWidgets.QPushButton
+
+    def __init__(
+        self,
+        parent: Optional[QtCore.QObject] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.setContentsMargins(10, 0, 10, 10)
+
+        self.setTitleBarWidget(get_dummy_title_bar(self))
+        self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
+
+        self.save_button = QtWidgets.QPushButton("Save")
+        self.load_button = QtWidgets.QPushButton("Load")
+
+        self.reset_volume = QtWidgets.QPushButton("Reset atlas")
+        self.reset_histology = QtWidgets.QPushButton("Reset histology")
+
+        layout = QtWidgets.QHBoxLayout()
+        layout.addWidget(self.save_button)
+        layout.addWidget(self.load_button)
+        layout.addWidget(self.reset_volume)
+        layout.addWidget(self.reset_histology)
+
+        container_widget = QtWidgets.QWidget()
+        container_widget.setLayout(layout)
+
+        self.setWidget(container_widget)

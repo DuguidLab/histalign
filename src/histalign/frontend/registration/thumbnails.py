@@ -4,14 +4,44 @@
 
 from typing import Literal, Optional
 
-import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
+import numpy as np
 
-from histalign.backend.workspace.HistologySlice import THUMBNAIL_DIMENSIONS
-from histalign.frontend.registration.ThumbnailLabel import ThumbnailLabel
+from histalign.backend.workspace import THUMBNAIL_DIMENSIONS, Workspace
+from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 COLUMN_COUNT: int = 2
 SCROLL_THRESHOLD: int = 50
+
+
+class ThumbnailLabel(QtWidgets.QLabel):
+    index: int
+    thumbnail: Optional[QtGui.QPixmap]
+
+    def __init__(self, index: int, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.index = index
+        self.thumbnail = None
+
+    def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
+        if self.thumbnail is None:
+            self.thumbnail = pixmap
+            pixmap = pixmap.scaled(pixmap.width() // 2, pixmap.height() // 2)
+        super().setPixmap(pixmap)
+
+    def heightForWidth(self, width: int) -> int:
+        if self.thumbnail is None:
+            return -1
+
+        return round(width * (self.thumbnail.height() / self.thumbnail.width()))
+
+    def resize(self, width: int) -> None:
+        height = self.heightForWidth(width)
+        if self.thumbnail is not None:
+            self.setPixmap(self.thumbnail.scaled(width, height))
+
+        self.setFixedSize(width, height)
 
 
 class ThumbnailScrollArea(QtWidgets.QScrollArea):
@@ -198,3 +228,21 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                 return super().eventFilter(watched, event)
 
         return True
+
+
+class ThumbnailDockWidget(QtWidgets.QDockWidget):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setContentsMargins(10, 10, 0, 10)
+
+        self.setTitleBarWidget(get_dummy_title_bar(self))
+        self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
+
+        self.setWidget(ThumbnailScrollArea())
+
+    def connect_workspace(self, workspace: Workspace) -> None:
+        self.widget().flush_thumbnails()
+
+        workspace.thumbnail_generated.connect(self.widget().update_thumbnail)
+        self.widget().swapped_thumbnails.connect(workspace.swap_slices)
