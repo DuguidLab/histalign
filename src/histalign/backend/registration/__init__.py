@@ -18,7 +18,7 @@ import histalign.backend.io as io
 from histalign.backend.models import (
     AlignmentSettings,
 )
-from histalign.backend.workspace import VolumeSlicer
+import histalign.backend.workspace as workspace  # Avoid circular import
 
 
 class ReverseRegistrator:
@@ -39,7 +39,7 @@ class ReverseRegistrator:
         self.interpolation = interpolation
 
         self._volume_path: Optional[str] = None
-        self._volume_slicer: Optional[VolumeSlicer] = None
+        self._volume_slicer: Optional[workspace.VolumeSlicer] = None
 
     def get_reversed_image(
         self,
@@ -76,7 +76,7 @@ class ReverseRegistrator:
 
         if volume_path != self._volume_path:
             self._volume_path = volume_path
-            self._volume_slicer = VolumeSlicer(
+            self._volume_slicer = workspace.VolumeSlicer(
                 path=volume_path,
                 resolution=settings.volume_settings.resolution,
                 lazy=False,

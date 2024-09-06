@@ -5,5 +5,9 @@
 import numpy as np
 
 
-def get_average_fluorescence(image: np.ndarray, mask: np.ndarray) -> float:
-    return np.mean(image, where=mask > 0)
+def compute_average_fluorescence(image: np.ndarray, mask: np.ndarray) -> float:
+    # Avoid a RuntimeWarning when mask is empty
+    if not mask.any():
+        return 0.0
+
+    return np.mean(image, where=mask > 0).astype(float)

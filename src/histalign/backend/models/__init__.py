@@ -2,15 +2,19 @@
 #
 # SPDX-License-Identifier: MIT
 
+from datetime import datetime
 from enum import Enum, IntEnum
+import hashlib
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from pydantic import (
     BaseModel,
     DirectoryPath,
+    Field,
     FilePath,
     ValidationInfo,
+    computed_field,
     field_serializer,
     field_validator,
 )
@@ -27,6 +31,10 @@ class Resolution(IntEnum):
     MICRONS_25 = 25
     MICRONS_50 = 50
     MICRONS_100 = 100
+
+
+class QuantificationMeasure(str, Enum):
+    AVERAGE_FLUORESCENCE = "average_fluorescence"
 
 
 class HistologySettings(BaseModel, validate_assignment=True):
@@ -148,3 +156,32 @@ class ProjectSettings(BaseModel, validate_assignment=True):
     @field_serializer("project_path")
     def serialise_path(self, value: Path) -> str:
         return str(value)
+
+
+class QuantificationSettings(BaseModel, validate_assignment=True):
+    alignment_directory: DirectoryPath
+    original_directory: DirectoryPath
+    quantification_measure: QuantificationMeasure
+    structures: list[str]
+    fast_rescale: bool
+    fast_transform: bool
+
+    @field_serializer("alignment_directory", "original_directory")
+    def serialise_path(self, value: DirectoryPath) -> str:
+        return str(value)
+
+
+class QuantificationResults(BaseModel, validate_assignment=True):
+    settings: QuantificationSettings
+    data: dict[str, Any] = {}
+    timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
+
+    @computed_field
+    @property
+    def hash(self) -> str:
+        hash_string = f"{self.settings.model_dump_json()}{self.timestamp}"
+        return hashlib.md5(hash_string.encode("UTF-8")).hexdigest()
+
+    @field_serializer("timestamp")
+    def serialise_timestamp(self, value: datetime) -> str:
+        return value.isoformat()

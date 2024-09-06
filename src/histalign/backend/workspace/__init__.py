@@ -2,39 +2,40 @@
 #
 # SPDX-License-Identifier: MIT
 
+from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import hashlib
 import json
 import logging
 import math
 import os
-import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Event, Thread
-from typing import Any, Literal, Optional
+import re
+from threading import Event
+import time
+from typing import Literal, Optional
 
-import numpy as np
-import pydantic
 from PIL import Image
 from PySide6 import QtCore
+import numpy as np
 from scipy import ndimage
 from skimage.transform import resize
 from vedo import Mesh
 from vtkmodules.vtkCommonDataModel import vtkDataSet
 
-from histalign.backend.ccf.paths import get_atlas_path
 from histalign.backend.ccf.downloads import download_atlas
+from histalign.backend.ccf.paths import get_atlas_path
 import histalign.backend.io as io
 from histalign.backend.models import (
     AlignmentSettings,
-    HistologySettings,
     Orientation,
     ProjectSettings,
+    QuantificationSettings,
     Resolution,
     VolumeSettings,
 )
 from histalign.backend.models.errors import InvalidOrientationError
+from histalign.backend.quantification import SliceQuantifier
 
 DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
 THUMBNAIL_DIMENSIONS = (320, 180)
@@ -759,3 +760,27 @@ class Workspace(QtCore.QObject):
     @staticmethod
     def _deserialise_slices(path_list: list[str]) -> list[HistologySlice]:
         return [HistologySlice(file_path) for file_path in path_list]
+
+
+class QuantificationThread(QtCore.QThread):
+    quantifier: SliceQuantifier
+
+    progress_count_computed: QtCore.Signal = QtCore.Signal(int)
+    progress_changed: QtCore.Signal = QtCore.Signal(int)
+    results_computed: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self, settings: QuantificationSettings, parent: Optional[QtCore.QObject] = None
+    ) -> None:
+        super().__init__(parent)
+
+        self.quantifier = SliceQuantifier(settings)
+
+        self.quantifier.progress_count_computed.connect(
+            self.progress_count_computed.emit
+        )
+        self.quantifier.progress_changed.connect(self.progress_changed.emit)
+        self.quantifier.results_computed.connect(self.results_computed.emit)
+
+    def run(self) -> None:
+        self.quantifier.run()
