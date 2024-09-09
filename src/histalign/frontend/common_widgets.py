@@ -297,3 +297,91 @@ class SelectedStructuresWidget(QtWidgets.QWidget):
 
         self.structure_finder_widget.show()
         self.structure_finder_widget.line_edit.setFocus()
+
+
+class BoldLabel(QtWidgets.QLabel):
+    def __init__(self, text: str, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(text, parent)
+
+        font = QtGui.QFont()
+        font.setBold(True)
+        self.setFont(font)
+
+        self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum
+        )
+
+
+class VerticalSeparator(QtWidgets.QFrame):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        self.setLineWidth(2)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum
+        )
+
+
+class OneHeaderFrameLayout(QtWidgets.QGridLayout):
+    def __init__(
+        self,
+        header: str,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSpacing(0)
+
+        self.addWidget(BoldLabel(header), 0, 0, 1, -1)
+        self.addWidget(VerticalSeparator(), 1, 0, 1, -1)
+
+        self.setRowStretch(2, 1)
+
+        self.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetMaximumSize)
+
+    def add_widget(self, widget: QtWidgets.QWidget) -> None:
+        self.addWidget(
+            widget, 2, 0, 1, -1, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter
+        )
+
+    def add_layout(self, layout: QtWidgets.QLayout) -> None:
+        self.addLayout(layout, 2, 0, 1, -1)
+
+
+class TableWidget(QtWidgets.QTableWidget):
+    def __init__(
+        self,
+        row_count: int,
+        headers: list[str],
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(row_count, len(headers), parent)
+
+        self.setHorizontalHeaderLabels(headers)
+        self.horizontalHeader().setDefaultAlignment(
+            QtCore.Qt.AlignmentFlag.AlignHCenter
+        )
+        for i in range(len(headers)):
+            self.setColumnWidth(i, 150)
+
+        self.verticalHeader().hide()
+
+        self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+        self.setFixedWidth(150 * len(headers) + 1)
+        self.setFixedHeight(
+            self.horizontalHeader().height() + self.rowHeight(0) * row_count
+        )
+
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def setItem(self, row: int, column: int, item: QtWidgets.QTableWidgetItem) -> None:
+        super().setItem(row, column, item)
+
+        item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
