@@ -20,7 +20,7 @@ from PySide6 import QtCore
 import numpy as np
 from scipy import ndimage
 from skimage.transform import resize
-from vedo import Mesh
+import vedo
 from vtkmodules.vtkCommonDataModel import vtkDataSet
 
 from histalign.backend.ccf.downloads import download_atlas
@@ -347,7 +347,7 @@ class Volume:
         autocrop: bool = False,
         border: float = 0.5,
         mode: str = "linear",
-    ) -> Mesh:
+    ) -> vedo.Mesh:
         self.ensure_loaded()
         return self._volume.slice_plane(origin, normal, autocrop, border, mode)
 
@@ -398,11 +398,12 @@ class VolumeLoaderThread(QtCore.QThread):
 
 
 class VolumeSlicer:
-    volume: Volume
+    volume: Volume | vedo.Volume
 
     def __init__(
         self,
-        volume: Optional[Volume] = None,
+        *,
+        volume: Optional[Volume | vedo.Volume] = None,
         path: Optional[Path] = None,
         resolution: Optional[Resolution] = None,
         convert_dtype: np.dtype = np.uint8,
