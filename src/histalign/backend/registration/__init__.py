@@ -32,7 +32,9 @@ class ReverseRegistrator:
         fast_transform: bool = False,
         interpolation: str = "bilinear",
     ) -> None:
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(
+            f"{self.__module__}.{self.__class__.__qualname__}"
+        )
 
         self.fast_rescale = fast_rescale
         self.fast_transform = fast_transform
@@ -302,7 +304,9 @@ class ContourGeneratorThread(QtCore.QThread):
     ) -> None:
         super().__init__(parent)
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(
+            f"{self.__module__}.{self.__class__.__qualname__}"
+        )
 
         self.structure_name = structure_name
         self.alignment_settings = alignment_settings

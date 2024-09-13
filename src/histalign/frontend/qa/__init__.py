@@ -102,7 +102,9 @@ class QAMainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(
+            f"{self.__module__}.{self.__class__.__qualname__}"
+        )
 
         self.structures_processing = []
         self.update_status()

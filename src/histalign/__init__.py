@@ -11,15 +11,25 @@ from PySide6 import QtCore, QtWidgets
 
 from histalign.frontend import ApplicationWidget
 
-if __name__ == "histalign":
-    logger = logging.getLogger(__name__)
-    formatter = logging.Formatter(logging.BASIC_FORMAT)
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
+
+# Set up package logging
+_module_logger = logging.getLogger(__name__)
+
+_formatter = logging.Formatter(
+    "[{asctime}] - [{levelname:>8s} ] - {message} ({name}:{lineno})",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_formatter)
+
+_module_logger.addHandler(_console_handler)
+
+
+def set_log_level(level: int | str) -> None:
+    _module_logger.setLevel(level)
 
 
 def common_options(function: Callable) -> click.option:
@@ -90,9 +100,9 @@ def start_app(
     **kwargs,
 ) -> None:
     if verbosity == 1:
-        logging.getLogger("histalign").setLevel(logging.INFO)
+        set_log_level(logging.INFO)
     elif verbosity >= 2:
-        logging.getLogger("histalign").setLevel(logging.DEBUG)
+        set_log_level(logging.DEBUG)
 
     app = QtWidgets.QApplication()
 

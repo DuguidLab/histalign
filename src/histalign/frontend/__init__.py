@@ -11,6 +11,8 @@ from histalign.frontend.centralised import CentralisedWindow
 from histalign.frontend.qa import QAMainWindow
 from histalign.frontend.registration import RegistrationMainWindow
 
+_module_logger = logging.getLogger(__name__)
+
 
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
 
@@ -64,7 +66,7 @@ class ApplicationWidget(QtWidgets.QWidget):
             title = "Histalign - QA"
         else:
             title = "Histalign"
-            logging.getLogger(__name__).warning(
+            _module_logger.warning(
                 f"Could not set custom title for window type '{type(window)}'."
             )
 

@@ -103,7 +103,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     ) -> None:
         super().__init__(parent)
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(
+            f"{self.__module__}.{self.__class__.__qualname__}"
+        )
 
         # Menu bar
         menu_bar = MainMenuBar()
