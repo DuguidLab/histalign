@@ -420,7 +420,8 @@ class VolumeSlicer:
         self,
         settings: VolumeSettings,
         interpolation: Literal["nearest", "linear", "cubic"] = "cubic",
-    ) -> np.ndarray:
+        return_mesh: bool = False,
+    ) -> np.ndarray | vedo.Mesh:
         plane_mesh = self.volume.slice_plane(
             origin=self.compute_origin_from_orientation(
                 self.volume.dataset.GetCenter(), settings
@@ -429,6 +430,9 @@ class VolumeSlicer:
             autocrop=True,
             mode=interpolation,
         )
+
+        if return_mesh:
+            return plane_mesh
 
         slice_array = plane_mesh.pointdata["ImageScalars"].reshape(
             plane_mesh.metadata["shape"]
