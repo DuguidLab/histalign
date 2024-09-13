@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
+import json
 from pathlib import Path
+import re
 from typing import Optional
 
 import h5py
@@ -10,6 +12,10 @@ import nrrd
 import numpy as np
 from PIL import Image
 import vedo
+
+from histalign.backend.models import AlignmentSettings
+
+ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
 
 
 def load_image(
@@ -79,3 +85,23 @@ def normalise_array(array: np.ndarray, dtype: np.dtype) -> np.ndarray:
     array -= array.min()
     array *= np.iinfo(dtype).max / array.max()
     return np.round(array).astype(dtype)
+
+
+def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
+    if isinstance(alignment_directory, str):
+        alignment_directory = Path(alignment_directory)
+
+    paths = []
+
+    for file in alignment_directory.iterdir():
+        if re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, file.name) is None:
+            continue
+
+        paths.append(file)
+
+    return paths
+
+
+def load_alignment_settings(path: str | Path) -> AlignmentSettings:
+    with open(path) as handle:
+        return AlignmentSettings(**json.load(handle))

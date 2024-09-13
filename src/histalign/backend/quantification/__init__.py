@@ -11,7 +11,7 @@ from typing import Optional
 from PySide6 import QtCore
 import pydantic
 
-import histalign.backend.io as io
+from histalign.backend.io import gather_alignment_paths, load_image
 from histalign.backend.models import (
     AlignmentSettings,
     QuantificationMeasure,
@@ -53,7 +53,7 @@ class SliceQuantifier(QtCore.QObject):
                     f"Quantification method for enum variant '{self}' not implemented."
                 )
 
-        targets = self.gather_targets()
+        targets = gather_alignment_paths(self.settings.alignment_directory)
 
         self.progress_count_computed.emit(len(self.settings.structures) * len(targets))
         self.progress_changed.emit(0)
@@ -77,7 +77,7 @@ class SliceQuantifier(QtCore.QObject):
 
                     continue
 
-                full_size_histology_image = io.load_image(settings.histology_path)
+                full_size_histology_image = load_image(settings.histology_path)
 
                 try:
                     mask_image = reverse_registrator.get_reversed_image(
@@ -127,14 +127,3 @@ class SliceQuantifier(QtCore.QObject):
 
         with open(quantification_path / f"{results.hash}.json", "w") as handle:
             json.dump(results.model_dump(), handle)
-
-    def gather_targets(self) -> list[Path]:
-        targets = []
-
-        for file in Path(self.settings.alignment_directory).iterdir():
-            if re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, str(file.name)) is None:
-                continue
-
-            targets.append(file)
-
-        return targets
