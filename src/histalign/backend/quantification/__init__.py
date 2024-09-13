@@ -21,9 +21,7 @@ from histalign.backend.models import (
 from histalign.backend.quantification.quantification_methods import (
     compute_average_fluorescence,
 )
-from histalign.backend.registration import ReverseRegistrator
-
-ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
+from histalign.backend.registration import Registrator
 
 
 class SliceQuantifier(QtCore.QObject):
@@ -43,7 +41,7 @@ class SliceQuantifier(QtCore.QObject):
     def run(self, save_to_disk: bool = True) -> QuantificationResults:
         quantification_results = QuantificationResults(settings=self.settings)
 
-        reverse_registrator = ReverseRegistrator(
+        reverse_registrator = Registrator(
             self.settings.fast_rescale, self.settings.fast_transform, "bilinear"
         )
 

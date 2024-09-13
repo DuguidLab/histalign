@@ -11,17 +11,18 @@ from PySide6 import QtCore, QtGui
 import cv2
 import numpy as np
 from skimage.transform import AffineTransform, rescale, warp
+import vedo
 
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
-import histalign.backend.io as io
+from histalign.backend.io import load_image
 from histalign.backend.models import (
     AlignmentSettings,
 )
 import histalign.backend.workspace as workspace  # Avoid circular import
 
 
-class ReverseRegistrator:
+class Registrator:
     fast_rescale: bool
     fast_transform: bool
     interpolation: str
@@ -42,6 +43,32 @@ class ReverseRegistrator:
 
         self._volume_path: Optional[str] = None
         self._volume_slicer: Optional[workspace.VolumeSlicer] = None
+
+    def get_forwarded_image(
+        self,
+        image: np.ndarray,
+        settings: AlignmentSettings,
+    ) -> np.ndarray:
+        scaling = self._get_histology_scaling(settings)
+
+        image = self._rescale(
+            image, scaling, fast=self.fast_rescale, interpolation="nearest"
+        )
+
+        volume = workspace.Volume(
+            Path(), settings.volume_settings.resolution, lazy=True
+        )
+        volume._volume = vedo.Volume(np.zeros(shape=settings.volume_settings.shape))
+        slicer = workspace.VolumeSlicer(volume=volume)
+        target_shape = slicer.slice(settings.volume_settings).shape
+
+        image = self._pad(image, (target_shape[0], target_shape[1]))
+
+        image = self._transform_image(
+            image, settings, fast=self.fast_transform, interpolation=self.interpolation
+        )
+
+        return image
 
     def get_reversed_image(
         self,
@@ -85,7 +112,7 @@ class ReverseRegistrator:
             )
 
         if histology_image is None:
-            histology_image = io.load_image(settings.histology_path)
+            histology_image = load_image(settings.histology_path)
 
         volume_final_scaling = self._get_volume_scaling_factor(settings)
 
@@ -103,6 +130,7 @@ class ReverseRegistrator:
             settings,
             fast=self.fast_transform,
             interpolation=self.interpolation,
+            forward=False,
         )
         return self._crop_down(volume_image, histology_image.shape)
 
@@ -144,6 +172,7 @@ class ReverseRegistrator:
         alignment_settings: AlignmentSettings,
         fast: bool,
         interpolation: str,
+        forward: bool = True,
     ) -> np.ndarray:
         histology_settings = alignment_settings.histology_settings
 
@@ -156,6 +185,11 @@ class ReverseRegistrator:
         x_displacement = histology_settings.shear_x * effective_height
         y_displacement = histology_settings.shear_y * effective_width
 
+        translation_factor = (
+            alignment_settings.histology_scaling / alignment_settings.volume_scaling
+            if forward
+            else alignment_settings.histology_downsampling
+        )
         q_transform = (
             QtGui.QTransform()
             .translate(  # Translation to apply rotation around the center of the image
@@ -170,10 +204,8 @@ class ReverseRegistrator:
                 -initial_height / 2,
             )
             .translate(  # Regular translation
-                histology_settings.translation_x
-                * alignment_settings.histology_downsampling,
-                histology_settings.translation_y
-                * alignment_settings.histology_downsampling,
+                histology_settings.translation_x * translation_factor,
+                histology_settings.translation_y * translation_factor,
             )
             .translate(  # Translation to apply scaling from the center of the image
                 -(effective_width - initial_width) / 2,
@@ -192,6 +224,11 @@ class ReverseRegistrator:
                 histology_settings.shear_y,
             )
         )
+
+        if forward:
+            q_transform, success = q_transform.inverted()
+            if not success:
+                raise ValueError("Could not invert the affine matrix.")
 
         matrix = (
             str(q_transform).replace("PySide6.QtGui.QTransform(", "").replace(")", "")
@@ -225,8 +262,29 @@ class ReverseRegistrator:
             ).astype(image.dtype)
 
     @staticmethod
+    def _pad(image: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
+        vertical_padding = max(0, target_shape[0] - image.shape[0])
+        horizontal_padding = max(0, target_shape[1] - image.shape[1])
+
+        return np.pad(
+            image,
+            (
+                (
+                    vertical_padding // 2,
+                    vertical_padding // 2 + bool(vertical_padding % 2),
+                ),
+                (
+                    horizontal_padding // 2,
+                    horizontal_padding // 2 + bool(horizontal_padding % 2),
+                ),
+            ),
+            "constant",
+            constant_values=(0,),
+        )
+
+    @staticmethod
     def _crop_down(image: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
-        top_left = ReverseRegistrator._get_top_left_point(image.shape, shape)
+        top_left = Registrator._get_top_left_point(image.shape, shape)
 
         return image[
             top_left[0] : top_left[0] + shape[0],
@@ -259,6 +317,12 @@ class ReverseRegistrator:
             top_left = (0, (larger_shape[1] - smaller_shape[1]) // 2)
 
         return top_left
+
+    @staticmethod
+    def _get_histology_scaling(settings: AlignmentSettings) -> float:
+        return settings.histology_scaling / (
+            settings.volume_scaling * settings.histology_downsampling
+        )
 
     @staticmethod
     def _get_volume_scaling_factor(settings: AlignmentSettings) -> float:
@@ -312,7 +376,7 @@ class ContourGeneratorThread(QtCore.QThread):
         self.alignment_settings = alignment_settings
 
     def run(self) -> None:
-        registrator = ReverseRegistrator(True, True)
+        registrator = Registrator(True, True)
 
         try:
             structure_mask = registrator.get_reversed_image(

@@ -11,7 +11,7 @@ import numpy as np
 
 import histalign.backend.io as io
 from histalign.backend.models import AlignmentSettings
-from histalign.backend.registration import ContourGeneratorThread, ReverseRegistrator
+from histalign.backend.registration import ContourGeneratorThread, Registrator
 
 
 class QAViewerWidget(QtWidgets.QLabel):
@@ -19,7 +19,7 @@ class QAViewerWidget(QtWidgets.QLabel):
     registration_result: Optional[AlignmentSettings] = None
     contours_map: dict[str, np.ndarray]
 
-    reverse_registrator: ReverseRegistrator
+    reverse_registrator: Registrator
 
     histology_pixmap: QtGui.QPixmap
     histology_array: np.ndarray
@@ -32,7 +32,7 @@ class QAViewerWidget(QtWidgets.QLabel):
 
         self.contours_map = {}
 
-        self.reverse_registrator = ReverseRegistrator(True, True, "nearest")
+        self.reverse_registrator = Registrator(True, True, "nearest")
 
         self.histology_pixmap = QtGui.QPixmap()
         self.histology_array = np.ndarray(shape=(0, 0))
