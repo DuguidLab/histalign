@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtWidgets
 
 from histalign.frontend.centralised import CentralisedWindow
 from histalign.frontend.qa import QAMainWindow
+from histalign.frontend.quantification import QuantificationMainWindow
 from histalign.frontend.registration import RegistrationMainWindow
 
 _module_logger = logging.getLogger(__name__)
@@ -49,6 +50,9 @@ class ApplicationWidget(QtWidgets.QWidget):
     def open_qa_window(self) -> None:
         self.set_main_window(QAMainWindow())
 
+    def open_quantification_window(self) -> None:
+        self.set_main_window(QuantificationMainWindow())
+
     def set_main_window(self, window: QtWidgets.QWidget) -> None:
         old_main_window = self.layout().takeAt(0).widget()
 
@@ -64,6 +68,8 @@ class ApplicationWidget(QtWidgets.QWidget):
             title = "Histalign - Registration"
         elif isinstance(window, QAMainWindow):
             title = "Histalign - QA"
+        elif isinstance(window, QuantificationMainWindow):
+            title = "Histalign - Quantification"
         else:
             title = "Histalign"
             _module_logger.warning(

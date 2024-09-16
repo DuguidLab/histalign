@@ -83,8 +83,10 @@ def qa(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
     start_app(verbosity, fullscreen, debug_ui, callback="open_qa_window")
 
 
-def quantify() -> None:
-    pass
+@histalign.command()
+@common_options
+def quantify(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
+    start_app(verbosity, fullscreen, debug_ui, callback="open_quantification_window")
 
 
 def visualise() -> None:

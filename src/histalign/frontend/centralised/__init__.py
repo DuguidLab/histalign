@@ -7,6 +7,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.frontend.qa import QAMainWindow
+from histalign.frontend.quantification import QuantificationMainWindow
 from histalign.frontend.registration import RegistrationMainWindow
 
 
@@ -110,8 +111,20 @@ class CentralisedWindow(QtWidgets.QTabWidget):
         self.addTab(tab, "QA")
 
         #
-        page3 = PlaceholderPage()
-        self.addTab(page3, "Quantify")
+        open_project_button = Button("Open project")
+        open_project_button.clicked.connect(self.quantification_open_project)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(open_project_button)
+
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(50, 20, 50, 20)
+        layout.setSpacing(50)
+
+        tab = QtWidgets.QWidget()
+        tab.setLayout(layout)
+
+        self.addTab(tab, "Quantify")
 
         #
         page4 = PlaceholderPage()
@@ -156,6 +169,19 @@ class CentralisedWindow(QtWidgets.QTabWidget):
 
         if not new_window.project_loaded:
             # User cancelled
+            return
+
+        self.parent().set_main_window(new_window)
+
+    @QtCore.Slot()
+    def quantification_open_project(self) -> None:
+        new_window = QuantificationMainWindow(self)
+
+        new_window.show_open_project_dialog()
+
+        if not new_window.project_loaded:
+            # User cancelled
+            new_window.deleteLater()
             return
 
         self.parent().set_main_window(new_window)

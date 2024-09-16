@@ -32,6 +32,8 @@ class MainMenuBar(QtWidgets.QMenuBar):
 class QuantificationMainWindow(QtWidgets.QMainWindow):
     project_directory: str
 
+    project_loaded: bool = False
+
     menu_bar: MainMenuBar
     tab_widget: QtWidgets.QWidget
     prepare_widget: PrepareWidget
@@ -69,8 +71,8 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
         tab_widget = QtWidgets.QTabWidget()
         tab_widget.setEnabled(False)
 
-        tab_widget.addTab(results_widget, "Results")
         tab_widget.addTab(prepare_widget, "Prepare")
+        tab_widget.addTab(results_widget, "Results")
         tab_widget.addTab(view_widget, "View")
 
         #
@@ -98,6 +100,7 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
 
         self.view_widget.parse_results(results_list)
 
+    @QtCore.Slot()
     def show_open_project_dialog(self) -> None:
         dialog = OpenProjectDialog(self)
         dialog.submitted.connect(self.open_project)
@@ -111,6 +114,8 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
         self.results_widget.parse_project(project_path)
 
         self.tab_widget.setEnabled(True)
+
+        self.project_loaded = True
 
 
 if __name__ == "__main__":
