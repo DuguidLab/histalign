@@ -11,9 +11,18 @@ import h5py
 import nrrd
 import numpy as np
 from PIL import Image
+from PySide6 import QtCore
 import vedo
 
 from histalign.backend.models import AlignmentSettings
+
+data_directories = QtCore.QStandardPaths.standardLocations(
+    QtCore.QStandardPaths.GenericDataLocation
+)
+if not data_directories:
+    raise ValueError("Cannot find a data directory.")
+DATA_ROOT = Path(data_directories[0]) / "histalign"
+del data_directories
 
 ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
 
