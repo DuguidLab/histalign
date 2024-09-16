@@ -454,11 +454,20 @@ class VolumeSlicer:
     ) -> list[float]:
         if len(center) != 3:
             raise ValueError(f"Expected center with 3 coordinates, got {len(center)}.")
-        center = list(center)
+
+        # vedo computes the center with float precision but offset calculations assume
+        # integer values.
+        center = list(map(math.ceil, center))
 
         match settings.orientation:
             case Orientation.CORONAL:
-                center[0] += settings.offset
+                # Increasing the offset should bring the user more anterior, hence take
+                # away the offset to the center.
+                # Also, just like the max value of int8 is 127, the center 0-value needs
+                # to be shifted one back. (i.e., an axis with length 10 can have an
+                # offset between (10 // 2 = 5) and (10 // 2 - 1 + int(10 % 2)).
+                center[0] -= 1
+                center[0] -= settings.offset
             case Orientation.HORIZONTAL:
                 center[1] += settings.offset
             case Orientation.SAGITTAL:
