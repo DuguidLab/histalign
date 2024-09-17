@@ -89,8 +89,10 @@ def quantify(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
     start_app(verbosity, fullscreen, debug_ui, callback="open_quantification_window")
 
 
-def visualise() -> None:
-    pass
+@histalign.command()
+@common_options
+def visualise(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
+    start_app(verbosity, fullscreen, debug_ui, callback="open_visualisation_window")
 
 
 def start_app(
