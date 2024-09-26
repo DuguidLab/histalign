@@ -15,6 +15,7 @@ from PySide6 import QtCore
 import vedo
 
 from histalign.backend.models import AlignmentSettings
+from histalign.backend.preprocessing import normalise_array
 
 data_directories = QtCore.QStandardPaths.standardLocations(
     QtCore.QStandardPaths.GenericDataLocation
@@ -87,13 +88,6 @@ def load_volume(
         array = normalise_array(array, normalise_dtype)
 
     return array if return_raw_array else vedo.Volume(array)
-
-
-def normalise_array(array: np.ndarray, dtype: np.dtype) -> np.ndarray:
-    array = array.astype(float)
-    array -= array.min()
-    array *= np.iinfo(dtype).max / array.max()
-    return np.round(array).astype(dtype)
 
 
 def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
