@@ -349,13 +349,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def close_project(self) -> None:
-        # if self.workspace is not None and self.workspace_dirtied:
-        #     match SaveProjectConfirmationDialog(self).exec():
-        #         case QtWidgets.QMessageBox.Save:
-        #             self.save_project()
-        #         case QtWidgets.QMessageBox.Cancel:
-        #             return
-
         event = QtGui.QCloseEvent()
         self.closeEvent(event)
 

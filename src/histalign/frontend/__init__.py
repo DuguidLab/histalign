@@ -5,7 +5,7 @@
 import logging
 from typing import Optional
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.frontend.centralised import CentralisedWindow
 from histalign.frontend.preprocessing import PreprocessingMainWindow
@@ -89,6 +89,10 @@ class ApplicationWidget(QtWidgets.QWidget):
             )
 
         self.setWindowTitle(title)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        """Delegates closing event to current main window."""
+        self.main_window.closeEvent(event)
 
     @staticmethod
     def get_startup_size() -> QtCore.QSize:
