@@ -763,6 +763,13 @@ class Workspace(QtCore.QObject):
             if path.suffix in (".h5", ".hdf5", ".npy", ".jpg", ".jpeg", ".png"):
                 image_paths.append(str(path))
 
+        # Natural sorting taken from: https://stackoverflow.com/a/16090640
+        image_paths.sort(
+            key=lambda s: [
+                int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", s)
+            ]
+        )
+
         return image_paths
 
     @staticmethod
