@@ -24,7 +24,7 @@ from histalign.backend.models import (
 from histalign.backend.registration.alignment import build_alignment_volume
 from histalign.backend.workspace import Volume, VolumeSlicer, Workspace
 from histalign.frontend.dialogs import OpenProjectDialog
-from histalign.frontend.common_widgets import ProjectDirectoriesComboBox
+from histalign.frontend.common_widgets import BasicMenuBar, ProjectDirectoriesComboBox
 
 
 class ViewerButtons(QtWidgets.QWidget):
@@ -430,20 +430,6 @@ class VisualiseControls(QtWidgets.QWidget):
         self.setLayout(layout)
 
 
-class MainMenuBar(QtWidgets.QMenuBar):
-    open_project_requested: QtCore.Signal = QtCore.Signal()
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-
-        file_menu = self.addMenu("&File")
-
-        open_project_action = QtGui.QAction("Open p&roject", self)
-        open_project_action.triggered.connect(self.open_project_requested.emit)
-
-        file_menu.addAction(open_project_action)
-
-
 class VisualisationMainWindow(QtWidgets.QMainWindow):
     project_directory: Path
 
@@ -456,7 +442,7 @@ class VisualisationMainWindow(QtWidgets.QMainWindow):
         super().__init__(parent)
 
         #
-        main_menu_bar = MainMenuBar()
+        main_menu_bar = BasicMenuBar()
         main_menu_bar.open_project_requested.connect(self.show_open_project_dialog)
 
         self.setMenuBar(main_menu_bar)

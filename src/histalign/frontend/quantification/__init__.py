@@ -8,25 +8,11 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.common_widgets import ProjectDirectoriesComboBox
+from histalign.frontend.common_widgets import BasicMenuBar, ProjectDirectoriesComboBox
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.quantification.prepare import PrepareWidget
 from histalign.frontend.quantification.results import ResultsWidgets
 from histalign.frontend.quantification.view import ViewWidget
-
-
-class MainMenuBar(QtWidgets.QMenuBar):
-    open_project_requested: QtCore.Signal = QtCore.Signal()
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-
-        file_menu = self.addMenu("&File")
-
-        open_project_action = QtGui.QAction("Open p&roject", self)
-        open_project_action.triggered.connect(self.open_project_requested.emit)
-
-        file_menu.addAction(open_project_action)
 
 
 class QuantificationMainWindow(QtWidgets.QMainWindow):
@@ -34,7 +20,7 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
 
     project_loaded: bool = False
 
-    menu_bar: MainMenuBar
+    menu_bar: BasicMenuBar
     tab_widget: QtWidgets.QWidget
     prepare_widget: PrepareWidget
     results_widget: ResultsWidgets
@@ -44,7 +30,7 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
         super().__init__(parent)
 
         #
-        menu_bar = MainMenuBar()
+        menu_bar = BasicMenuBar()
         menu_bar.open_project_requested.connect(self.show_open_project_dialog)
 
         self.setMenuBar(menu_bar)

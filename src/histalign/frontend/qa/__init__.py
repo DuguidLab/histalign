@@ -12,6 +12,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.workspace import HistologySlice, Workspace
 from histalign.frontend.common_widgets import (
+    BasicMenuBar,
     ProjectDirectoriesComboBox,
     SelectedStructuresWidget,
 )
@@ -20,20 +21,6 @@ from histalign.frontend.qa.measures import HistogramViewerWidget
 from histalign.frontend.qa.viewer import QAViewerWidget
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
-
-
-class MainMenuBar(QtWidgets.QMenuBar):
-    open_project_requested: QtCore.Signal = QtCore.Signal()
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-
-        file_menu = self.addMenu("&File")
-
-        open_project_action = QtGui.QAction("&Open project", self)
-        open_project_action.triggered.connect(self.open_project_requested.emit)
-
-        file_menu.addAction(open_project_action)
 
 
 class SliceNamesComboBox(QtWidgets.QComboBox):
@@ -109,7 +96,7 @@ class QAMainWindow(QtWidgets.QMainWindow):
         self.structures_processing = []
         self.update_status()
 
-        menu_bar = MainMenuBar()
+        menu_bar = BasicMenuBar()
         menu_bar.open_project_requested.connect(self.show_open_project_dialog)
         self.setMenuBar(menu_bar)
 

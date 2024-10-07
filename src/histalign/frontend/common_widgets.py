@@ -742,3 +742,17 @@ class SwitchWidgetContainer(QtWidgets.QScrollArea):
         self.widget_list[index] = top_widget
 
         self.swap_widgets(bottom_widget, top_widget)
+
+
+class BasicMenuBar(QtWidgets.QMenuBar):
+    open_project_requested: QtCore.Signal = QtCore.Signal()
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        file_menu = self.addMenu("&File")
+
+        open_project_action = QtGui.QAction("&Open project", self)
+        open_project_action.triggered.connect(self.open_project_requested.emit)
+
+        file_menu.addAction(open_project_action)
