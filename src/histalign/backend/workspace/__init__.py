@@ -289,7 +289,11 @@ class ThumbnailGeneratorThread(QtCore.QThread):
         histology_slice = parent._histology_slices[index]
 
         histology_slice.generate_thumbnail(parent.working_directory)
-        parent.thumbnail_generated.emit(index, histology_slice.thumbnail_array.copy())
+        parent.thumbnail_generated.emit(
+            index,
+            Path(histology_slice.file_path).stem,
+            histology_slice.thumbnail_array.copy(),
+        )
 
 
 class Volume:
@@ -518,7 +522,7 @@ class Workspace(QtCore.QObject):
     current_aligner_image_hash: Optional[str] = None
     current_aligner_image_index: Optional[int] = None
 
-    thumbnail_generated: QtCore.Signal = QtCore.Signal(int, np.ndarray)
+    thumbnail_generated: QtCore.Signal = QtCore.Signal(int, str, np.ndarray)
 
     def __init__(
         self, project_settings: ProjectSettings, parent: Optional[QtCore.QObject] = None

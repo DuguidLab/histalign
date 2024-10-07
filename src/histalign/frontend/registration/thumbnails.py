@@ -16,12 +16,16 @@ SCROLL_THRESHOLD: int = 50
 
 class ThumbnailLabel(QtWidgets.QLabel):
     index: int
+    file_name: str
     thumbnail: Optional[QtGui.QPixmap]
 
-    def __init__(self, index: int, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(
+        self, index: int, file_name: str, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
         super().__init__(parent)
 
         self.index = index
+        self.file_name = file_name
         self.thumbnail = None
 
     def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
@@ -76,7 +80,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                 QtGui.QImage.Format.Format_Alpha8,
             )
         )
-        placeholder_thumbnail_label = ThumbnailLabel(0)
+        placeholder_thumbnail_label = ThumbnailLabel(0, "")
         placeholder_thumbnail_label.setPixmap(placeholder_pixmap)
         for i in range(COLUMN_COUNT):
             layout.addWidget(placeholder_thumbnail_label, 0, i)
@@ -88,7 +92,9 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self.setWidget(container_widget)
 
     @QtCore.Slot()
-    def update_thumbnail(self, index: int, thumbnail: np.ndarray) -> None:
+    def update_thumbnail(
+        self, index: int, file_name: str, thumbnail: np.ndarray
+    ) -> None:
         thumbnail_pixmap = QtGui.QPixmap.fromImage(
             QtGui.QImage(
                 thumbnail.tobytes(),
@@ -97,7 +103,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                 QtGui.QImage.Format.Format_Grayscale8,
             )
         )
-        thumbnail_label = ThumbnailLabel(index, self.widget())
+        thumbnail_label = ThumbnailLabel(index, file_name, self.widget())
         thumbnail_label.setPixmap(thumbnail_pixmap)
         thumbnail_label.resize(self.get_available_column_width())
 
@@ -231,6 +237,8 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
 
 
 class ThumbnailDockWidget(QtWidgets.QDockWidget):
+    _widget: QtWidgets.QWidget
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
@@ -239,10 +247,91 @@ class ThumbnailDockWidget(QtWidgets.QDockWidget):
         self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
-        self.setWidget(ThumbnailScrollArea())
+        #
+        status_bar = QtWidgets.QStatusBar()
+
+        #
+        container_widget = QtWidgets.QWidget()
+
+        container_layout = QtWidgets.QGridLayout()
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        container_layout.addWidget(ThumbnailScrollArea(), 0, 0)
+        container_layout.addWidget(
+            status_bar,
+            1,
+            0,
+            1,
+            1,
+            alignment=QtCore.Qt.AlignmentFlag.AlignBottom,
+        )
+        container_widget.setLayout(container_layout)
+
+        self._widget = container_widget
+        self.setWidget(container_widget)
+
+        #
+        container_widget.installEventFilter(ThumbnailFileNameWatcher(status_bar, self))
+
+    def widget(self):
+        return self._widget.findChild(ThumbnailScrollArea)
 
     def connect_workspace(self, workspace: Workspace) -> None:
         self.widget().flush_thumbnails()
 
         workspace.thumbnail_generated.connect(self.widget().update_thumbnail)
         self.widget().swapped_thumbnails.connect(workspace.swap_slices)
+
+
+class ThumbnailFileNameWatcher(QtCore.QObject):
+    previous_position: QtCore.QPoint = QtCore.QPoint(-1, -1)
+    cached_widget: Optional[QtWidgets.QWidget] = None
+
+    status_bar: QtWidgets.QStatusBar
+    watcher_timer: QtCore.QTimer
+
+    def __init__(
+        self, status_bar: QtWidgets.QStatusBar, parent: Optional[QtCore.QObject] = None
+    ) -> None:
+        super().__init__(parent)
+
+        self.status_bar = status_bar
+
+        watcher_timer = QtCore.QTimer()
+        watcher_timer.timeout.connect(self.watch)
+
+        self.watcher_timer = watcher_timer
+
+    def start_watching(self, interval: int = 100) -> None:
+        self.watcher_timer.start(interval)
+
+    def stop_watching(self) -> None:
+        self.watcher_timer.stop()
+        self.status_bar.clearMessage()
+
+    def eventFilter(self, watched: QtWidgets.QWidget, event: QtCore.QEvent) -> bool:
+        match event.type():
+            case QtCore.QEvent.Type.Enter:
+                self.start_watching()
+                return True
+            case QtCore.QEvent.Type.Leave:
+                self.stop_watching()
+                return True
+            case _:
+                return super().eventFilter(watched, event)
+
+    @QtCore.Slot()
+    def watch(self) -> None:
+        mouse_position = QtGui.QCursor.pos()
+
+        if mouse_position == self.previous_position:
+            widget = self.cached_widget
+        else:
+            widget = self.parent().window().childAt(mouse_position)
+            self.cached_widget = widget
+            self.previous_position = mouse_position
+
+        if isinstance(widget, ThumbnailLabel):
+            self.status_bar.showMessage(widget.file_name)
+        else:
+            self.status_bar.clearMessage()
