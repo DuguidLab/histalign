@@ -116,14 +116,3 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
         self.tab_widget.setEnabled(True)
 
         self.project_loaded = True
-
-
-if __name__ == "__main__":
-    app = QtWidgets.QApplication()
-    # app.setStyleSheet("* { border: 1px solid blue; }")
-
-    window = QuantificationMainWindow()
-    window.resize(1920, 1080)
-    window.show()
-
-    sys.exit(app.exec())
