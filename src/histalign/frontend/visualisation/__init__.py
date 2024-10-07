@@ -445,7 +445,7 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
 
 class VisualisationMainWindow(QtWidgets.QMainWindow):
-    project_directory: str
+    project_directory: Path
 
     project_loaded: bool = False
 
@@ -502,12 +502,12 @@ class VisualisationMainWindow(QtWidgets.QMainWindow):
         dialog.open()
 
     @QtCore.Slot()
-    def open_project(self, project_path: str) -> None:
-        self.project_directory = str(Path(project_path).parent)
+    def open_project(self, project_file_path: str) -> None:
+        self.project_directory = Path(project_file_path).parent
 
-        self.controls.directories_combo_box.parse_project(project_path)
+        self.controls.directories_combo_box.parse_project(self.project_directory)
 
-        with open(project_path) as handle:
+        with open(project_file_path) as handle:
             contents = json.load(handle)
 
         resolution = ProjectSettings(**contents["project_settings"]).resolution

@@ -15,7 +15,7 @@ from histalign.backend.models import QuantificationResults
 
 class ResultsTableModel(QtCore.QAbstractTableModel):
     def __init__(
-        self, project_directory: str, parent: Optional[QtCore.QObject] = None
+        self, project_directory: Path, parent: Optional[QtCore.QObject] = None
     ) -> None:
         super().__init__(parent)
 
@@ -80,10 +80,10 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
         return super().flags(index)
 
     @staticmethod
-    def parse_project(project_directory: str) -> list[list[str]]:
+    def parse_project(project_directory: Path) -> list[list[str]]:
         data = []
 
-        quantification_path = Path(project_directory) / "quantification"
+        quantification_path = project_directory / "quantification"
         if not quantification_path.exists():
             return data
 
@@ -165,7 +165,7 @@ class ResultsTableView(QtWidgets.QTableView):
 
 
 class ResultsWidgets(QtWidgets.QWidget):
-    project_directory: str = ""
+    project_directory: Path
 
     model: ResultsTableModel
     view: QtWidgets.QTableView
@@ -199,11 +199,8 @@ class ResultsWidgets(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
-    def parse_project(self, project_path: str = "") -> None:
-        if project_path:
-            self.project_directory = str(Path(project_path).parent)
-        elif not self.project_directory:
-            raise ValueError("Cannot parse project without providing a path first.")
+    def parse_project(self, project_directory: Path) -> None:
+        self.project_directory = project_directory
 
         model = ResultsTableModel(self.project_directory, self)
 
@@ -211,5 +208,7 @@ class ResultsWidgets(QtWidgets.QWidget):
         self.model = model
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
+        # Emulate "hot-reload" so that running a new quantification shows up
+        # when switching tabs.
         super().showEvent(event)
-        self.parse_project()
+        self.parse_project(self.project_directory)

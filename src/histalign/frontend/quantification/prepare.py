@@ -29,7 +29,7 @@ class QuantificationMeasuresComboBox(QtWidgets.QComboBox):
 
 
 class PrepareWidget(QtWidgets.QWidget):
-    project_directory: str
+    project_directory: Path
 
     project_directories_combo_box: ProjectDirectoriesComboBox
     quantification_measures_combo_box: QuantificationMeasuresComboBox
@@ -170,6 +170,6 @@ class PrepareWidget(QtWidgets.QWidget):
 
         quantification_thread.start()
 
-    def parse_project(self, project_path: str) -> None:
-        self.project_directory = str(Path(project_path).parent)
-        self.project_directories_combo_box.parse_project(project_path)
+    def parse_project(self, project_directory: Path) -> None:
+        self.project_directory = project_directory
+        self.project_directories_combo_box.parse_project(project_directory)

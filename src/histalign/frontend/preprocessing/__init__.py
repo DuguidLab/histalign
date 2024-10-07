@@ -27,7 +27,7 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
 
 class PreprocessingMainWindow(QtWidgets.QMainWindow):
-    project_directory: str
+    project_directory: Path
 
     project_loaded: bool = False
 
@@ -83,10 +83,10 @@ class PreprocessingMainWindow(QtWidgets.QMainWindow):
         dialog.open()
 
     @QtCore.Slot()
-    def open_project(self, project_path: str) -> None:
-        self.project_directory = str(Path(project_path).parent)
+    def open_project(self, project_file_path: str) -> None:
+        self.project_directory = Path(project_file_path).parent
 
-        self.prepare_widget.parse_project(project_path)
+        self.prepare_widget.parse_project(self.project_directory)
         # self.results_widget.parse_project(project_path)
 
         self.tab_widget.setEnabled(True)

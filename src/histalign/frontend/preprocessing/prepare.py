@@ -164,7 +164,7 @@ class AutoContrastWidget(PreprocessingCollapsibleWidget):
 
 
 class PrepareWidget(QtWidgets.QWidget):
-    project_directory: str
+    project_directory: Path
 
     project_directories_combo_box: ProjectDirectoriesComboBox
     preprocessing_switch_container: SwitchWidgetContainer
@@ -223,6 +223,6 @@ class PrepareWidget(QtWidgets.QWidget):
 
         self.setLayout(main_layout)
 
-    def parse_project(self, project_path: str) -> None:
-        self.project_directory = str(Path(project_path).parent)
-        self.project_directories_combo_box.parse_project(project_path)
+    def parse_project(self, project_directory: Path) -> None:
+        self.project_directory = project_directory
+        self.project_directories_combo_box.parse_project(project_directory)

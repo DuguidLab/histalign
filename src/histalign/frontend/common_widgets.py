@@ -20,10 +20,9 @@ class ProjectDirectoriesComboBox(QtWidgets.QComboBox):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-    def parse_project(self, project_path: str) -> None:
+    def parse_project(self, project_directory: Path) -> None:
         self.clear()
 
-        project_directory = Path(project_path).parent
         for path in project_directory.iterdir():
             if (
                 path.is_file()
