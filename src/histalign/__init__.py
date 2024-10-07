@@ -85,6 +85,12 @@ def qa(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
 
 @histalign.command()
 @common_options
+def preprocess(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
+    start_app(verbosity, fullscreen, debug_ui, callback="open_preprocessing_window")
+
+
+@histalign.command()
+@common_options
 def quantify(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
     start_app(verbosity, fullscreen, debug_ui, callback="open_quantification_window")
 

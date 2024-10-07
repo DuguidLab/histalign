@@ -6,6 +6,7 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.frontend.preprocessing import PreprocessingMainWindow
 from histalign.frontend.qa import QAMainWindow
 from histalign.frontend.quantification import QuantificationMainWindow
 from histalign.frontend.registration import RegistrationMainWindow
@@ -97,6 +98,22 @@ class CentralisedWindow(QtWidgets.QTabWidget):
 
         #
         open_project_button = Button("Open project")
+        open_project_button.clicked.connect(self.preprocessing_open_project)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(open_project_button)
+
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(50, 20, 50, 20)
+        layout.setSpacing(50)
+
+        tab = QtWidgets.QWidget()
+        tab.setLayout(layout)
+
+        self.addTab(tab, "Preprocess")
+
+        #
+        open_project_button = Button("Open project")
         open_project_button.clicked.connect(self.qa_open_project)
 
         layout = QtWidgets.QVBoxLayout()
@@ -170,6 +187,18 @@ class CentralisedWindow(QtWidgets.QTabWidget):
         if not new_window.workspace_loaded:
             # User cancelled
             new_window.deleteLater()
+            return
+
+        self.parent().set_main_window(new_window)
+
+    @QtCore.Slot()
+    def preprocessing_open_project(self) -> None:
+        new_window = PreprocessingMainWindow(self)
+
+        new_window.show_open_project_dialog()  # Blocking
+
+        if not new_window.project_loaded:
+            # User cancelled
             return
 
         self.parent().set_main_window(new_window)

@@ -8,6 +8,7 @@ from typing import Optional
 from PySide6 import QtCore, QtWidgets
 
 from histalign.frontend.centralised import CentralisedWindow
+from histalign.frontend.preprocessing import PreprocessingMainWindow
 from histalign.frontend.qa import QAMainWindow
 from histalign.frontend.quantification import QuantificationMainWindow
 from histalign.frontend.registration import RegistrationMainWindow
@@ -51,6 +52,9 @@ class ApplicationWidget(QtWidgets.QWidget):
     def open_qa_window(self) -> None:
         self.set_main_window(QAMainWindow())
 
+    def open_preprocessing_window(self) -> None:
+        self.set_main_window(PreprocessingMainWindow())
+
     def open_quantification_window(self) -> None:
         self.set_main_window(QuantificationMainWindow())
 
@@ -70,6 +74,8 @@ class ApplicationWidget(QtWidgets.QWidget):
             title = "Histalign"
         elif isinstance(window, RegistrationMainWindow):
             title = "Histalign - Registration"
+        elif isinstance(window, PreprocessingMainWindow):
+            title = "Histalign - Preprocessing"
         elif isinstance(window, QAMainWindow):
             title = "Histalign - QA"
         elif isinstance(window, QuantificationMainWindow):
