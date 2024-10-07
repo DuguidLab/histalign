@@ -11,6 +11,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.model_view import StructureModel, StructureNode
+from histalign.frontend.pyside_helpers import connect_single_shot_slot
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
@@ -327,6 +328,17 @@ class VerticalSeparator(QtWidgets.QFrame):
         )
 
 
+class HorizontalSeparator(QtWidgets.QFrame):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setFrameShape(QtWidgets.QFrame.Shape.VLine)
+        self.setLineWidth(2)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Expanding
+        )
+
+
 class OneHeaderFrameLayout(QtWidgets.QGridLayout):
     def __init__(
         self,
@@ -387,3 +399,347 @@ class TableWidget(QtWidgets.QTableWidget):
         super().setItem(row, column, item)
 
         item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+
+
+class CollapsibleWidget(QtWidgets.QWidget):
+    """A collapsible widget using an animation to expand and collapse.
+
+    Adapted from a StackOverflow answer[1].
+
+    Attributes:
+        animation_duration (int): Duration for the expand/collapse animation. Set to 0
+                                  to make it instantaneous.
+        toggle_button (QtWidgets.QToolButton): Button on which the user clicks to
+                                               trigger the animation.
+        toggle_animation (QtCore.QParallelAnimationGroup): Animation group for the
+                                                           transition between collapsed
+                                                           and expanded.
+        content_area (QtWidgets.QScrollArea): Widget containing the inner layout. This
+                                              is where new row widgets get added.
+
+    References:
+        [1]: https://stackoverflow.com/a/52617714
+    """
+
+    animation_duration: int
+    expanded: bool
+
+    toggle_button: QtWidgets.QToolButton
+    toggle_animation: QtCore.QParallelAnimationGroup
+    content_area: QtWidgets.QScrollArea
+
+    def __init__(
+        self,
+        title: str = "",
+        animation_duration: int = 500,
+        expanded: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        """A collapsible widget using an animation to expand and collapse.
+
+        Args:
+            title (str, optional): Title used for the toggle button of the widget.
+            animation_duration (int, optional): Duration of the collapse/expand
+                                                animation. Set to 0 to make it
+                                                instantaneous.
+            expanded (bool, optional): Whether to start expanded.
+            parent (Optional[QtWidgets.QWidget], optional): Parent of the widget.
+        """
+        super().__init__(parent)
+
+        #
+        # A duration of 1 breaks animations
+        self.animation_duration = max(animation_duration, 2)
+
+        #
+        toggle_button = QtWidgets.QToolButton(
+            text=title, checkable=False, checked=False
+        )
+        toggle_button.setStyleSheet("QToolButton { border: none; }")
+        toggle_button.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        toggle_button.setArrowType(QtCore.Qt.ArrowType.RightArrow)
+        toggle_button.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum
+        )
+        toggle_button.pressed.connect(self.on_pressed)
+
+        self.toggle_button = toggle_button
+
+        #
+        content_area = QtWidgets.QScrollArea()
+        content_area.setMinimumHeight(0)
+        content_area.setMaximumHeight(0)
+        content_area.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed
+        )
+        content_area.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+
+        self.content_area = content_area
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(toggle_button)
+        layout.addWidget(content_area)
+
+        self.setLayout(layout)
+
+        #
+        toggle_animation = QtCore.QParallelAnimationGroup(self)
+        toggle_animation.addAnimation(QtCore.QPropertyAnimation(self, b"minimumHeight"))
+        toggle_animation.addAnimation(QtCore.QPropertyAnimation(self, b"maximumHeight"))
+        toggle_animation.addAnimation(
+            QtCore.QPropertyAnimation(self.content_area, b"maximumHeight")
+        )
+
+        self.toggle_animation = toggle_animation
+
+        #
+        content_layout = QtWidgets.QVBoxLayout()
+        content_layout.setContentsMargins(
+            toggle_button.iconSize().width() * 2,
+            toggle_button.iconSize().width() // 2,
+            toggle_button.iconSize().width() // 2,
+            toggle_button.iconSize().width() // 2,
+        )
+
+        self.set_content_layout(content_layout)
+
+        #
+        self.expanded = expanded
+        self.set_initial_state(expanded)
+
+    def set_initial_state(self, expanded: bool) -> None:
+        if expanded:
+            self.toggle(immediate=True)
+
+    def setup_animation(self) -> None:
+        collapsed_height = self.sizeHint().height() - self.content_area.maximumHeight()
+        content_height = self.content_area.layout().sizeHint().height()
+        for i in range(self.toggle_animation.animationCount()):
+            animation = self.toggle_animation.animationAt(i)
+            animation.setDuration(self.animation_duration)
+
+            animation.setStartValue(collapsed_height)
+            animation.setEndValue(collapsed_height + content_height)
+
+        content_animation = self.toggle_animation.animationAt(
+            self.toggle_animation.animationCount() - 1
+        )
+        content_animation.setDuration(self.animation_duration)
+
+        content_animation.setStartValue(0)
+        content_animation.setEndValue(content_height)
+
+    def add_row(self, text: Optional[str], widget: QtWidgets.QWidget) -> None:
+        row_layout = QtWidgets.QHBoxLayout()
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        if text is not None:
+            row_layout.addWidget(QtWidgets.QLabel(text))
+            row_layout.addStretch()
+        row_layout.addWidget(widget)
+
+        row_widget = QtWidgets.QWidget()
+        row_widget.setLayout(row_layout)
+
+        self.content_area.layout().addWidget(row_widget)
+        self.setup_animation()
+
+    def set_content_layout(self, layout: QtWidgets.QLayout) -> None:
+        current_layout = self.content_area.layout()
+        if current_layout is not None:
+            del current_layout
+
+        self.content_area.setLayout(layout)
+        self.setup_animation()
+
+    def toggle(self, immediate: bool = False) -> None:
+        if immediate:
+            old_animation_duration = self.animation_duration
+            self.animation_duration = 2
+            self.setup_animation()
+            self.animation_duration = old_animation_duration
+
+        connect_single_shot_slot(self.toggle_animation.finished, self.setup_animation)
+        self.toggle_button.click()
+
+    @QtCore.Slot()
+    def on_pressed(self) -> None:
+        self.toggle_button.setArrowType(
+            QtCore.Qt.ArrowType.RightArrow
+            if self.expanded
+            else QtCore.Qt.ArrowType.DownArrow
+        )
+        self.toggle_animation.setDirection(
+            QtCore.QAbstractAnimation.Direction.Backward
+            if self.expanded
+            else QtCore.QAbstractAnimation.Direction.Forward
+        )
+        self.toggle_animation.start()
+        self.expanded = ~self.expanded
+
+
+class SwitchWidget(QtWidgets.QWidget):
+    index: int
+
+    up_arrow: QtWidgets.QToolButton
+    down_arrow: QtWidgets.QToolButton
+    inner_widget: QtWidgets.QWidget
+    inner_layout: QtWidgets.QVBoxLayout()
+
+    move_up_requested: QtCore.Signal = QtCore.Signal(int)
+    move_down_requested: QtCore.Signal = QtCore.Signal(int)
+
+    def __init__(
+        self,
+        widget: QtWidgets.QWidget,
+        index: int,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.index = index
+
+        #
+        up_arrow = QtWidgets.QToolButton()
+        up_arrow.setStyleSheet("QToolButton { border: none; }")
+        up_arrow.setArrowType(QtCore.Qt.ArrowType.UpArrow)
+
+        up_arrow.clicked.connect(lambda: self.move_up_requested.emit(self.index))
+
+        self.up_arrow = up_arrow
+
+        #
+        down_arrow = QtWidgets.QToolButton()
+        down_arrow.setStyleSheet("QToolButton { border: none; }")
+        down_arrow.setArrowType(QtCore.Qt.ArrowType.DownArrow)
+
+        down_arrow.clicked.connect(lambda: self.move_down_requested.emit(self.index))
+
+        self.down_arrow = down_arrow
+
+        #
+        inner_widget = QtWidgets.QWidget()
+
+        self.inner_widget = inner_widget
+
+        #
+        inner_layout = QtWidgets.QVBoxLayout()
+        inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.inner_layout = inner_layout
+
+        #
+        layout = QtWidgets.QGridLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        layout.addWidget(up_arrow, 1, 0)
+        layout.addWidget(down_arrow, 2, 0)
+        layout.addWidget(HorizontalSeparator(), 0, 1, -1, 1)
+        layout.addLayout(inner_layout, 0, 2, 4, 1)
+
+        layout.setRowStretch(0, 1)
+        layout.setRowStretch(3, 1)
+        layout.setColumnStretch(2, 1)
+
+        self.setLayout(layout)
+
+        #
+        self.set_widget(widget)
+
+    def set_widget(self, widget: Optional[QtWidgets.QWidget]) -> None:
+        if self.inner_widget is not None:
+            self.inner_widget.setParent(None)
+            self.inner_widget.deleteLater()
+
+        if widget is None:
+            return
+
+        self.inner_widget = widget
+        self.inner_layout.addWidget(
+            widget, alignment=QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+
+
+class SwitchWidgetContainer(QtWidgets.QScrollArea):
+    widget_list: list[SwitchWidget]
+
+    content_layout: QtWidgets.QVBoxLayout
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self.widget_list = []
+
+        #
+        self.setWidgetResizable(True)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+        # self.setMinimumHeight(1000)
+
+        #
+        content_layout = QtWidgets.QVBoxLayout()
+        content_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+
+        self.content_layout = content_layout
+
+        self.setLayout(content_layout)
+
+    def add_widget(self, widget: QtWidgets.QWidget) -> None:
+        switch_widget = SwitchWidget(widget, len(self.widget_list))
+        switch_widget.move_up_requested.connect(self.move_widget_up)
+        switch_widget.move_down_requested.connect(self.move_widget_down)
+
+        self.content_layout.addWidget(
+            switch_widget, alignment=QtCore.Qt.AlignmentFlag.AlignTop
+        )
+        self.widget_list.append(switch_widget)
+
+    def swap_widgets(
+        self, bottom_widget: SwitchWidget, top_widget: SwitchWidget
+    ) -> None:
+        # We need to takeAt the top index first to avoid a segfault
+        top_widget_index = self.content_layout.indexOf(top_widget)
+        top_widget_item = self.content_layout.takeAt(top_widget_index)
+        bottom_widget_index = self.content_layout.indexOf(bottom_widget)
+        bottom_widget_item = self.content_layout.takeAt(bottom_widget_index)
+
+        self.content_layout.insertItem(bottom_widget_index, top_widget_item)
+        self.content_layout.insertItem(top_widget_index, bottom_widget_item)
+
+        top_index = top_widget.index
+        bottom_index = bottom_widget.index
+        bottom_widget.index = top_index
+        top_widget.index = bottom_index
+
+    @QtCore.Slot()
+    def move_widget_up(self, index: int) -> None:
+        if index < 1:
+            return
+
+        bottom_widget = self.widget_list[index - 1]
+        top_widget = self.widget_list[index]
+        self.widget_list[index] = bottom_widget
+        self.widget_list[index - 1] = top_widget
+
+        self.swap_widgets(bottom_widget, top_widget)
+
+    @QtCore.Slot()
+    def move_widget_down(self, index: int) -> None:
+        if index > len(self.widget_list) - 2:
+            return
+
+        bottom_widget = self.widget_list[index]
+        top_widget = self.widget_list[index + 1]
+        self.widget_list[index + 1] = bottom_widget
+        self.widget_list[index] = top_widget
+
+        self.swap_widgets(bottom_widget, top_widget)
