@@ -163,6 +163,7 @@ class ProjectSettings(BaseModel, validate_assignment=True):
 
 
 class QuantificationSettings(BaseModel, validate_assignment=True):
+    approach: str
     alignment_directory: DirectoryPath
     original_directory: DirectoryPath
     quantification_measure: QuantificationMeasure
