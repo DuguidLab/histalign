@@ -132,3 +132,33 @@ class SliceQuantifier(QtCore.QObject):
 
         with open(quantification_path / f"{results.hash}.json", "w") as handle:
             json.dump(results.model_dump(), handle)
+
+
+class QuantificationThread(QtCore.QThread):
+    quantifier: BrainQuantifier | SliceQuantifier
+
+    progress_count_computed: QtCore.Signal = QtCore.Signal(int)
+    progress_changed: QtCore.Signal = QtCore.Signal(int)
+    results_computed: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self, settings: QuantificationSettings, parent: Optional[QtCore.QObject] = None
+    ) -> None:
+        super().__init__(parent)
+
+        match settings.approach:
+            case "Whole-brain":
+                self.quantifier = BrainQuantifier(settings)
+            case "Per-slice":
+                self.quantifier = SliceQuantifier(settings)
+            case other:
+                raise ValueError("Unknown quantifier '{other}'.")
+
+        self.quantifier.progress_count_computed.connect(
+            self.progress_count_computed.emit
+        )
+        self.quantifier.progress_changed.connect(self.progress_changed.emit)
+        self.quantifier.results_computed.connect(self.results_computed.emit)
+
+    def run(self) -> None:
+        self.quantifier.run()

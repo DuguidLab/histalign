@@ -9,7 +9,8 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import QuantificationSettings
-from histalign.backend.workspace import QuantificationThread, Workspace
+from histalign.backend.quantification import QuantificationThread
+from histalign.backend.workspace import Workspace
 from histalign.frontend.common_widgets import (
     ProjectDirectoriesComboBox,
     SelectedStructuresWidget,
