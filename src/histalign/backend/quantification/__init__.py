@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -35,6 +36,10 @@ class SliceQuantifier(QtCore.QObject):
         self, settings: QuantificationSettings, parent: Optional[QtCore.QObject] = None
     ) -> None:
         super().__init__(parent)
+
+        self.logger = logging.getLogger(
+            f"{self.__module__}.{self.__class__.__qualname__}"
+        )
 
         self.settings = settings
 
