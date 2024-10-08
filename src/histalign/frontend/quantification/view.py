@@ -67,30 +67,39 @@ class ResultsSummaryWidget(QtWidgets.QFrame):
 
 
 class ViewWidget(QtWidgets.QWidget):
+    content_area: QtWidgets.QScrollArea
+    container_widget: QtWidgets.QWidget
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.setLayout(QtWidgets.QVBoxLayout())
-        self.layout().addWidget(QtWidgets.QWidget())
-
-        # from PySide6 import QtCore
         #
-        # self._timer = QtCore.QTimer()
-        # self._timer.timeout.connect(self.dumpObjectTree)
-        # self._timer.start(1000)
+        container_widget = QtWidgets.QWidget()
+
+        self.container_widget = container_widget
+
+        #
+        content_area = QtWidgets.QScrollArea()
+        content_area.setWidgetResizable(True)
+        content_area.setWidget(container_widget)
+
+        self.content_area = content_area
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(content_area)
+
+        self.setLayout(layout)
 
     def parse_results(self, results_list: list[QuantificationResults]) -> None:
-        self.layout().takeAt(0).widget().deleteLater()
-
         container_widget = QtWidgets.QWidget()
-        layout = QtWidgets.QGridLayout()
-        container_widget.setLayout(layout)
+        grid_layout = QtWidgets.QGridLayout()
+        container_widget.setLayout(grid_layout)
+        self.content_area.setWidget(container_widget)
+
+        self.container_widget = container_widget
 
         for i, results in enumerate(results_list):
+            print(results)
             results_summary_widget = ResultsSummaryWidget(results)
-            layout.addWidget(results_summary_widget, *divmod(i, 2))
-
-        self.layout().addWidget(container_widget)
-
-    def remove_layout(self) -> None:
-        self.layout().setParent(QtWidgets.QWidget())
+            grid_layout.addWidget(results_summary_widget, *divmod(i, 2))

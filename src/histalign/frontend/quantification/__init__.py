@@ -6,25 +6,22 @@ from pathlib import Path
 import sys
 from typing import Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
-from histalign.frontend.common_widgets import BasicMenuBar, ProjectDirectoriesComboBox
+from histalign.frontend.common_widgets import BasicMenuBar
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.quantification.prepare import PrepareWidget
-from histalign.frontend.quantification.results import ResultsWidgets
+from histalign.frontend.quantification.results import ResultsWidget
 from histalign.frontend.quantification.view import ViewWidget
 
 
 class QuantificationMainWindow(QtWidgets.QMainWindow):
-    project_directory: Path
-
     project_loaded: bool = False
 
-    menu_bar: BasicMenuBar
-    tab_widget: QtWidgets.QWidget
-    prepare_widget: PrepareWidget
-    results_widget: ResultsWidgets
-    view_widget: ViewWidget
+    prepare_tab: PrepareWidget
+    results_tab: ResultsWidget
+    view_tab: ViewWidget
+    tab_widget: QtWidgets.QTabWidget
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -35,56 +32,32 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
 
         self.setMenuBar(menu_bar)
 
-        self.menu_bar = menu_bar
+        #
+        prepare_tab = PrepareWidget()
+
+        self.prepare_tab = prepare_tab
 
         #
-        prepare_widget = PrepareWidget()
+        results_tab = ResultsWidget()
 
-        self.prepare_widget = prepare_widget
-
-        #
-        results_widget = ResultsWidgets()
-        results_widget.submitted.connect(self.display_summaries)
-
-        self.results_widget = results_widget
+        self.results_tab = results_tab
 
         #
-        view_widget = ViewWidget()
+        view_tab = ViewWidget()
+        results_tab.submitted.connect(view_tab.parse_results)
 
-        self.view_widget = view_widget
+        self.view_tab = view_tab
 
         #
         tab_widget = QtWidgets.QTabWidget()
+        tab_widget.addTab(prepare_tab, "Prepare")
+        tab_widget.addTab(results_tab, "Results")
+        tab_widget.addTab(view_tab, "View")
         tab_widget.setEnabled(False)
 
-        tab_widget.addTab(prepare_widget, "Prepare")
-        tab_widget.addTab(results_widget, "Results")
-        tab_widget.addTab(view_widget, "View")
-
         #
-        # Wrap tab_widget to enable padding of central widget
-        container_layout = QtWidgets.QHBoxLayout()
-        container_layout.setContentsMargins(0, 10, 0, 0)
-        container_layout.addWidget(tab_widget)
-
-        container_widget = QtWidgets.QWidget()
-        container_widget.setLayout(container_layout)
-
-        self.setCentralWidget(container_widget)
-
+        self.setCentralWidget(tab_widget)
         self.tab_widget = tab_widget
-
-    def display_summaries(self) -> None:
-        results_list = []
-        for i in range(self.results_widget.model.rowCount()):
-            index = self.results_widget.model.index(i, 0)
-            if (
-                index.data(QtCore.Qt.ItemDataRole.CheckStateRole)
-                == QtCore.Qt.CheckState.Checked
-            ):
-                results_list.append(index.data(QtCore.Qt.ItemDataRole.UserRole))
-
-        self.view_widget.parse_results(results_list)
 
     @QtCore.Slot()
     def show_open_project_dialog(self) -> None:
@@ -94,11 +67,10 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:
-        self.project_directory = Path(project_file_path).parent
+        project_directory = Path(project_file_path).parent
 
-        self.prepare_widget.parse_project(self.project_directory)
-        self.results_widget.parse_project(self.project_directory)
+        self.prepare_tab.parse_project(project_directory)
+        self.results_tab.parse_project(project_directory)
 
         self.tab_widget.setEnabled(True)
-
         self.project_loaded = True

@@ -4,13 +4,18 @@
 
 import json
 import logging
+import os
 from pathlib import Path
+import re
 from typing import Any, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from pydantic import ValidationError
 
 from histalign.backend.models import QuantificationResults
+from histalign.frontend.common_widgets import (
+    SelectedStructuresWidget,
+)
 
 
 class ResultsTableModel(QtCore.QAbstractTableModel):
@@ -20,13 +25,13 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
         super().__init__(parent)
 
         self._data = self.parse_project(project_directory)
-        self._columns = ["", "Date", "Measure", "Structures", "Directory"]
+        self._columns = ["", "Date", "Approach", "Measure", "Structures", "Directory"]
 
     def data(
         self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex, role: int = ...
     ) -> Any:
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
-            if index.column() > 0:
+            if 0 < index.column() < self.columnCount():
                 return self._data[index.row()][index.column()]
         elif role == QtCore.Qt.ItemDataRole.TextAlignmentRole:
             if index.column() != len(self._columns) - 1:
@@ -103,6 +108,7 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
                 [
                     "[ ]",
                     results.timestamp.strftime("%Y/%m/%d - %H:%M"),
+                    results.settings.approach,
                     results.settings.quantification_measure.value,
                     ", ".join(results.settings.structures),
                     str(results.settings.original_directory),
@@ -111,6 +117,53 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
             )
 
         return data
+
+
+class ResultsTableFilterProxyModel(QtCore.QSortFilterProxyModel):
+    approach_regex: str = ""
+    structures_regex: str = ""
+
+    filter_changed: QtCore.Signal = QtCore.Signal()
+    checked_state_changed: QtCore.Signal = QtCore.Signal()
+
+    def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
+        super().__init__(parent)
+
+    def set_approach_regular_expression(self, pattern: str) -> None:
+        self.approach_regex = pattern
+        self.invalidateFilter()
+
+    def set_structures_regular_expression(self, pattern: str) -> None:
+        self.structures_regex = pattern
+        self.invalidateFilter()
+
+    def setData(
+        self,
+        index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
+        value: Any,
+        role: int = ...,
+    ) -> bool:
+        result = super().setData(index, value, role)
+        self.checked_state_changed.emit()
+        return result
+
+    def filterAcceptsRow(
+        self, source_row: int, source_parent: QtCore.QModelIndex
+    ) -> bool:
+        approach_index = self.sourceModel().index(source_row, 2, source_parent)
+        structures_index = self.sourceModel().index(source_row, 4, source_parent)
+
+        approach = approach_index.data(QtCore.Qt.ItemDataRole.DisplayRole)
+        structures = structures_index.data(QtCore.Qt.ItemDataRole.DisplayRole)
+
+        return bool(re.findall(self.approach_regex, approach)) and bool(
+            re.findall(self.structures_regex, structures)
+        )
+
+    def invalidateFilter(self):
+        super().invalidateFilter()
+
+        self.filter_changed.emit()
 
 
 class ResultsTableView(QtWidgets.QTableView):
@@ -132,9 +185,7 @@ class ResultsTableView(QtWidgets.QTableView):
 
         self.installEventFilter(self)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-
+    def resizeColumnsToContents(self):
         for i in range(self.model().columnCount() - 1):
             self.resizeColumnToContents(i)
 
@@ -142,6 +193,16 @@ class ResultsTableView(QtWidgets.QTableView):
                 self.horizontalHeader().resizeSection(
                     i, self.horizontalHeader().sectionSize(i) + 20
                 )
+
+    def setModel(self, model: QtCore.QAbstractItemModel) -> None:
+        super().setModel(model)
+
+        model.filter_changed.connect(self.resizeColumnsToContents)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.resizeColumnsToContents()
 
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
         match event.type():
@@ -164,51 +225,138 @@ class ResultsTableView(QtWidgets.QTableView):
         return super().eventFilter(watched, event)
 
 
-class ResultsWidgets(QtWidgets.QWidget):
-    project_directory: Path
+class ResultsWidget(QtWidgets.QWidget):
+    project_directory: Optional[Path] = None
 
+    filter_layout: QtWidgets.QFormLayout
+    structures_widget: SelectedStructuresWidget
     model: ResultsTableModel
-    view: QtWidgets.QTableView
+    proxy_model: ResultsTableFilterProxyModel
+    view: ResultsTableView
     submit_button: QtWidgets.QPushButton
+    parsed_timestamp: float = -1.0
 
-    submitted: QtCore.Signal = QtCore.Signal()
+    submitted: QtCore.Signal = QtCore.Signal(list)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         #
+        approach_widget = QtWidgets.QComboBox()
+        approach_widget.addItems(["Whole-brain", "Per-slice"])
+
+        approach_widget.currentTextChanged.connect(self.filter_model)
+
+        self.approach_widget = approach_widget
+
+        #
+        structures_widget = SelectedStructuresWidget()
+        structures_widget.structure_added.connect(self.filter_model)
+        structures_widget.structure_removed.connect(self.filter_model)
+
+        self.structures_widget = structures_widget
+
+        #
+        filter_layout = QtWidgets.QFormLayout()
+        filter_layout.addRow("Approach", approach_widget)
+        filter_layout.addRow("Structures", structures_widget)
+
+        self.filter_layout = filter_layout
+
+        #
         view = ResultsTableView()
+        self.approach_widget.currentTextChanged.connect(self.update_submit_button_state)
+        self.structures_widget.structure_added.connect(self.update_submit_button_state)
+        self.structures_widget.structure_removed.connect(
+            self.update_submit_button_state
+        )
 
         self.view = view
 
         #
         submit_button = QtWidgets.QPushButton("Submit")
-        submit_button.clicked.connect(self.submitted.emit)
+        submit_button.clicked.connect(self.submit_checked)
+        submit_button.setEnabled(False)
 
         self.submit_button = submit_button
 
         #
         layout = QtWidgets.QVBoxLayout()
-
+        layout.addLayout(filter_layout)
         layout.addWidget(view, stretch=1)
-        layout.addWidget(
-            submit_button,
-            alignment=QtCore.Qt.AlignmentFlag.AlignBottom
-            | QtCore.Qt.AlignmentFlag.AlignLeft,
-        )
-
+        layout.addWidget(submit_button)
         self.setLayout(layout)
 
+    def has_at_least_one_checked(self) -> bool:
+        for i in range(self.proxy_model.rowCount()):
+            if (
+                self.proxy_model.index(i, 0).data(QtCore.Qt.ItemDataRole.CheckStateRole)
+                == QtCore.Qt.CheckState.Checked
+            ):
+                return True
+
+        return False
+
+    def get_checked_items(self) -> list[QuantificationResults]:
+        checked_items = []
+        for i in range(self.proxy_model.rowCount()):
+            index = self.proxy_model.index(i, 0)
+            if (
+                index.data(QtCore.Qt.ItemDataRole.CheckStateRole)
+                == QtCore.Qt.CheckState.Checked
+            ):
+                checked_items.append(index.data(QtCore.Qt.ItemDataRole.UserRole))
+
+        return checked_items
+
     def parse_project(self, project_directory: Path) -> None:
+        quantification_path = project_directory / "quantification"
+        if not os.path.exists(quantification_path):
+            os.makedirs(quantification_path, exist_ok=True)
+
+        if (
+            timestamp := os.stat(quantification_path).st_mtime
+        ) == self.parsed_timestamp:
+            return
+
+        self.parsed_timestamp = timestamp
         self.project_directory = project_directory
 
-        model = ResultsTableModel(self.project_directory, self)
+        model = ResultsTableModel(project_directory, self)
 
-        self.view.setModel(model)
+        proxy_model = ResultsTableFilterProxyModel(self)
+        proxy_model.setSourceModel(model)
+
+        proxy_model.checked_state_changed.connect(self.update_submit_button_state)
+
         self.model = model
+        self.proxy_model = proxy_model
+        self.view.setModel(proxy_model)
+
+        self.filter_model(...)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
-        # Emulate "hot-reload" so that running a new quantification shows up
-        # when switching tabs.
         super().showEvent(event)
-        self.parse_project(self.project_directory)
+
+        if self.project_directory is not None:
+            self.parse_project(self.project_directory)
+
+    @QtCore.Slot()
+    def filter_model(self, _) -> None:
+        approach_regex = self.approach_widget.currentText()
+        self.proxy_model.set_approach_regular_expression(approach_regex)
+
+        structure_names = list(self.structures_widget.structure_tags_mapping.keys())
+        regex = f"(({'|'.join(structure_names)}),? ?){{{len(structure_names)}}}"
+        self.proxy_model.set_structures_regular_expression(regex)
+
+    @QtCore.Slot()
+    def update_submit_button_state(self) -> None:
+        self.submit_button.setEnabled(
+            self.has_at_least_one_checked()
+            and bool(self.structures_widget.structure_tags_mapping)
+        )
+
+    @QtCore.Slot()
+    def submit_checked(self) -> None:
+        self.submitted.emit(self.get_checked_items())
