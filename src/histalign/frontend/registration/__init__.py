@@ -133,8 +133,11 @@ class RegistrationMainWindow(HistalignMainWindow):
 
         # Top dock widget (AlphaDockWidget)
         alpha_dock_widget = AlphaDockWidget()
-        alpha_dock_widget.alpha_slider.valueChanged.connect(
-            alignment_widget.update_histology_alpha
+        alpha_dock_widget.background_alpha_slider.valueChanged.connect(
+            alignment_widget.update_background_alpha
+        )
+        alpha_dock_widget.global_alpha_slider.valueChanged.connect(
+            alignment_widget.update_global_alpha
         )
 
         self.addDockWidget(QtCore.Qt.TopDockWidgetArea, alpha_dock_widget)
@@ -379,8 +382,11 @@ class RegistrationMainWindow(HistalignMainWindow):
             return
 
         self.alignment_widget.update_histological_slice(image)
-        self.alignment_widget.update_histology_alpha(
-            self.alpha_dock_widget.alpha_slider.value()
+        self.alignment_widget.update_background_alpha(
+            self.alpha_dock_widget.background_alpha_slider.value()
+        )
+        self.alignment_widget.update_global_alpha(
+            self.alpha_dock_widget.global_alpha_slider.value()
         )
         self.alignment_button_dock_widget.save_button.setEnabled(True)
 

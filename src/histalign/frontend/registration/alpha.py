@@ -10,8 +10,9 @@ from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 
 class AlphaDockWidget(QtWidgets.QDockWidget):
-    alpha_toggle_push_button: QtWidgets.QPushButton
-    alpha_slider: QtWidgets.QSlider
+    background_alpha_slider: QtWidgets.QSlider
+    global_alpha_button: QtWidgets.QPushButton
+    global_alpha_slider: QtWidgets.QSlider
 
     def __init__(
         self,
@@ -19,25 +20,48 @@ class AlphaDockWidget(QtWidgets.QDockWidget):
     ) -> None:
         super().__init__(parent)
 
+        #
         self.setContentsMargins(10, 10, 10, 0)
 
         self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
 
-        self.alpha_toggle_push_button = QtWidgets.QPushButton("X")
-        self.alpha_toggle_push_button.setMaximumWidth(20)
-        self.alpha_toggle_push_button.clicked.connect(self.toggle_alpha)
+        #
+        background_alpha_slider = QtWidgets.QSlider(
+            orientation=QtCore.Qt.Orientation.Horizontal, minimum=0, maximum=255
+        )
 
-        self.alpha_slider = QtWidgets.QSlider(
+        self.background_alpha_slider = background_alpha_slider
+
+        #
+        global_alpha_button = QtWidgets.QPushButton("X")
+        global_alpha_button.setMaximumWidth(20)
+        global_alpha_button.clicked.connect(self.toggle_alpha)
+
+        self.global_alpha_button = global_alpha_button
+
+        #
+        global_alpha_slider = QtWidgets.QSlider(
             orientation=QtCore.Qt.Horizontal, minimum=0, maximum=255, value=255
         )
 
-        layout = QtWidgets.QHBoxLayout()
-        layout.addWidget(
-            self.alpha_toggle_push_button, alignment=QtCore.Qt.AlignVCenter
-        )
-        layout.addWidget(self.alpha_slider, alignment=QtCore.Qt.AlignVCenter)
+        self.global_alpha_slider = global_alpha_slider
 
+        #
+        global_layout = QtWidgets.QHBoxLayout()
+        global_layout.addWidget(
+            self.global_alpha_button, alignment=QtCore.Qt.AlignVCenter
+        )
+        global_layout.addWidget(
+            self.global_alpha_slider, alignment=QtCore.Qt.AlignVCenter
+        )
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(background_alpha_slider)
+        layout.addLayout(global_layout)
+
+        #
         container_widget = QtWidgets.QWidget()
         container_widget.setLayout(layout)
 
@@ -45,9 +69,9 @@ class AlphaDockWidget(QtWidgets.QDockWidget):
 
     @QtCore.Slot()
     def toggle_alpha(self) -> None:
-        value = self.alpha_slider.value()
+        value = self.global_alpha_slider.value()
         toggled_value = 255 - value
         if toggled_value > 255 // 2:
-            self.alpha_slider.setValue(255)
+            self.global_alpha_slider.setValue(255)
         else:
-            self.alpha_slider.setValue(0)
+            self.global_alpha_slider.setValue(0)
