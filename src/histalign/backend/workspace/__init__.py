@@ -550,7 +550,9 @@ class Workspace(QtCore.QObject):
     def resolution(self) -> Resolution:
         return self.project_settings.resolution
 
-    def parse_image_directory(self, directory_path: str) -> None:
+    def parse_image_directory(
+        self, directory_path: str, only_neun: bool = True
+    ) -> None:
         self.last_parsed_directory = directory_path
 
         working_directory_hash = self.generate_directory_hash(directory_path)
@@ -590,7 +592,7 @@ class Workspace(QtCore.QObject):
 
             valid_paths = previous_image_paths
         else:
-            valid_paths = self.gather_image_paths(directory_path)
+            valid_paths = self.gather_image_paths(directory_path, only_neun)
 
         self.working_directory = working_directory
         os.makedirs(self.working_directory, exist_ok=True)
@@ -756,10 +758,12 @@ class Workspace(QtCore.QObject):
             self.alignment_settings.histology_scaling = histology_scaling
 
     @staticmethod
-    def gather_image_paths(directory_path: str) -> list[str]:
+    def gather_image_paths(directory_path: str, only_neun: bool = True) -> list[str]:
         image_paths = []
         for path in Path(directory_path).iterdir():
             if path.suffix in (".h5", ".hdf5", ".npy", ".jpg", ".jpeg", ".png"):
+                if only_neun and path.stem.split("-")[-1] != "neun":
+                    continue
                 image_paths.append(str(path))
 
         # Natural sorting taken from: https://stackoverflow.com/a/16090640
