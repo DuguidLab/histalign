@@ -10,6 +10,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import ProjectSettings
 from histalign.backend.workspace import VolumeLoaderThread, Workspace
+from histalign.frontend.common_widgets import BasicMenuBar, HistalignMainWindow
 from histalign.frontend.dialogs import (
     AtlasProgressDialog,
     CreateProjectDialog,
@@ -27,7 +28,7 @@ from histalign.frontend.registration.settings import SettingsDockWidget
 from histalign.frontend.registration.thumbnails import ThumbnailDockWidget
 
 
-class MainMenuBar(QtWidgets.QMenuBar):
+class RegistrationMenuBar(BasicMenuBar):
     create_project_requested: QtCore.Signal = QtCore.Signal()
     open_project_requested: QtCore.Signal = QtCore.Signal()
     save_project_requested: QtCore.Signal = QtCore.Signal()
@@ -39,13 +40,14 @@ class MainMenuBar(QtWidgets.QMenuBar):
 
         self.action_groups = {"project_required": []}
 
-        file_menu = self.addMenu("&File")
+        file_menu: QtWidgets.QMenu = self.findChild(QtWidgets.QMenu, "file_menu")
+        if file_menu is None:
+            raise ValueError(
+                "Could not retrieve child `QMenu` (name: 'file_menu') object."
+            )
 
         create_project_action = QtGui.QAction("Create &project", self)
         create_project_action.triggered.connect(self.create_project_requested.emit)
-
-        open_project_action = QtGui.QAction("Open p&roject", self)
-        open_project_action.triggered.connect(self.open_project_requested.emit)
 
         save_project_action = QtGui.QAction("&Save project", self)
         save_project_action.setEnabled(False)
@@ -53,9 +55,6 @@ class MainMenuBar(QtWidgets.QMenuBar):
         save_project_action.setShortcutContext(QtCore.Qt.ApplicationShortcut)
         save_project_action.triggered.connect(self.save_project_requested.emit)
         self.action_groups["project_required"].append(save_project_action)
-
-        close_project_action = QtGui.QAction("Close pro&ject", self)
-        close_project_action.triggered.connect(self.close_project_requested.emit)
 
         open_image_directory_action = QtGui.QAction("&Open image directory", self)
         open_image_directory_action.setEnabled(False)
@@ -66,10 +65,8 @@ class MainMenuBar(QtWidgets.QMenuBar):
         )
         self.action_groups["project_required"].append(open_image_directory_action)
 
-        file_menu.addAction(create_project_action)
-        file_menu.addAction(open_project_action)
-        file_menu.addAction(save_project_action)
-        file_menu.addAction(close_project_action)
+        file_menu.insertAction(self.open_project_action, create_project_action)
+        file_menu.insertAction(self.close_project_action, save_project_action)
         file_menu.addSeparator()
         file_menu.addAction(open_image_directory_action)
 
@@ -82,12 +79,12 @@ class MainMenuBar(QtWidgets.QMenuBar):
             action.setEnabled(False)
 
 
-class RegistrationMainWindow(QtWidgets.QMainWindow):
+class RegistrationMainWindow(HistalignMainWindow):
     workspace: Optional[Workspace] = None
     workspace_loaded: bool = False
     workspace_dirtied: bool = False
 
-    menu_bar: MainMenuBar
+    menu_bar: RegistrationMenuBar
 
     alignment_widget: AlignmentWidget
     thumbnail_dock_widget: ThumbnailDockWidget
@@ -108,11 +105,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         )
 
         # Menu bar
-        menu_bar = MainMenuBar()
+        menu_bar = RegistrationMenuBar()
         menu_bar.create_project_requested.connect(self.show_create_project_dialog)
-        menu_bar.open_project_requested.connect(self.show_open_project_dialog)
         menu_bar.save_project_requested.connect(self.save_project)
-        menu_bar.close_project_requested.connect(self.close_project)
         menu_bar.open_image_directory_requested.connect(
             self.show_open_image_directory_dialog
         )
@@ -287,9 +282,7 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
                 case QtWidgets.QMessageBox.Cancel:
                     return
 
-        dialog = OpenProjectDialog(self)
-        dialog.submitted.connect(self.open_project)
-        dialog.open()
+        super().show_open_project_dialog()
 
     @QtCore.Slot()
     def show_open_image_directory_dialog(self) -> None:
@@ -321,9 +314,9 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
         self.dirty_workspace()
 
     @QtCore.Slot()
-    def open_project(self, project_path: str) -> None:
+    def open_project(self, project_file_path: str) -> None:
         try:
-            self.workspace = Workspace.load(project_path)
+            self.workspace = Workspace.load(project_file_path)
         except ValueError:
             return InvalidProjectFileDialog(self).open()
 
@@ -346,14 +339,6 @@ class RegistrationMainWindow(QtWidgets.QMainWindow):
     def save_project(self) -> None:
         self.workspace.save()
         self.workspace_dirtied = False
-
-    @QtCore.Slot()
-    def close_project(self) -> None:
-        event = QtGui.QCloseEvent()
-        self.closeEvent(event)
-
-        if event.isAccepted():
-            self.parent().open_centralised_window()
 
     @QtCore.Slot()
     def open_atlas_in_aligner(self) -> None:

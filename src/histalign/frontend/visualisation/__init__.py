@@ -24,7 +24,11 @@ from histalign.backend.models import (
 from histalign.backend.registration.alignment import build_alignment_volume
 from histalign.backend.workspace import Volume, VolumeSlicer, Workspace
 from histalign.frontend.dialogs import OpenProjectDialog
-from histalign.frontend.common_widgets import BasicMenuBar, ProjectDirectoriesComboBox
+from histalign.frontend.common_widgets import (
+    BasicMenuBar,
+    HistalignMainWindow,
+    ProjectDirectoriesComboBox,
+)
 
 
 class ViewerButtons(QtWidgets.QWidget):
@@ -430,7 +434,7 @@ class VisualiseControls(QtWidgets.QWidget):
         self.setLayout(layout)
 
 
-class VisualisationMainWindow(QtWidgets.QMainWindow):
+class VisualisationMainWindow(HistalignMainWindow):
     project_directory: Path
 
     project_loaded: bool = False
@@ -440,12 +444,6 @@ class VisualisationMainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
-
-        #
-        main_menu_bar = BasicMenuBar()
-        main_menu_bar.open_project_requested.connect(self.show_open_project_dialog)
-
-        self.setMenuBar(main_menu_bar)
 
         #
         controls = VisualiseControls()
@@ -480,12 +478,6 @@ class VisualisationMainWindow(QtWidgets.QMainWindow):
         alignment_volume = build_alignment_volume(alignment_directory)
         for viewer in self.fmri_viewer.volume_viewers:
             viewer.change_visualisation_volume(alignment_volume)
-
-    @QtCore.Slot()
-    def show_open_project_dialog(self) -> None:
-        dialog = OpenProjectDialog(self)
-        dialog.submitted.connect(self.open_project)
-        dialog.open()
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:

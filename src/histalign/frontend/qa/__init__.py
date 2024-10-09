@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from histalign.backend.workspace import HistologySlice, Workspace
 from histalign.frontend.common_widgets import (
     BasicMenuBar,
+    HistalignMainWindow,
     ProjectDirectoriesComboBox,
     SelectedStructuresWidget,
 )
@@ -73,7 +74,7 @@ class SliceNamesComboBox(QtWidgets.QComboBox):
         self.file_picked.emit(self.name_to_path_map[file_name])
 
 
-class QAMainWindow(QtWidgets.QMainWindow):
+class QAMainWindow(HistalignMainWindow):
     project_directory: Path
     current_directory: str
     project_loaded: bool = False
@@ -95,10 +96,6 @@ class QAMainWindow(QtWidgets.QMainWindow):
 
         self.structures_processing = []
         self.update_status()
-
-        menu_bar = BasicMenuBar()
-        menu_bar.open_project_requested.connect(self.show_open_project_dialog)
-        self.setMenuBar(menu_bar)
 
         #
         slice_names_combo_box = SliceNamesComboBox()
@@ -172,12 +169,6 @@ class QAMainWindow(QtWidgets.QMainWindow):
             message = ""
 
         self.statusBar().showMessage(message)
-
-    @QtCore.Slot()
-    def show_open_project_dialog(self) -> None:
-        dialog = OpenProjectDialog(self)
-        dialog.submitted.connect(self.open_project)
-        dialog.open()
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:

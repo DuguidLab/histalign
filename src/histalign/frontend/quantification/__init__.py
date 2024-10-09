@@ -8,14 +8,14 @@ from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from histalign.frontend.common_widgets import BasicMenuBar
+from histalign.frontend.common_widgets import BasicMenuBar, HistalignMainWindow
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.quantification.prepare import PrepareWidget
 from histalign.frontend.quantification.results import ResultsWidget
 from histalign.frontend.quantification.view import ViewWidget
 
 
-class QuantificationMainWindow(QtWidgets.QMainWindow):
+class QuantificationMainWindow(HistalignMainWindow):
     project_loaded: bool = False
 
     prepare_tab: PrepareWidget
@@ -25,12 +25,6 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
-
-        #
-        menu_bar = BasicMenuBar()
-        menu_bar.open_project_requested.connect(self.show_open_project_dialog)
-
-        self.setMenuBar(menu_bar)
 
         #
         prepare_tab = PrepareWidget()
@@ -58,12 +52,6 @@ class QuantificationMainWindow(QtWidgets.QMainWindow):
         #
         self.setCentralWidget(tab_widget)
         self.tab_widget = tab_widget
-
-    @QtCore.Slot()
-    def show_open_project_dialog(self) -> None:
-        dialog = OpenProjectDialog(self)
-        dialog.submitted.connect(self.open_project)
-        dialog.open()
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:

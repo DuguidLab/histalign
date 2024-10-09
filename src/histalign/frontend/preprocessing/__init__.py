@@ -7,32 +7,23 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.common_widgets import BasicMenuBar
+from histalign.frontend.common_widgets import HistalignMainWindow
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.preprocessing.prepare import PrepareWidget
 from histalign.frontend.preprocessing.results import ResultsWidget
 
 
-class PreprocessingMainWindow(QtWidgets.QMainWindow):
+class PreprocessingMainWindow(HistalignMainWindow):
     project_directory: Path
 
     project_loaded: bool = False
 
-    menu_bar: BasicMenuBar
     tab_widget: QtWidgets.QTabWidget
     prepare_widget: PrepareWidget
     results_widget: ResultsWidget
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
-
-        #
-        menu_bar = BasicMenuBar()
-        menu_bar.open_project_requested.connect(self.show_open_project_dialog)
-
-        self.setMenuBar(menu_bar)
-
-        self.menu_bar = menu_bar
 
         #
         prepare_widget = PrepareWidget()
@@ -62,12 +53,6 @@ class PreprocessingMainWindow(QtWidgets.QMainWindow):
         container_widget.setLayout(container_layout)
 
         self.setCentralWidget(container_widget)
-
-    @QtCore.Slot()
-    def show_open_project_dialog(self) -> None:
-        dialog = OpenProjectDialog(self)
-        dialog.submitted.connect(self.open_project)
-        dialog.open()
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:

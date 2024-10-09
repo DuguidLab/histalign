@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+from abc import abstractmethod
 import json
 import logging
 from pathlib import Path
@@ -11,9 +12,12 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.model_view import StructureModel, StructureNode
+from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.pyside_helpers import connect_single_shot_slot
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
+
+_module_logger = logging.getLogger(__name__)
 
 
 class ProjectDirectoriesComboBox(QtWidgets.QComboBox):
@@ -745,14 +749,66 @@ class SwitchWidgetContainer(QtWidgets.QScrollArea):
 
 
 class BasicMenuBar(QtWidgets.QMenuBar):
+    open_project_action: QtGui.QAction
+    close_project_action: QtGui.QAction
+
     open_project_requested: QtCore.Signal = QtCore.Signal()
+    close_project_requested: QtCore.Signal = QtCore.Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         file_menu = self.addMenu("&File")
+        file_menu.setObjectName("file_menu")
 
         open_project_action = QtGui.QAction("&Open project", self)
         open_project_action.triggered.connect(self.open_project_requested.emit)
+        self.open_project_action = open_project_action
+
+        close_project_action = QtGui.QAction("&Close project", self)
+        close_project_action.triggered.connect(self.close_project_requested.emit)
+        self.close_project_action = close_project_action
 
         file_menu.addAction(open_project_action)
+        file_menu.addAction(close_project_action)
+
+
+class HistalignMainWindow(QtWidgets.QMainWindow):
+    def __init__(
+        self,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.setMenuBar(BasicMenuBar())
+
+    def menuBar(self) -> BasicMenuBar:
+        return self.menuBar()
+
+    def setMenuBar(self, menubar: BasicMenuBar):
+        super().setMenuBar(menubar)
+
+        menubar.open_project_requested.connect(self.show_open_project_dialog)
+        menubar.close_project_requested.connect(self.close_project)
+
+    @QtCore.Slot()
+    def show_open_project_dialog(self) -> None:
+        dialog = OpenProjectDialog(self)
+        dialog.submitted.connect(self.open_project)
+        dialog.open()
+
+    @abstractmethod
+    @QtCore.Slot()
+    def open_project(self, project_file_path: str) -> None:
+        raise NotImplementedError
+
+    @QtCore.Slot()
+    def close_project(self) -> None:
+        event = QtGui.QCloseEvent()
+        self.closeEvent(event)
+
+        if event.isAccepted():
+            try:
+                self.parent().open_centralised_window()
+            except AttributeError:
+                _module_logger.error("Failed to open centralised window.")
