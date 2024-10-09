@@ -33,6 +33,8 @@ from histalign.backend.workspace import VolumeSlicer
 
 ALIGNMENT_VOLUMES_CACHE_DIRECTORY = DATA_ROOT / "alignment_volumes"
 os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
+INTERPOLATED_VOLUMES_CACHE_DIRECTORY = DATA_ROOT / "interpolated_volumes"
+os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
 
 _module_logger = logging.getLogger(__name__)
 
@@ -122,8 +124,23 @@ def interpolate_sparse_3d_array(
     degree: Optional[int] = None,
     chunk_size: Optional[int] = 1_000_000,
     recursive: bool = False,
+    use_cache: bool = False,
+    alignment_directory: str | Path = "",
+    mask_name: str = "",
 ) -> np.ndarray:
     start_time = time.perf_counter()
+
+    if use_cache and not alignment_directory:
+        raise ValueError(
+            "Cannot use cache without 'alignment_directory' identifying information."
+        )
+    if use_cache and reference_mask is not None and not mask_name:
+        raise ValueError(
+            "Cannot use cache with reference mask but no 'mask_name' "
+            "identifying information."
+        )
+    if isinstance(alignment_directory, str):
+        alignment_directory = Path(alignment_directory)
 
     if reference_mask is not None and (array_shape := array.shape) != (
         reference_shape := reference_mask.shape
@@ -136,6 +153,17 @@ def interpolate_sparse_3d_array(
     # Mask the array if necessary
     if reference_mask is not None and not pre_masked:
         array = np.where(reference_mask, array, 0)
+
+    cache_hash = generate_hash_from_targets(gather_alignment_paths(alignment_directory))
+    mask_name = "-".join(mask_name.split(" ")).lower()
+    cache_path = (
+        INTERPOLATED_VOLUMES_CACHE_DIRECTORY
+        / f"{cache_hash}{f'_{mask_name}' if reference_mask is not None else ''}.npz"
+    )
+    if cache_path.exists() and use_cache:
+        _module_logger.debug("Found cached array. Loading from file.")
+
+        return np.load(cache_path)["array"]
 
     interpolated_array = array.copy()
     interpolated_array = interpolated_array.astype(np.float64)
@@ -256,6 +284,11 @@ def interpolate_sparse_3d_array(
         f"{total_seconds:>2.0f}s"
     )
     _module_logger.info(f"Finished interpolation in {time_string}.")
+
+    if use_cache:
+        _module_logger.debug("Caching interpolated array to file.")
+        os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
+        np.savez_compressed(cache_path, array=interpolated_array)
 
     return interpolated_array
 
