@@ -10,7 +10,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import ProjectSettings
 from histalign.backend.workspace import VolumeLoaderThread, Workspace
-from histalign.frontend.common_widgets import BasicMenuBar, HistalignMainWindow
+from histalign.frontend.common_widgets import BasicApplicationWindow, BasicMenuBar
 from histalign.frontend.dialogs import (
     AtlasProgressDialog,
     InvalidProjectFileDialog,
@@ -29,62 +29,81 @@ from histalign.frontend.registration.thumbnails import ThumbnailDockWidget
 
 
 class RegistrationMenuBar(BasicMenuBar):
-    create_project_requested: QtCore.Signal = QtCore.Signal()
-    open_project_requested: QtCore.Signal = QtCore.Signal()
-    save_project_requested: QtCore.Signal = QtCore.Signal()
-    close_project_requested: QtCore.Signal = QtCore.Signal()
-    open_image_directory_requested: QtCore.Signal = QtCore.Signal()
+    action_groups: dict[str, list[QtGui.QAction]]
+
+    new_action: QtGui.QAction
+    save_action: QtGui.QAction
+    open_directory_action: QtGui.QAction
+
+    new_requested: QtCore.Signal = QtCore.Signal()
+    save_requested: QtCore.Signal = QtCore.Signal()
+    open_directory_requested: QtCore.Signal = QtCore.Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.action_groups = {"project_required": []}
+        #
+        project_required_group = []
 
-        file_menu: QtWidgets.QMenu = self.findChild(QtWidgets.QMenu, "file_menu")
-        if file_menu is None:
-            raise ValueError(
-                "Could not retrieve child `QMenu` (name: 'file_menu') object."
-            )
+        self.action_groups = {"project_required": project_required_group}
 
-        create_project_action = QtGui.QAction("Create &project", self)
-        create_project_action.triggered.connect(self.create_project_requested.emit)
+        #
+        new_action = QtGui.QAction("&New", self.file_menu)
 
-        save_project_action = QtGui.QAction("&Save project", self)
-        save_project_action.setEnabled(False)
-        save_project_action.setShortcut(QtGui.QKeySequence("Ctrl+s"))
-        save_project_action.setShortcutContext(QtCore.Qt.ApplicationShortcut)
-        save_project_action.triggered.connect(self.save_project_requested.emit)
-        self.action_groups["project_required"].append(save_project_action)
+        new_action.setStatusTip("Create a new project")
+        new_action.setShortcut(QtGui.QKeySequence("Ctrl+n"))
+        new_action.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        new_action.triggered.connect(self.new_requested.emit)
 
-        open_image_directory_action = QtGui.QAction("&Open image directory", self)
-        open_image_directory_action.setEnabled(False)
-        open_image_directory_action.setShortcut(QtGui.QKeySequence("Ctrl+o"))
-        open_image_directory_action.setShortcutContext(QtCore.Qt.ApplicationShortcut)
-        open_image_directory_action.triggered.connect(
-            self.open_image_directory_requested.emit
+        self.new_action = new_action
+
+        #
+        save_action = QtGui.QAction("&Save", self.file_menu)
+
+        save_action.setStatusTip("Save the current project")
+        save_action.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        save_action.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        save_action.triggered.connect(self.save_requested.emit)
+        save_action.setEnabled(False)
+        project_required_group.append(save_action)
+
+        self.save_action = save_action
+
+        #
+        open_directory_action = QtGui.QAction("Open &image directory", self)
+
+        open_directory_action.setStatusTip("Open an image directory for alignment")
+        open_directory_action.setShortcut(QtGui.QKeySequence("Ctrl+Shift+o"))
+        open_directory_action.setShortcutContext(QtCore.Qt.ApplicationShortcut)
+        open_directory_action.triggered.connect(self.open_directory_requested.emit)
+        open_directory_action.setEnabled(False)
+        project_required_group.append(open_directory_action)
+
+        self.open_directory_action = open_directory_action
+
+        #
+        self.file_menu.insertAction(self.open_action, new_action)
+        self.file_menu.insertAction(self.close_action, save_action)
+        self.file_menu.insertSeparator(self.close_action)
+        # A bit flaky since separators are in added order which might not match visual
+        self.file_menu.insertAction(
+            [
+                action
+                for action in self.file_menu.findChildren(QtGui.QAction)
+                if action.isSeparator()
+            ][0],
+            open_directory_action,
         )
-        self.action_groups["project_required"].append(open_image_directory_action)
-
-        file_menu.insertAction(self.open_project_action, create_project_action)
-        file_menu.insertAction(self.close_project_action, save_project_action)
-        file_menu.addSeparator()
-        file_menu.addAction(open_image_directory_action)
 
     def opened_project(self) -> None:
         for action in self.action_groups["project_required"]:
             action.setEnabled(True)
 
-    def closed_project(self) -> None:
-        for action in self.action_groups["project_required"]:
-            action.setEnabled(False)
 
-
-class RegistrationMainWindow(HistalignMainWindow):
+class RegistrationMainWindow(BasicApplicationWindow):
     workspace: Optional[Workspace] = None
     workspace_loaded: bool = False
     workspace_dirtied: bool = False
-
-    menu_bar: RegistrationMenuBar
 
     alignment_widget: AlignmentWidget
     thumbnail_dock_widget: ThumbnailDockWidget
@@ -103,18 +122,6 @@ class RegistrationMainWindow(HistalignMainWindow):
         self.logger = logging.getLogger(
             f"{self.__module__}.{self.__class__.__qualname__}"
         )
-
-        # Menu bar
-        menu_bar = RegistrationMenuBar()
-        menu_bar.create_project_requested.connect(self.show_new_project_dialog)
-        menu_bar.save_project_requested.connect(self.save_project)
-        menu_bar.open_image_directory_requested.connect(
-            self.show_open_image_directory_dialog
-        )
-
-        self.setMenuBar(menu_bar)
-
-        self.menu_bar = menu_bar
 
         # Central widget (AlignmentWidget)
         alignment_widget = AlignmentWidget()
@@ -184,6 +191,18 @@ class RegistrationMainWindow(HistalignMainWindow):
         self.setCorner(QtCore.Qt.BottomLeftCorner, QtCore.Qt.LeftDockWidgetArea)
         self.setCorner(QtCore.Qt.TopRightCorner, QtCore.Qt.RightDockWidgetArea)
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
+
+    def set_up_menu_bar(self) -> None:
+        menu_bar = RegistrationMenuBar()
+
+        menu_bar.new_requested.connect(self.show_new_project_dialog)
+        menu_bar.open_requested.connect(self.show_open_project_dialog)
+        menu_bar.save_requested.connect(self.save_project)
+        menu_bar.close_requested.connect(self.close_project)
+        menu_bar.open_directory_requested.connect(self.show_open_image_directory_dialog)
+        menu_bar.exit_requested.connect(self.exit_application)
+
+        self.setMenuBar(menu_bar)
 
     def propagate_new_workspace(self) -> None:
         self.connect_workspace()
@@ -309,7 +328,7 @@ class RegistrationMainWindow(HistalignMainWindow):
         self.workspace.start_thumbnail_generation()
         self.load_atlas()
 
-        self.menu_bar.opened_project()
+        self.menuBar().opened_project()
 
         self.workspace_loaded = True
         self.dirty_workspace()
@@ -331,7 +350,7 @@ class RegistrationMainWindow(HistalignMainWindow):
                 self.workspace.current_aligner_image_index, force_open=True
             )
 
-        self.menu_bar.opened_project()
+        self.menuBar().opened_project()
 
         self.workspace_loaded = True
         self.workspace_dirtied = False
