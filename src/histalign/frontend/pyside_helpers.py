@@ -2,7 +2,31 @@
 #
 # SPDX-License-Identifier: MIT
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from contextlib import suppress
+
+
+class FakeQtABC:
+    """A fake ABC class to use with QObjects.
+
+    It is fake since it does not directly inherit ABC. Instead, the class implements
+    an algorithm inspired by ABCs to ensure there aren't any abstractmethod-decorated
+    methods left in the class being instantiated.
+    """
+
+    def __init__(self) -> None:
+        for attribute_name in dir(self):
+            # Supress RuntimeError since Qt throws an error when trying to getattr
+            # attributes from the QObject before __init__ completely finishes. We can
+            # still detect abstract methods from custom classes.
+            with suppress(RuntimeError):
+                if callable((method := getattr(self, attribute_name))) and hasattr(
+                    method, "__isabstractmethod__"
+                ):
+                    raise TypeError(
+                        f"Can't instantiate abstract class "
+                        f"{self.__class__.__qualname__} with abstract method "
+                        f"{attribute_name}"
+                    )
 
 
 def connect_single_shot_slot(signal: object, slot: object) -> None:
