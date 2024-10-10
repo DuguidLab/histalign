@@ -12,8 +12,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.workspace import HistologySlice, Workspace
 from histalign.frontend.common_widgets import (
+    BasicApplicationWindow,
     BasicMenuBar,
-    HistalignMainWindow,
     ProjectDirectoriesComboBox,
     SelectedStructuresWidget,
 )
@@ -74,7 +74,7 @@ class SliceNamesComboBox(QtWidgets.QComboBox):
         self.file_picked.emit(self.name_to_path_map[file_name])
 
 
-class QAMainWindow(HistalignMainWindow):
+class QAMainWindow(BasicApplicationWindow):
     project_directory: Path
     current_directory: str
     project_loaded: bool = False

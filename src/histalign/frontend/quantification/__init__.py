@@ -8,14 +8,14 @@ from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from histalign.frontend.common_widgets import BasicMenuBar, HistalignMainWindow
+from histalign.frontend.common_widgets import BasicMenuBar, BasicApplicationWindow
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.quantification.prepare import PrepareWidget
 from histalign.frontend.quantification.results import ResultsWidget
 from histalign.frontend.quantification.view import ViewWidget
 
 
-class QuantificationMainWindow(HistalignMainWindow):
+class QuantificationMainWindow(BasicApplicationWindow):
     project_loaded: bool = False
 
     prepare_tab: PrepareWidget

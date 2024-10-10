@@ -25,8 +25,8 @@ from histalign.backend.registration.alignment import build_alignment_volume
 from histalign.backend.workspace import Volume, VolumeSlicer, Workspace
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.common_widgets import (
+    BasicApplicationWindow,
     BasicMenuBar,
-    HistalignMainWindow,
     ProjectDirectoriesComboBox,
 )
 
@@ -434,7 +434,7 @@ class VisualiseControls(QtWidgets.QWidget):
         self.setLayout(layout)
 
 
-class VisualisationMainWindow(HistalignMainWindow):
+class VisualisationMainWindow(BasicApplicationWindow):
     project_directory: Path
 
     project_loaded: bool = False

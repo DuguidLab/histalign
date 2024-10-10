@@ -7,13 +7,13 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.common_widgets import HistalignMainWindow
+from histalign.frontend.common_widgets import BasicApplicationWindow
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.preprocessing.prepare import PrepareWidget
 from histalign.frontend.preprocessing.results import ResultsWidget
 
 
-class PreprocessingMainWindow(HistalignMainWindow):
+class PreprocessingMainWindow(BasicApplicationWindow):
     project_directory: Path
 
     project_loaded: bool = False

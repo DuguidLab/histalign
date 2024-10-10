@@ -12,8 +12,8 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.model_view import StructureModel, StructureNode
-from histalign.frontend.dialogs import OpenProjectDialog
-from histalign.frontend.pyside_helpers import connect_single_shot_slot
+from histalign.frontend.dialogs import NewProjectDialog, OpenProjectDialog
+from histalign.frontend.pyside_helpers import FakeQtABC, connect_single_shot_slot
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
@@ -749,53 +749,85 @@ class SwitchWidgetContainer(QtWidgets.QScrollArea):
 
 
 class BasicMenuBar(QtWidgets.QMenuBar):
-    open_project_action: QtGui.QAction
-    close_project_action: QtGui.QAction
+    file_menu: QtWidgets.QMenu
+    open_action: QtGui.QAction
+    close_action: QtGui.QAction
+    exit_action: QtGui.QAction
 
-    open_project_requested: QtCore.Signal = QtCore.Signal()
-    close_project_requested: QtCore.Signal = QtCore.Signal()
+    open_requested: QtCore.Signal = QtCore.Signal()
+    close_requested: QtCore.Signal = QtCore.Signal()
+    exit_requested: QtCore.Signal = QtCore.Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
+        #
         file_menu = self.addMenu("&File")
-        file_menu.setObjectName("file_menu")
 
-        open_project_action = QtGui.QAction("&Open project", self)
-        open_project_action.triggered.connect(self.open_project_requested.emit)
-        self.open_project_action = open_project_action
+        self.file_menu = file_menu
 
-        close_project_action = QtGui.QAction("&Close project", self)
-        close_project_action.triggered.connect(self.close_project_requested.emit)
-        self.close_project_action = close_project_action
+        #
+        open_action = QtGui.QAction("&Open", file_menu)
 
-        file_menu.addAction(open_project_action)
-        file_menu.addAction(close_project_action)
+        open_action.setStatusTip("Open an existing project")
+        open_action.setShortcut(QtGui.QKeySequence("Ctrl+o"))
+        open_action.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        open_action.triggered.connect(self.open_requested.emit)
+
+        self.open_action = open_action
+
+        #
+        close_action = QtGui.QAction("&Close", file_menu)
+
+        close_action.setStatusTip("Close the current project")
+        close_action.setShortcut(QtGui.QKeySequence("Ctrl+w"))
+        close_action.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        close_action.triggered.connect(self.close_requested.emit)
+
+        self.close_action = close_action
+
+        #
+        exit_action = QtGui.QAction("E&xit", file_menu)
+
+        exit_action.setStatusTip("Exit the application")
+        exit_action.setShortcut(QtGui.QKeySequence("Ctrl+Shift+w"))
+        exit_action.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        exit_action.triggered.connect(self.exit_requested.emit)
+
+        self.exit_action = exit_action
+
+        #
+        file_menu.addAction(open_action)
+        file_menu.addSeparator()
+        file_menu.addAction(close_action)
+        file_menu.addSeparator()
+        file_menu.addAction(exit_action)
 
 
-class HistalignMainWindow(QtWidgets.QMainWindow):
-    def __init__(
-        self,
-        parent: Optional[QtWidgets.QWidget] = None,
-    ) -> None:
+class BasicApplicationWindow(QtWidgets.QMainWindow, FakeQtABC):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.setMenuBar(BasicMenuBar())
+        #
+        self.set_up_menu_bar()
 
-    def menuBar(self) -> BasicMenuBar:
-        return self.menuBar()
+        #
+        self.statusBar()
 
-    def setMenuBar(self, menubar: BasicMenuBar):
-        super().setMenuBar(menubar)
+    def set_up_menu_bar(self) -> None:
+        menu_bar = BasicMenuBar()
 
-        menubar.open_project_requested.connect(self.show_open_project_dialog)
-        menubar.close_project_requested.connect(self.close_project)
+        menu_bar.open_requested.connect(self.show_open_project_dialog)
+        menu_bar.close_requested.connect(self.close_project)
+        menu_bar.exit_requested.connect(self.exit_application)
+
+        self.setMenuBar(menu_bar)
 
     @QtCore.Slot()
     def show_open_project_dialog(self) -> None:
         dialog = OpenProjectDialog(self)
         dialog.submitted.connect(self.open_project)
-        dialog.open()
+        dialog.exec()
 
     @abstractmethod
     @QtCore.Slot()
@@ -804,11 +836,15 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def close_project(self) -> None:
-        event = QtGui.QCloseEvent()
-        self.closeEvent(event)
-
-        if event.isAccepted():
+        if self.close():
             try:
                 self.parent().open_centralised_window()
             except AttributeError:
-                _module_logger.error("Failed to open centralised window.")
+                _module_logger.error(
+                    "Failed to open centralised window, quitting application instead."
+                )
+
+    @QtCore.Slot()
+    def exit_application(self) -> None:
+        if self.close():
+            exit()
