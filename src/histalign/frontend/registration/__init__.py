@@ -13,8 +13,8 @@ from histalign.backend.workspace import VolumeLoaderThread, Workspace
 from histalign.frontend.common_widgets import BasicMenuBar, HistalignMainWindow
 from histalign.frontend.dialogs import (
     AtlasProgressDialog,
-    CreateProjectDialog,
     InvalidProjectFileDialog,
+    NewProjectDialog,
     OpenProjectDialog,
     SaveProjectConfirmationDialog,
 )
@@ -106,7 +106,7 @@ class RegistrationMainWindow(HistalignMainWindow):
 
         # Menu bar
         menu_bar = RegistrationMenuBar()
-        menu_bar.create_project_requested.connect(self.show_create_project_dialog)
+        menu_bar.create_project_requested.connect(self.show_new_project_dialog)
         menu_bar.save_project_requested.connect(self.save_project)
         menu_bar.open_image_directory_requested.connect(
             self.show_open_image_directory_dialog
@@ -262,7 +262,7 @@ class RegistrationMainWindow(HistalignMainWindow):
             self.workspace.stop_thumbnail_generation()
 
     @QtCore.Slot()
-    def show_create_project_dialog(self) -> Optional[CreateProjectDialog]:
+    def show_new_project_dialog(self) -> None:
         if self.workspace is not None and self.workspace_dirtied:
             match SaveProjectConfirmationDialog(self).exec():
                 case QtWidgets.QMessageBox.Save:
@@ -270,11 +270,9 @@ class RegistrationMainWindow(HistalignMainWindow):
                 case QtWidgets.QMessageBox.Cancel:
                     return None
 
-        dialog = CreateProjectDialog(self)
+        dialog = NewProjectDialog(self)
         dialog.submitted.connect(self.create_project)
-        dialog.open()
-
-        return dialog
+        dialog.exec()
 
     @QtCore.Slot()
     def show_open_project_dialog(self) -> None:

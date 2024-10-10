@@ -100,7 +100,7 @@ class InvalidProjectFileDialog(QtWidgets.QMessageBox):
         self.setIcon(QtWidgets.QMessageBox.Critical)
 
 
-class CreateProjectDialog(QtWidgets.QDialog):
+class NewProjectDialog(QtWidgets.QDialog):
     orientation_widget: QtWidgets.QComboBox
     resolution_widget: QtWidgets.QComboBox
     project_path_widget: QtWidgets.QLineEdit
@@ -237,7 +237,7 @@ class CreateProjectDialog(QtWidgets.QDialog):
 class OpenProjectDialog(QtWidgets.QWidget):
     submitted: QtCore.Signal = QtCore.Signal(str)
 
-    def open(self) -> None:
+    def exec(self) -> None:
         project_file, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Select a project file",

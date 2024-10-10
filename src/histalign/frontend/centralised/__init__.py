@@ -167,22 +167,21 @@ class CentralisedWindow(QtWidgets.QTabWidget):
     @QtCore.Slot()
     def registration_create_project(self) -> None:
         new_window = RegistrationMainWindow(self)
-        new_window.project_closed.connect(
-            lambda x=self.parent(): x.open_centralised_window()
-        )
 
-        dialog = new_window.show_create_project_dialog()  # Non-blocking
-        if dialog is None:
-            raise ValueError("Did not receive a dialog.")
+        new_window.show_new_project_dialog()
 
-        dialog.submitted.connect(lambda: self.parent().set_main_window(new_window))
-        dialog.rejected.connect(new_window.deleteLater)
+        if not new_window.workspace_loaded:
+            # User cancelled
+            new_window.deleteLater()
+            return
+
+        self.parent().set_main_window(new_window)
 
     @QtCore.Slot()
     def registration_open_project(self) -> None:
         new_window = RegistrationMainWindow(self)
 
-        new_window.show_open_project_dialog()  # Blocking
+        new_window.show_open_project_dialog()
 
         if not new_window.workspace_loaded:
             # User cancelled
