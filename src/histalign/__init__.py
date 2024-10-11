@@ -10,6 +10,7 @@ import click
 from PySide6 import QtCore, QtWidgets
 
 from histalign.frontend import ApplicationWidget
+from histalign.frontend.themes import DARK_THEME, LIGHT_THEME
 
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
 
@@ -56,7 +57,13 @@ def common_options(function: Callable) -> click.option:
                     "Whether to enable UI debugging. "
                     "This adds a border around elements."
                 ),
-            )(function)
+            )(
+                click.option(
+                    "--dark",
+                    is_flag=True,
+                    help="Enable experimental dark theme.",
+                )(function)
+            )
         )
     )
 
@@ -65,46 +72,57 @@ def common_options(function: Callable) -> click.option:
 @common_options
 @click.pass_context
 def histalign(
-    context: click.Context, verbosity: int, fullscreen: bool, debug_ui: bool
+    context: click.Context, verbosity: int, fullscreen: bool, debug_ui: bool, dark: bool
 ) -> None:
     if not context.invoked_subcommand:
-        start_app(verbosity, fullscreen, debug_ui, callback="open_centralised_window")
+        start_app(
+            verbosity, fullscreen, debug_ui, dark, callback="open_centralised_window"
+        )
 
 
 @histalign.command()
 @common_options
-def register(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
-    start_app(verbosity, fullscreen, debug_ui, callback="open_registration_window")
+def register(verbosity: int, fullscreen: bool, debug_ui: bool, dark: bool) -> None:
+    start_app(
+        verbosity, fullscreen, debug_ui, dark, callback="open_registration_window"
+    )
 
 
 @histalign.command()
 @common_options
-def qa(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
-    start_app(verbosity, fullscreen, debug_ui, callback="open_qa_window")
+def qa(verbosity: int, fullscreen: bool, debug_ui: bool, dark: bool) -> None:
+    start_app(verbosity, fullscreen, debug_ui, dark, callback="open_qa_window")
 
 
 @histalign.command()
 @common_options
-def preprocess(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
-    start_app(verbosity, fullscreen, debug_ui, callback="open_preprocessing_window")
+def preprocess(verbosity: int, fullscreen: bool, debug_ui: bool, dark: bool) -> None:
+    start_app(
+        verbosity, fullscreen, debug_ui, dark, callback="open_preprocessing_window"
+    )
 
 
 @histalign.command()
 @common_options
-def quantify(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
-    start_app(verbosity, fullscreen, debug_ui, callback="open_quantification_window")
+def quantify(verbosity: int, fullscreen: bool, debug_ui: bool, dark: bool) -> None:
+    start_app(
+        verbosity, fullscreen, debug_ui, dark, callback="open_quantification_window"
+    )
 
 
 @histalign.command()
 @common_options
-def visualise(verbosity: int, fullscreen: bool, debug_ui: bool) -> None:
-    start_app(verbosity, fullscreen, debug_ui, callback="open_visualisation_window")
+def visualise(verbosity: int, fullscreen: bool, debug_ui: bool, dark: bool) -> None:
+    start_app(
+        verbosity, fullscreen, debug_ui, dark, callback="open_visualisation_window"
+    )
 
 
 def start_app(
     verbosity: int,
     fullscreen: bool,
     debug_ui: bool,
+    dark: bool,
     *args,
     callback: str,
     **kwargs,
@@ -115,6 +133,13 @@ def start_app(
         set_log_level(logging.DEBUG)
 
     app = QtWidgets.QApplication()
+
+    app.setStyle("Fusion")
+    if dark:
+        app.setPalette(DARK_THEME)
+    else:
+        app.setPalette(LIGHT_THEME)
+    app.dark = dark
 
     if debug_ui:
         app.setStyleSheet("* { border: 1px solid blue; }")

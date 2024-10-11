@@ -10,7 +10,11 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import ProjectSettings
 from histalign.backend.workspace import VolumeLoaderThread, Workspace
-from histalign.frontend.common_widgets import BasicApplicationWindow, BasicMenuBar
+from histalign.frontend.common_widgets import (
+    BasicApplicationWindow,
+    BasicMenuBar,
+    DynamicThemeIcon,
+)
 from histalign.frontend.dialogs import (
     AtlasProgressDialog,
     InvalidProjectFileDialog,
@@ -118,7 +122,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
 
         save_button.setToolTip("Save alignment for the current image.")
         save_button.setStatusTip("Save alignment for the current image.")
-        save_button.setIcon(QtGui.QIcon("resources/icons/file-line-icon.png"))
+        save_button.setIcon(DynamicThemeIcon("resources/icons/file-line-icon.png"))
         save_button.clicked.connect(self.save_requested.emit)
 
         self.save_button = save_button
@@ -128,7 +132,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
 
         load_button.setToolTip("Load the saved alignment for the current image.")
         load_button.setStatusTip("Load the saved alignment for the current image.")
-        load_button.setIcon(QtGui.QIcon("resources/icons/upload-arrow-icon.png"))
+        load_button.setIcon(DynamicThemeIcon("resources/icons/upload-arrow-icon.png"))
         load_button.clicked.connect(self.load_requested.emit)
 
         self.load_button = load_button
@@ -139,7 +143,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         reset_histology_button.setToolTip("Reset the image alignment settings.")
         reset_histology_button.setStatusTip("Reset the image alignment settings.")
         reset_histology_button.setIcon(
-            QtGui.QIcon("resources/icons/forward-restore-icon.png")
+            DynamicThemeIcon("resources/icons/forward-restore-icon.png")
         )
         reset_histology_button.clicked.connect(self.reset_histology_requested.emit)
 
@@ -151,7 +155,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         reset_volume_button.setToolTip("Reset the atlas alignment settings.")
         reset_volume_button.setStatusTip("Reset the atlas alignment settings.")
         reset_volume_button.setIcon(
-            QtGui.QIcon("resources/icons/forward-restore-icon.png")
+            DynamicThemeIcon("resources/icons/forward-restore-icon.png")
         )
         reset_volume_button.clicked.connect(self.reset_volume_requested.emit)
 
@@ -161,7 +165,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         background_spin_box_icon = QtWidgets.QToolButton()
 
         background_spin_box_icon.setIcon(
-            QtGui.QIcon("resources/icons/color-contrast-icon.png")
+            DynamicThemeIcon("resources/icons/color-contrast-icon.png")
         )
         background_spin_box_icon.setStyleSheet(
             """

@@ -6,7 +6,7 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.common_widgets import CircularPushButton
+from histalign.frontend.common_widgets import CircularPushButton, DynamicThemeIcon
 
 
 class AlphaWidget(QtWidgets.QWidget):
@@ -27,7 +27,7 @@ class AlphaWidget(QtWidgets.QWidget):
             global_alpha_button.setMaximumHeight(20)
         global_alpha_button.setMaximumWidth(20)
         global_alpha_button.setIcon(
-            QtGui.QIcon("resources/icons/color-contrast-icon.png")
+            DynamicThemeIcon("resources/icons/color-contrast-icon.png")
         )
         global_alpha_button.setToolTip("Toggle general transparency of current image.")
         global_alpha_button.setStatusTip(
