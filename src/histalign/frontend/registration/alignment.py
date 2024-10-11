@@ -52,6 +52,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.histology_image = QtGui.QImage()
 
         layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view)
         self.setLayout(layout)
 

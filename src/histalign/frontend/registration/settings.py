@@ -186,6 +186,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.shear_y_spin_box = shear_y_spin_box
 
         layout = QtWidgets.QFormLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addRow(title)
         layout.addRow(separator)
         layout.addRow("Rotation", self.rotation_spin_box)
