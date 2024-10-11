@@ -62,7 +62,7 @@ class RegistrationMenuBar(BasicMenuBar):
         save_action = QtGui.QAction("&Save", self.file_menu)
 
         save_action.setStatusTip("Save the current project")
-        save_action.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        save_action.setShortcut(QtGui.QKeySequence("Ctrl+Shift+s"))
         save_action.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         save_action.triggered.connect(self.save_requested.emit)
         save_action.setEnabled(False)
@@ -120,9 +120,11 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         #
         save_button = QtWidgets.QToolButton()
 
-        save_button.setToolTip("Save alignment for the current image.")
+        save_button.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        save_button.setToolTip("Save alignment for the current image. ")
         save_button.setStatusTip("Save alignment for the current image.")
         save_button.setIcon(DynamicThemeIcon("resources/icons/file-line-icon.png"))
+
         save_button.clicked.connect(self.save_requested.emit)
 
         self.save_button = save_button
@@ -133,7 +135,9 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         load_button.setToolTip("Load the saved alignment for the current image.")
         load_button.setStatusTip("Load the saved alignment for the current image.")
         load_button.setIcon(DynamicThemeIcon("resources/icons/upload-arrow-icon.png"))
+
         load_button.clicked.connect(self.load_requested.emit)
+        load_button.setShortcut(QtGui.QKeySequence("Ctrl+l"))
 
         self.load_button = load_button
 
@@ -145,7 +149,9 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         reset_histology_button.setIcon(
             DynamicThemeIcon("resources/icons/forward-restore-icon.png")
         )
+
         reset_histology_button.clicked.connect(self.reset_histology_requested.emit)
+        reset_histology_button.setShortcut(QtGui.QKeySequence("Ctrl+r"))
 
         self.reset_histology_button = reset_histology_button
 
@@ -157,7 +163,9 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         reset_volume_button.setIcon(
             DynamicThemeIcon("resources/icons/forward-restore-icon.png")
         )
+
         reset_volume_button.clicked.connect(self.reset_volume_requested.emit)
+        reset_volume_button.setShortcut(QtGui.QKeySequence("Ctrl+Shift+r"))
 
         self.reset_volume_button = reset_volume_button
 
