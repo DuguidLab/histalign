@@ -848,3 +848,55 @@ class BasicApplicationWindow(QtWidgets.QMainWindow, FakeQtABC):
     def exit_application(self) -> None:
         if self.close():
             exit()
+
+
+class CircularPushButton(QtWidgets.QPushButton):
+    """A class implementing a circular version of PushButtons.
+
+    Adapted from: https://forum.qt.io/post/579342.
+    """
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        background = (
+            self.palette().midlight() if self.isDown() else self.palette().button()
+        )
+        diameter = round(min(self.width(), self.height()) * 0.95)
+
+        painter = QtGui.QPainter(self)
+
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QtGui.QPen(QtGui.QBrush(background), 2))
+        painter.setBrush(QtGui.QBrush(background))
+
+        painter.translate(self.width() / 2, self.height() / 2)
+        painter.drawEllipse(
+            QtCore.QRect(round(-diameter / 2), round(-diameter / 2), diameter, diameter)
+        )
+        painter.drawPixmap(
+            QtCore.QRect(
+                round(-diameter / 2), round(-diameter / 2), diameter, diameter
+            ),
+            self.icon().pixmap(diameter),
+        )
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        diameter = min(self.width(), self.height()) + 4
+        x_off = round((self.width() - diameter) / 2)
+        y_off = round((self.height() - diameter) / 2)
+
+        self.setMask(
+            QtGui.QRegion(
+                x_off, y_off, diameter, diameter, QtGui.QRegion.RegionType.Ellipse
+            )
+        )
