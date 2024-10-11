@@ -900,3 +900,35 @@ class CircularPushButton(QtWidgets.QPushButton):
                 x_off, y_off, diameter, diameter, QtGui.QRegion.RegionType.Ellipse
             )
         )
+
+
+class DynamicThemeIcon(QtGui.QIcon):
+    """An icon that automatically adjusts its colour to match the theme.
+
+    Note that this relies on the input images being "binarisable" to background versus
+    foreground (e.g., SVGs).
+
+    Adapted from: https://stackoverflow.com/a/37213313.
+    """
+
+    _pixmap: QtGui.QPixmap
+
+    def __init__(self, icon_path: str) -> None:
+        pixmap = QtGui.QPixmap(icon_path)
+
+        self._pixmap = pixmap.copy()
+
+        painter = QtGui.QPainter(pixmap)
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+        )
+
+        painter.setBrush(
+            QtGui.QBrush(QtWidgets.QApplication.instance().palette().text())
+        )
+
+        painter.drawRect(pixmap.rect())
+
+        painter.end()
+
+        super().__init__(pixmap)
