@@ -10,7 +10,6 @@ from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 
 class AlphaDockWidget(QtWidgets.QDockWidget):
-    background_alpha_slider: QtWidgets.QSlider
     global_alpha_button: QtWidgets.QPushButton
     global_alpha_slider: QtWidgets.QSlider
 
@@ -25,13 +24,6 @@ class AlphaDockWidget(QtWidgets.QDockWidget):
 
         self.setTitleBarWidget(get_dummy_title_bar(self))
         self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
-
-        #
-        background_alpha_slider = QtWidgets.QSlider(
-            orientation=QtCore.Qt.Orientation.Horizontal, minimum=0, maximum=255
-        )
-
-        self.background_alpha_slider = background_alpha_slider
 
         #
         global_alpha_button = QtWidgets.QPushButton("X")
@@ -58,7 +50,6 @@ class AlphaDockWidget(QtWidgets.QDockWidget):
 
         #
         layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(background_alpha_slider)
         layout.addLayout(global_layout)
 
         #

@@ -18,10 +18,7 @@ from histalign.frontend.dialogs import (
     OpenProjectDialog,
     SaveProjectConfirmationDialog,
 )
-from histalign.frontend.registration.alignment import (
-    AlignmentButtonDockWidget,
-    AlignmentWidget,
-)
+from histalign.frontend.registration.alignment import AlignmentWidget
 from histalign.frontend.registration.alpha import AlphaDockWidget
 from histalign.frontend.registration.helpers import get_dummy_title_bar
 from histalign.frontend.registration.settings import SettingsDockWidget
@@ -100,16 +97,118 @@ class RegistrationMenuBar(BasicMenuBar):
             action.setEnabled(True)
 
 
+class RegistrationToolBar(QtWidgets.QToolBar):
+    save_button: QtWidgets.QToolButton
+    load_button: QtWidgets.QToolButton
+    reset_histology_button: QtWidgets.QToolButton
+    reset_volume_button: QtWidgets.QToolButton
+    background_threshold_spin_box: QtWidgets.QSpinBox
+
+    save_requested: QtCore.Signal = QtCore.Signal()
+    load_requested: QtCore.Signal = QtCore.Signal()
+    reset_histology_requested: QtCore.Signal = QtCore.Signal()
+    reset_volume_requested: QtCore.Signal = QtCore.Signal()
+    background_threshold_changed: QtCore.Signal = QtCore.Signal(int)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        save_button = QtWidgets.QToolButton()
+
+        save_button.setToolTip("Save alignment for the current image.")
+        save_button.setStatusTip("Save alignment for the current image.")
+        save_button.setIcon(QtGui.QIcon("resources/icons/file-line-icon.png"))
+        save_button.clicked.connect(self.save_requested.emit)
+
+        self.save_button = save_button
+
+        #
+        load_button = QtWidgets.QToolButton()
+
+        load_button.setToolTip("Load the saved alignment for the current image.")
+        load_button.setStatusTip("Load the saved alignment for the current image.")
+        load_button.setIcon(QtGui.QIcon("resources/icons/upload-arrow-icon.png"))
+        load_button.clicked.connect(self.load_requested.emit)
+
+        self.load_button = load_button
+
+        #
+        reset_histology_button = QtWidgets.QToolButton()
+
+        reset_histology_button.setToolTip("Reset the image alignment settings.")
+        reset_histology_button.setStatusTip("Reset the image alignment settings.")
+        reset_histology_button.setIcon(
+            QtGui.QIcon("resources/icons/forward-restore-icon.png")
+        )
+        reset_histology_button.clicked.connect(self.reset_histology_requested.emit)
+
+        self.reset_histology_button = reset_histology_button
+
+        #
+        reset_volume_button = QtWidgets.QToolButton()
+
+        reset_volume_button.setToolTip("Reset the atlas alignment settings.")
+        reset_volume_button.setStatusTip("Reset the atlas alignment settings.")
+        reset_volume_button.setIcon(
+            QtGui.QIcon("resources/icons/forward-restore-icon.png")
+        )
+        reset_volume_button.clicked.connect(self.reset_volume_requested.emit)
+
+        self.reset_volume_button = reset_volume_button
+
+        #
+        background_spin_box_icon = QtWidgets.QToolButton()
+
+        background_spin_box_icon.setIcon(
+            QtGui.QIcon("resources/icons/color-contrast-icon.png")
+        )
+        background_spin_box_icon.setStyleSheet(
+            """
+            QToolButton:hover {
+                border: none;
+            }
+            """
+        )
+
+        #
+        background_spin_box = QtWidgets.QSpinBox()
+
+        background_spin_box.setToolTip("Set the background transparency threshold.")
+        background_spin_box.setStatusTip("Set the background transparency threshold.")
+        background_spin_box.setMinimum(0)
+        background_spin_box.setMaximum(255)
+        background_spin_box.setValue(0)
+        background_spin_box.valueChanged.connect(
+            lambda x: self.background_threshold_changed.emit(x)
+        )
+
+        self.background_threshold_spin_box = background_spin_box
+
+        #
+        self.addWidget(save_button)
+        self.addWidget(load_button)
+        self.addWidget(reset_histology_button)
+        self.addWidget(reset_volume_button)
+        self.addSeparator()
+        self.addWidget(background_spin_box_icon)
+        self.addWidget(background_spin_box)
+
+        #
+        self.setAllowedAreas(QtCore.Qt.ToolBarArea.TopToolBarArea)
+        self.setMovable(False)
+
+
 class RegistrationMainWindow(BasicApplicationWindow):
     workspace: Optional[Workspace] = None
     workspace_loaded: bool = False
     workspace_dirtied: bool = False
 
+    toolbar: RegistrationToolBar
     alignment_widget: AlignmentWidget
     thumbnail_dock_widget: ThumbnailDockWidget
     alpha_dock_widget: AlphaDockWidget
     settings_dock_widget: SettingsDockWidget
-    alignment_button_dock_widget: AlignmentButtonDockWidget
 
     project_closed: QtCore.Signal = QtCore.Signal()
 
@@ -140,9 +239,6 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         # Top dock widget (AlphaDockWidget)
         alpha_dock_widget = AlphaDockWidget()
-        alpha_dock_widget.background_alpha_slider.valueChanged.connect(
-            alignment_widget.update_background_alpha
-        )
         alpha_dock_widget.global_alpha_slider.valueChanged.connect(
             alignment_widget.update_global_alpha
         )
@@ -166,31 +262,33 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.settings_dock_widget = settings_dock_widget
 
-        # Bottom dock widget (AlignmentButtonDockWidget)
-        alignment_button_dock_widget = AlignmentButtonDockWidget()
-        alignment_button_dock_widget.save_button.setEnabled(False)
-        alignment_button_dock_widget.load_button.setEnabled(False)
-        alignment_button_dock_widget.save_button.clicked.connect(
-            lambda: alignment_button_dock_widget.load_button.setEnabled(True)
-        )
-        alignment_button_dock_widget.reset_volume.setEnabled(False)
-        alignment_button_dock_widget.reset_volume.clicked.connect(
-            settings_dock_widget.volume_settings_widget.reset_to_defaults
-        )
-        alignment_button_dock_widget.reset_histology.setEnabled(False)
-        alignment_button_dock_widget.reset_histology.clicked.connect(
-            settings_dock_widget.histology_settings_widget.reset_to_defaults
-        )
-
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, alignment_button_dock_widget)
-
-        self.alignment_button_dock_widget = alignment_button_dock_widget
-
         # Dock widget areas
         self.setCorner(QtCore.Qt.TopLeftCorner, QtCore.Qt.LeftDockWidgetArea)
         self.setCorner(QtCore.Qt.BottomLeftCorner, QtCore.Qt.LeftDockWidgetArea)
         self.setCorner(QtCore.Qt.TopRightCorner, QtCore.Qt.RightDockWidgetArea)
         self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
+
+        #
+        toolbar = RegistrationToolBar()
+
+        toolbar.save_button.setEnabled(False)
+        toolbar.load_button.setEnabled(False)
+        toolbar.reset_histology_button.setEnabled(False)
+        toolbar.reset_volume_button.setEnabled(False)
+
+        toolbar.save_requested.connect(lambda: toolbar.load_button.setEnabled(True))
+        toolbar.background_threshold_changed.connect(
+            self.alignment_widget.update_background_alpha
+        )
+        toolbar.reset_histology_requested.connect(
+            settings_dock_widget.histology_settings_widget.reset_to_defaults
+        )
+        toolbar.reset_volume_requested.connect(
+            settings_dock_widget.volume_settings_widget.reset_to_defaults
+        )
+
+        self.addToolBar(toolbar)
+        self.toolbar = toolbar
 
     def set_up_menu_bar(self) -> None:
         menu_bar = RegistrationMenuBar()
@@ -215,14 +313,13 @@ class RegistrationMainWindow(BasicApplicationWindow):
     def connect_workspace(self) -> None:
         self.thumbnail_dock_widget.connect_workspace(self.workspace)
 
-        self.alignment_button_dock_widget.save_button.clicked.connect(
-            self.workspace.save_alignment
-        )
+        toolbar = self.toolbar
 
-        load_button = self.alignment_button_dock_widget.load_button
-        load_button.clicked.connect(self.workspace.load_alignment)
-        load_button.clicked.connect(self.share_workspace_models)
-        load_button.clicked.connect(self.settings_dock_widget.reload_settings)
+        toolbar.save_requested.connect(self.workspace.save_alignment)
+
+        toolbar.load_requested.connect(self.workspace.load_alignment)
+        toolbar.load_requested.connect(self.share_workspace_models)
+        toolbar.load_requested.connect(self.settings_dock_widget.reload_settings)
 
     def share_workspace_models(self) -> None:
         alignment_settings = self.workspace.alignment_settings
@@ -369,7 +466,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
             self.logger.error(error)
             return
 
-        self.alignment_button_dock_widget.reset_volume.setEnabled(True)
+        self.toolbar.reset_volume_button.setEnabled(True)
 
         self.workspace.alignment_settings.volume_settings.shape = (
             self.alignment_widget.volume_slicer.volume.shape
@@ -400,16 +497,16 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.alignment_widget.update_histological_slice(image)
         self.alignment_widget.update_background_alpha(
-            self.alpha_dock_widget.background_alpha_slider.value()
+            self.toolbar.background_threshold_spin_box.value()
         )
         self.alignment_widget.update_global_alpha(
             self.alpha_dock_widget.global_alpha_slider.value()
         )
-        self.alignment_button_dock_widget.save_button.setEnabled(True)
+        self.toolbar.save_button.setEnabled(True)
 
-        self.alignment_button_dock_widget.load_button.setEnabled(
+        self.toolbar.load_button.setEnabled(
             os.path.exists(self.workspace.build_alignment_path())
         )
 
-        self.alignment_button_dock_widget.reset_histology.setEnabled(True)
+        self.toolbar.reset_histology_button.setEnabled(True)
         self.settings_dock_widget.histology_settings_widget.setEnabled(True)
