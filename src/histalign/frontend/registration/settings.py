@@ -7,7 +7,6 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import HistologySettings, Orientation, VolumeSettings
-from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 
 class VolumeSettingsWidget(QtWidgets.QWidget):
@@ -280,7 +279,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.values_changed.emit()
 
 
-class SettingsDockWidget(QtWidgets.QDockWidget):
+class SettingsWidget(QtWidgets.QWidget):
     histology_settings_widget: HistologySettingsWidget
     volume_settings_widget: VolumeSettingsWidget
 
@@ -290,23 +289,25 @@ class SettingsDockWidget(QtWidgets.QDockWidget):
     ) -> None:
         super().__init__(parent)
 
-        self.setContentsMargins(0, 10, 10, 10)
+        #
+        volume_settings_widget = VolumeSettingsWidget()
 
-        self.setTitleBarWidget(get_dummy_title_bar(self))
-        self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
+        self.volume_settings_widget = volume_settings_widget
 
-        self.volume_settings_widget = VolumeSettingsWidget()
+        #
+        histology_settings_widget = HistologySettingsWidget()
 
-        self.histology_settings_widget = HistologySettingsWidget()
+        self.histology_settings_widget = histology_settings_widget
 
+        #
         layout = QtWidgets.QVBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
+
         layout.addWidget(self.histology_settings_widget)
         layout.addWidget(self.volume_settings_widget)
 
-        container_widget = QtWidgets.QWidget()
-        container_widget.setLayout(layout)
-
-        self.setWidget(container_widget)
+        self.setLayout(layout)
 
     def reload_settings(self) -> None:
         self.volume_settings_widget.reload_settings()

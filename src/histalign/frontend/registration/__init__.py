@@ -19,10 +19,10 @@ from histalign.frontend.dialogs import (
     SaveProjectConfirmationDialog,
 )
 from histalign.frontend.registration.alignment import AlignmentWidget
-from histalign.frontend.registration.alpha import AlphaDockWidget
+from histalign.frontend.registration.alpha import AlphaWidget
 from histalign.frontend.registration.helpers import get_dummy_title_bar
-from histalign.frontend.registration.settings import SettingsDockWidget
-from histalign.frontend.registration.thumbnails import ThumbnailDockWidget
+from histalign.frontend.registration.settings import SettingsWidget
+from histalign.frontend.registration.thumbnails import ThumbnailsWidget
 
 
 class RegistrationMenuBar(BasicMenuBar):
@@ -206,9 +206,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
     toolbar: RegistrationToolBar
     alignment_widget: AlignmentWidget
-    thumbnail_dock_widget: ThumbnailDockWidget
-    alpha_dock_widget: AlphaDockWidget
-    settings_dock_widget: SettingsDockWidget
+    thumbnails_widget: ThumbnailsWidget
+    alpha_widget: AlphaWidget
+    settings_widget: SettingsWidget
 
     project_closed: QtCore.Signal = QtCore.Signal()
 
@@ -222,51 +222,58 @@ class RegistrationMainWindow(BasicApplicationWindow):
             f"{self.__module__}.{self.__class__.__qualname__}"
         )
 
-        # Central widget (AlignmentWidget)
+        #
         alignment_widget = AlignmentWidget()
-
-        self.setCentralWidget(alignment_widget)
 
         self.alignment_widget = alignment_widget
 
-        # Left dock widget (ThumbnailDockWidget)
-        thumbnail_dock_widget = ThumbnailDockWidget()
-        thumbnail_dock_widget.widget().open_image.connect(self.open_image_in_aligner)
+        #
+        thumbnails_widget = ThumbnailsWidget()
 
-        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, thumbnail_dock_widget)
+        thumbnails_widget.content_area.open_image.connect(self.open_image_in_aligner)
 
-        self.thumbnail_dock_widget = thumbnail_dock_widget
+        self.thumbnails_widget = thumbnails_widget
 
-        # Top dock widget (AlphaDockWidget)
-        alpha_dock_widget = AlphaDockWidget()
-        alpha_dock_widget.global_alpha_slider.valueChanged.connect(
+        #
+        alpha_widget = AlphaWidget()
+
+        alpha_widget.global_alpha_slider.valueChanged.connect(
             alignment_widget.update_global_alpha
         )
 
-        self.addDockWidget(QtCore.Qt.TopDockWidgetArea, alpha_dock_widget)
+        self.alpha_widget = alpha_widget
 
-        self.alpha_dock_widget = alpha_dock_widget
+        #
+        settings_widget = SettingsWidget()
 
-        # Right dock widget (SettingsDockWidget)
-        settings_dock_widget = SettingsDockWidget()
-        settings_dock_widget.volume_settings_widget.setEnabled(False)
-        settings_dock_widget.volume_settings_widget.values_changed.connect(
+        settings_widget.volume_settings_widget.setEnabled(False)
+        settings_widget.volume_settings_widget.values_changed.connect(
             alignment_widget.update_volume_pixmap
         )
-        settings_dock_widget.histology_settings_widget.setEnabled(False)
-        settings_dock_widget.histology_settings_widget.values_changed.connect(
+        settings_widget.histology_settings_widget.setEnabled(False)
+        settings_widget.histology_settings_widget.values_changed.connect(
             alignment_widget.update_histology_pixmap
         )
 
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, settings_dock_widget)
+        self.settings_widget = settings_widget
 
-        self.settings_dock_widget = settings_dock_widget
+        #
+        layout = QtWidgets.QHBoxLayout()
 
-        # Dock widget areas
-        self.setCorner(QtCore.Qt.TopLeftCorner, QtCore.Qt.LeftDockWidgetArea)
-        self.setCorner(QtCore.Qt.BottomLeftCorner, QtCore.Qt.LeftDockWidgetArea)
-        self.setCorner(QtCore.Qt.TopRightCorner, QtCore.Qt.RightDockWidgetArea)
-        self.setCorner(QtCore.Qt.BottomRightCorner, QtCore.Qt.RightDockWidgetArea)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(8)
+
+        layout.addWidget(thumbnails_widget, stretch=1)
+        layout.addWidget(alignment_widget, stretch=3)
+        layout.addWidget(alpha_widget)
+        layout.addWidget(settings_widget, stretch=1)
+
+        #
+        central_widget = QtWidgets.QWidget()
+
+        central_widget.setLayout(layout)
+
+        self.setCentralWidget(central_widget)
 
         #
         toolbar = RegistrationToolBar()
@@ -278,13 +285,13 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         toolbar.save_requested.connect(lambda: toolbar.load_button.setEnabled(True))
         toolbar.background_threshold_changed.connect(
-            self.alignment_widget.update_background_alpha
+            alignment_widget.update_background_alpha
         )
         toolbar.reset_histology_requested.connect(
-            settings_dock_widget.histology_settings_widget.reset_to_defaults
+            settings_widget.histology_settings_widget.reset_to_defaults
         )
         toolbar.reset_volume_requested.connect(
-            settings_dock_widget.volume_settings_widget.reset_to_defaults
+            settings_widget.volume_settings_widget.reset_to_defaults
         )
 
         self.addToolBar(toolbar)
@@ -308,10 +315,10 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         # Sync states
         self.alignment_widget.prepare_slicer()
-        self.settings_dock_widget.reload_settings()
+        self.settings_widget.reload_settings()
 
     def connect_workspace(self) -> None:
-        self.thumbnail_dock_widget.connect_workspace(self.workspace)
+        self.thumbnails_widget.connect_workspace(self.workspace)
 
         toolbar = self.toolbar
 
@@ -319,7 +326,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         toolbar.load_requested.connect(self.workspace.load_alignment)
         toolbar.load_requested.connect(self.share_workspace_models)
-        toolbar.load_requested.connect(self.settings_dock_widget.reload_settings)
+        toolbar.load_requested.connect(self.settings_widget.reload_settings)
 
     def share_workspace_models(self) -> None:
         alignment_settings = self.workspace.alignment_settings
@@ -331,12 +338,10 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.alignment_widget.histology_settings = histology_settings
 
         # self.settings_dock_widget.volume_settings_widget.settings = volume_settings
-        self.settings_dock_widget.volume_settings_widget.settings = (
+        self.settings_widget.volume_settings_widget.settings = (
             self.workspace.alignment_settings.volume_settings
         )
-        self.settings_dock_widget.histology_settings_widget.settings = (
-            histology_settings
-        )
+        self.settings_widget.histology_settings_widget.settings = histology_settings
 
     def load_atlas(self) -> None:
         loader_thread = VolumeLoaderThread(self.alignment_widget.volume_slicer.volume)
@@ -413,7 +418,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         if image_directory != "":
             self.dirty_workspace()
             self.alignment_widget.update_histological_slice(None)
-            self.thumbnail_dock_widget.widget().flush_thumbnails()
+            self.thumbnails_widget.content_area.flush_thumbnails()
             self.workspace.parse_image_directory(image_directory)
             self.workspace.start_thumbnail_generation()
 
@@ -471,8 +476,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.workspace.alignment_settings.volume_settings.shape = (
             self.alignment_widget.volume_slicer.volume.shape
         )
-        self.settings_dock_widget.volume_settings_widget.update_offset_spin_box_limits()
-        self.settings_dock_widget.volume_settings_widget.setEnabled(True)
+        self.settings_widget.volume_settings_widget.update_offset_spin_box_limits()
+        self.settings_widget.volume_settings_widget.setEnabled(True)
 
         # Easiest way to trigger scale ratio calculations
         self.alignment_widget.resizeEvent(
@@ -500,7 +505,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
             self.toolbar.background_threshold_spin_box.value()
         )
         self.alignment_widget.update_global_alpha(
-            self.alpha_dock_widget.global_alpha_slider.value()
+            self.alpha_widget.global_alpha_slider.value()
         )
         self.toolbar.save_button.setEnabled(True)
 
@@ -509,4 +514,4 @@ class RegistrationMainWindow(BasicApplicationWindow):
         )
 
         self.toolbar.reset_histology_button.setEnabled(True)
-        self.settings_dock_widget.histology_settings_widget.setEnabled(True)
+        self.settings_widget.histology_settings_widget.setEnabled(True)

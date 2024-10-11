@@ -8,7 +8,6 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
 
 from histalign.backend.workspace import THUMBNAIL_DIMENSIONS, Workspace
-from histalign.frontend.registration.helpers import get_dummy_title_bar
 
 COLUMN_COUNT: int = 2
 SCROLL_THRESHOLD: int = 50
@@ -236,51 +235,44 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         return True
 
 
-class ThumbnailDockWidget(QtWidgets.QDockWidget):
-    _widget: QtWidgets.QWidget
+class ThumbnailsWidget(QtWidgets.QWidget):
+    content_area: ThumbnailScrollArea
+    status_bar: QtWidgets.QStatusBar
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.setContentsMargins(10, 10, 0, 10)
-
-        self.setTitleBarWidget(get_dummy_title_bar(self))
-        self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
-
         #
         status_bar = QtWidgets.QStatusBar()
 
-        #
-        container_widget = QtWidgets.QWidget()
-
-        container_layout = QtWidgets.QGridLayout()
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
-        container_layout.addWidget(ThumbnailScrollArea(), 0, 0)
-        container_layout.addWidget(
-            status_bar,
-            1,
-            0,
-            1,
-            1,
-            alignment=QtCore.Qt.AlignmentFlag.AlignBottom,
-        )
-        container_widget.setLayout(container_layout)
-
-        self._widget = container_widget
-        self.setWidget(container_widget)
+        self.status_bar = status_bar
 
         #
-        container_widget.installEventFilter(ThumbnailFileNameWatcher(status_bar, self))
+        content_area = ThumbnailScrollArea()
+
+        content_area.installEventFilter(ThumbnailFileNameWatcher(status_bar, self))
+
+        self.content_area = content_area
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        layout.addWidget(content_area)
+        layout.addWidget(status_bar)
+
+        self.setLayout(layout)
 
     def widget(self):
         return self._widget.findChild(ThumbnailScrollArea)
 
     def connect_workspace(self, workspace: Workspace) -> None:
-        self.widget().flush_thumbnails()
+        self.content_area.flush_thumbnails()
 
-        workspace.thumbnail_generated.connect(self.widget().update_thumbnail)
-        self.widget().swapped_thumbnails.connect(workspace.swap_slices)
+        workspace.thumbnail_generated.connect(self.content_area.update_thumbnail)
+        self.content_area.swapped_thumbnails.connect(workspace.swap_slices)
 
 
 class ThumbnailFileNameWatcher(QtCore.QObject):

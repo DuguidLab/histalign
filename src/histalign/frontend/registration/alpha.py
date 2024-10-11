@@ -6,60 +6,68 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.registration.helpers import get_dummy_title_bar
+from histalign.frontend.common_widgets import CircularPushButton
 
 
-class AlphaDockWidget(QtWidgets.QDockWidget):
+class AlphaWidget(QtWidgets.QWidget):
     global_alpha_button: QtWidgets.QPushButton
     global_alpha_slider: QtWidgets.QSlider
 
     def __init__(
         self,
+        orientation: QtCore.Qt.Orientation = QtCore.Qt.Orientation.Vertical,
         parent: typing.Optional[QtCore.QObject] = None,
     ) -> None:
         super().__init__(parent)
 
         #
-        self.setContentsMargins(10, 10, 10, 0)
+        global_alpha_button = CircularPushButton()
 
-        self.setTitleBarWidget(get_dummy_title_bar(self))
-        self.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
-
-        #
-        global_alpha_button = QtWidgets.QPushButton("X")
+        if orientation == QtCore.Qt.Orientation.Vertical:
+            global_alpha_button.setMaximumHeight(20)
         global_alpha_button.setMaximumWidth(20)
-        global_alpha_button.clicked.connect(self.toggle_alpha)
+        global_alpha_button.setIcon(
+            QtGui.QIcon("resources/icons/color-contrast-icon.png")
+        )
+        global_alpha_button.setToolTip("Toggle general transparency of current image.")
+        global_alpha_button.setStatusTip(
+            "Toggle general transparency of current image."
+        )
+
+        global_alpha_button.clicked.connect(self.toggle_global_alpha)
 
         self.global_alpha_button = global_alpha_button
 
         #
         global_alpha_slider = QtWidgets.QSlider(
-            orientation=QtCore.Qt.Horizontal, minimum=0, maximum=255, value=255
+            orientation=orientation, minimum=0, maximum=255, value=255
         )
+
+        global_alpha_slider.setToolTip("General image transparency slider.")
+        global_alpha_slider.setStatusTip("General image transparency slider.")
 
         self.global_alpha_slider = global_alpha_slider
 
         #
-        global_layout = QtWidgets.QHBoxLayout()
-        global_layout.addWidget(
-            self.global_alpha_button, alignment=QtCore.Qt.AlignVCenter
+        if orientation == QtCore.Qt.Orientation.Vertical:
+            layout = QtWidgets.QVBoxLayout()
+        else:
+            layout = QtWidgets.QHBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        alignment = (
+            QtCore.Qt.AlignmentFlag.AlignHCenter
+            if orientation == QtCore.Qt.Orientation.Vertical
+            else QtCore.Qt.AlignmentFlag.AlignVCenter
         )
-        global_layout.addWidget(
-            self.global_alpha_slider, alignment=QtCore.Qt.AlignVCenter
-        )
+        layout.addWidget(global_alpha_button, alignment=alignment)
+        layout.addWidget(global_alpha_slider, alignment=alignment)
 
-        #
-        layout = QtWidgets.QVBoxLayout()
-        layout.addLayout(global_layout)
-
-        #
-        container_widget = QtWidgets.QWidget()
-        container_widget.setLayout(layout)
-
-        self.setWidget(container_widget)
+        self.setLayout(layout)
 
     @QtCore.Slot()
-    def toggle_alpha(self) -> None:
+    def toggle_global_alpha(self) -> None:
         value = self.global_alpha_slider.value()
         toggled_value = 255 - value
         if toggled_value > 255 // 2:
