@@ -850,7 +850,78 @@ class BasicApplicationWindow(QtWidgets.QMainWindow, FakeQtABC):
             exit()
 
 
-class CircularPushButton(QtWidgets.QPushButton):
+class DynamicThemeIcon(QtGui.QIcon):
+    """An icon that automatically adjusts its colour to match the theme.
+
+    Note that this relies on the input images being "binarisable" to background versus
+    foreground (e.g., SVGs).
+
+    Adapted from: https://stackoverflow.com/a/37213313.
+    """
+
+    _pixmap: QtGui.QPixmap
+
+    def __init__(self, icon_path: str) -> None:
+        pixmap = QtGui.QPixmap(icon_path)
+
+        self._pixmap = pixmap.copy()
+
+        painter = QtGui.QPainter(pixmap)
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+        )
+
+        painter.setBrush(
+            QtGui.QBrush(QtWidgets.QApplication.instance().palette().text())
+        )
+
+        painter.drawRect(pixmap.rect())
+
+        painter.end()
+
+        super().__init__(pixmap)
+
+
+class ShortcutAwareFilter(QtCore.QObject):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        if not hasattr(parent, "shortcut"):
+            # Filter is useless on a widget that does not have a shortcut
+            self.deleteLater()
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if event.type() == QtCore.QEvent.Type.ToolTip:
+            if not watched.shortcut().isEmpty():
+                shortcut_text = watched.shortcut().toString(
+                    QtGui.QKeySequence.SequenceFormat.NativeText
+                )
+                watched.setToolTip(watched.toolTip() + "  " + shortcut_text)
+
+            # Delete itself once the job is done
+            self.deleteLater()
+
+        return super().eventFilter(watched, event)
+
+
+class ShortcutAwarePushButton(QtWidgets.QPushButton):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self.installEventFilter(ShortcutAwareFilter(self))
+
+
+class ShortcutAwareToolButton(QtWidgets.QToolButton):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self.installEventFilter(ShortcutAwareFilter(self))
+
+
+class CircularPushButton(ShortcutAwarePushButton):
     """A class implementing a circular version of PushButtons.
 
     Adapted from: https://forum.qt.io/post/579342.
@@ -900,35 +971,3 @@ class CircularPushButton(QtWidgets.QPushButton):
                 x_off, y_off, diameter, diameter, QtGui.QRegion.RegionType.Ellipse
             )
         )
-
-
-class DynamicThemeIcon(QtGui.QIcon):
-    """An icon that automatically adjusts its colour to match the theme.
-
-    Note that this relies on the input images being "binarisable" to background versus
-    foreground (e.g., SVGs).
-
-    Adapted from: https://stackoverflow.com/a/37213313.
-    """
-
-    _pixmap: QtGui.QPixmap
-
-    def __init__(self, icon_path: str) -> None:
-        pixmap = QtGui.QPixmap(icon_path)
-
-        self._pixmap = pixmap.copy()
-
-        painter = QtGui.QPainter(pixmap)
-        painter.setCompositionMode(
-            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
-        )
-
-        painter.setBrush(
-            QtGui.QBrush(QtWidgets.QApplication.instance().palette().text())
-        )
-
-        painter.drawRect(pixmap.rect())
-
-        painter.end()
-
-        super().__init__(pixmap)

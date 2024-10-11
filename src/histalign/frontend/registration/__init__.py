@@ -14,6 +14,7 @@ from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     BasicMenuBar,
     DynamicThemeIcon,
+    ShortcutAwareToolButton,
 )
 from histalign.frontend.dialogs import (
     AtlasProgressDialog,
@@ -102,10 +103,10 @@ class RegistrationMenuBar(BasicMenuBar):
 
 
 class RegistrationToolBar(QtWidgets.QToolBar):
-    save_button: QtWidgets.QToolButton
-    load_button: QtWidgets.QToolButton
-    reset_histology_button: QtWidgets.QToolButton
-    reset_volume_button: QtWidgets.QToolButton
+    save_button: ShortcutAwareToolButton
+    load_button: ShortcutAwareToolButton
+    reset_histology_button: ShortcutAwareToolButton
+    reset_volume_button: ShortcutAwareToolButton
     background_threshold_spin_box: QtWidgets.QSpinBox
 
     save_requested: QtCore.Signal = QtCore.Signal()
@@ -118,7 +119,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         super().__init__(parent)
 
         #
-        save_button = QtWidgets.QToolButton()
+        save_button = ShortcutAwareToolButton()
 
         save_button.setShortcut(QtGui.QKeySequence("Ctrl+s"))
         save_button.setToolTip("Save alignment for the current image. ")
@@ -130,7 +131,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.save_button = save_button
 
         #
-        load_button = QtWidgets.QToolButton()
+        load_button = ShortcutAwareToolButton()
 
         load_button.setToolTip("Load the saved alignment for the current image.")
         load_button.setStatusTip("Load the saved alignment for the current image.")
@@ -142,7 +143,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.load_button = load_button
 
         #
-        reset_histology_button = QtWidgets.QToolButton()
+        reset_histology_button = ShortcutAwareToolButton()
 
         reset_histology_button.setToolTip("Reset the image alignment settings.")
         reset_histology_button.setStatusTip("Reset the image alignment settings.")
@@ -156,7 +157,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.reset_histology_button = reset_histology_button
 
         #
-        reset_volume_button = QtWidgets.QToolButton()
+        reset_volume_button = ShortcutAwareToolButton()
 
         reset_volume_button.setToolTip("Reset the atlas alignment settings.")
         reset_volume_button.setStatusTip("Reset the atlas alignment settings.")

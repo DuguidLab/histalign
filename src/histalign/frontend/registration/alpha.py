@@ -33,6 +33,7 @@ class AlphaWidget(QtWidgets.QWidget):
         global_alpha_button.setStatusTip(
             "Toggle general transparency of current image."
         )
+        global_alpha_button.setShortcut(QtGui.QKeySequence("Ctrl+t"))
 
         global_alpha_button.clicked.connect(self.toggle_global_alpha)
 
