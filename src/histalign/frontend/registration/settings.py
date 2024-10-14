@@ -140,15 +140,15 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.rotation_spin_box = rotation_spin_box
 
         translation_x_spin_box = QtWidgets.QSpinBox()
-        translation_x_spin_box.setMinimum(-500)
-        translation_x_spin_box.setMaximum(500)
+        translation_x_spin_box.setMinimum(-5000)
+        translation_x_spin_box.setMaximum(5000)
         translation_x_spin_box.valueChanged.connect(self.update_translation_x)
         translation_x_spin_box.installEventFilter(self)
         self.translation_x_spin_box = translation_x_spin_box
 
         translation_y_spin_box = QtWidgets.QSpinBox()
-        translation_y_spin_box.setMinimum(-500)
-        translation_y_spin_box.setMaximum(500)
+        translation_y_spin_box.setMinimum(-5000)
+        translation_y_spin_box.setMaximum(5000)
         translation_y_spin_box.valueChanged.connect(self.update_translation_y)
         translation_y_spin_box.installEventFilter(self)
         self.translation_y_spin_box = translation_y_spin_box

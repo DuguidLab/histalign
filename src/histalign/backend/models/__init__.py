@@ -56,8 +56,8 @@ class HistologySettings(BaseModel, validate_assignment=True):
     @field_validator("translation_x", "translation_y")
     @classmethod
     def validate_translation(cls, value: int) -> int:
-        if not -500 <= value <= 500:
-            raise ValueError("translation is limited to the range -500 to 500")
+        if not -5000 <= value <= 5000:
+            raise ValueError("translation is limited to the range -5000 to 5000")
         return value
 
     @field_validator("scale_x", "scale_y")
