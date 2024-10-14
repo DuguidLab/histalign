@@ -19,3 +19,8 @@ pip install histalign
 ## License
 
 `histalign` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+
+
+## References
+
+The icons were taken from [UXWing](https://uxwing.com/).
