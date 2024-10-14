@@ -252,6 +252,8 @@ class ThumbnailsWidget(QtWidgets.QWidget):
 
         content_area.installEventFilter(ThumbnailFileNameWatcher(status_bar, self))
 
+        content_area.resize(1_000, 100_000)  # Avoid thumbnails bunching up
+
         self.content_area = content_area
 
         #
