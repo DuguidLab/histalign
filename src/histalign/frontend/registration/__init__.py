@@ -490,6 +490,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
             self.alignment_widget.volume_slicer.volume.shape
         )
         self.settings_widget.volume_settings_widget.update_offset_spin_box_limits()
+        self.settings_widget.volume_settings_widget.reload_settings()
         self.settings_widget.volume_settings_widget.setEnabled(True)
 
         # Easiest way to trigger scale ratio calculations
