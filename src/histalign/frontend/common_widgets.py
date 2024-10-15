@@ -7,7 +7,7 @@ import json
 import logging
 from pathlib import Path
 import re
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -971,3 +971,43 @@ class CircularPushButton(ShortcutAwarePushButton):
                 x_off, y_off, diameter, diameter, QtGui.QRegion.RegionType.Ellipse
             )
         )
+
+
+class MouseTrackingFilter(QtCore.QObject):
+    leaving_callback: Optional[Callable]
+    watched_type: Any
+    timer: QtCore.QTimer
+
+    def __init__(
+        self,
+        tracking_callback: Callable,
+        leaving_callback: Optional[Callable] = None,
+        watched_type: Any = object,
+        polling_rate: int = 30,
+        parent: Optional[QtCore.QObject] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.leaving_callback = leaving_callback
+        self.watched_type = watched_type
+
+        #
+        timer = QtCore.QTimer()
+
+        timer.setInterval(int(1000 / polling_rate))
+        timer.timeout.connect(tracking_callback)
+
+        self.timer = timer
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if isinstance(watched, self.watched_type):
+            match event.type():
+                case QtCore.QEvent.Type.Enter:
+                    self.timer.start()
+                case QtCore.QEvent.Type.Leave:
+                    self.timer.stop()
+                    if self.leaving_callback is not None:
+                        self.leaving_callback()
+
+        return super().eventFilter(watched, event)
