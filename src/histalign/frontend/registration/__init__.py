@@ -285,6 +285,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         central_widget = QtWidgets.QWidget()
 
         central_widget.setLayout(layout)
+        central_widget.statusBar = self.statusBar
 
         self.setCentralWidget(central_widget)
 
@@ -350,7 +351,6 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.alignment_widget.volume_settings = volume_settings
         self.alignment_widget.histology_settings = histology_settings
 
-        # self.settings_dock_widget.volume_settings_widget.settings = volume_settings
         self.settings_widget.volume_settings_widget.settings = (
             self.workspace.alignment_settings.volume_settings
         )

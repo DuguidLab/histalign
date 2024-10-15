@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-from typing import Optional
+from typing import Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
@@ -10,10 +10,11 @@ import numpy as np
 from histalign.backend.models import (
     AlignmentSettings,
     HistologySettings,
+    Orientation,
     VolumeSettings,
 )
 from histalign.backend.workspace import VolumeSlicer
-from histalign.frontend.registration.helpers import get_dummy_title_bar
+from histalign.frontend.common_widgets import MouseTrackingFilter
 
 
 class AlignmentWidget(QtWidgets.QWidget):
@@ -55,6 +56,15 @@ class AlignmentWidget(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view)
         self.setLayout(layout)
+
+        self.view.installEventFilter(
+            MouseTrackingFilter(
+                tracking_callback=self.locate_mouse,
+                leaving_callback=self.clear_status,
+                watched_type=QtWidgets.QGraphicsView,
+                parent=self,
+            )
+        )
 
     def prepare_slicer(self) -> None:
         self.volume_slicer = VolumeSlicer(
@@ -175,6 +185,72 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     def invalidate_global_alpha(self) -> None:
         self.global_alpha_mask = None
+
+    def locate_mouse(self) -> None:
+        if not hasattr(self.parent(), "statusBar"):
+            return
+
+        global_position = QtGui.QCursor.pos()
+        scene_position = self.view.mapToScene(self.view.mapFromGlobal(global_position))
+
+        if not isinstance(
+            self.scene.itemAt(scene_position, QtGui.QTransform()),
+            QtWidgets.QGraphicsPixmapItem,
+        ):
+            self.clear_status()
+            return
+
+        position = self.volume_pixmap.mapFromScene(scene_position)
+
+        ccf_position = QtCore.QPoint(
+            int(position.x() + self.volume_pixmap.pixmap().width() // 2),
+            int(position.y() + self.volume_pixmap.pixmap().height() // 2),
+        )
+
+        position_string = self.build_position_string(ccf_position)
+
+        self.parent().statusBar().showMessage(
+            f"CCF coordinates of cursor: {position_string}"
+        )
+
+    def clear_status(self) -> None:
+        if not hasattr(self.parent(), "statusBar"):
+            return
+
+        self.parent().statusBar().clearMessage()
+
+    def build_position_string(self, ccf_position: QtCore.QPoint) -> str:
+        offset = self.alignment_settings.volume_settings.offset
+        match self.alignment_settings.volume_settings.orientation:
+            case Orientation.CORONAL:
+                static_coordinate = (
+                    offset + self.alignment_settings.volume_settings.shape[0] // 2
+                )
+                string = (
+                    f"({static_coordinate}, "
+                    f"{int(ccf_position.x())}, "
+                    f"{int(ccf_position.y())})"
+                )
+            case Orientation.HORIZONTAL:
+                static_coordinate = (
+                    offset + self.alignment_settings.volume_settings.shape[1] // 2
+                )
+                string = (
+                    f"({int(ccf_position.x())}, "
+                    f"{static_coordinate}, "
+                    f"{int(ccf_position.y())})"
+                )
+            case Orientation.SAGITTAL:
+                static_coordinate = (
+                    offset + self.alignment_settings.volume_settings.shape[2] // 2
+                )
+                string = (
+                    f"({int(ccf_position.x())}, "
+                    f"{int(ccf_position.y())}, "
+                    f"{static_coordinate})"
+                )
+
+        return string
 
     @QtCore.Slot()
     def update_volume_pixmap(self) -> None:
