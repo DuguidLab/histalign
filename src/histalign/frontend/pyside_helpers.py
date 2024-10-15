@@ -4,6 +4,15 @@
 
 from contextlib import suppress
 
+import numpy as np
+
+_available_colour_tables = ("grey", "red", "green", "blue", "cyan", "magenta", "yellow")
+
+gray_colour_table = np.array(
+    [255 << 24 | i << 16 | i << 8 | i for i in range(2**8)],
+    dtype=np.uint32,
+)
+
 
 class FakeQtABC:
     """A fake ABC class to use with QObjects.
@@ -51,3 +60,35 @@ def connect_single_shot_slot(signal: object, slot: object) -> None:
 
     signal.connect(slot)
     signal.connect(sever_connection)
+
+
+def get_colour_table(colour: str, alpha: int = 255, threshold: int = 1) -> np.ndarray:
+    if colour not in _available_colour_tables:
+        raise ValueError(
+            f"Invalid colour for table. Allowed values are {_available_colour_tables}."
+        )
+
+    match colour:
+        case "grey":
+            mask = 255 << 16 | 255 << 8 | 255
+        case "red":
+            mask = 255 << 16
+        case "green":
+            mask = 255 << 8
+        case "blue":
+            mask = 255
+        case "cyan":
+            mask = 255 << 8 | 255
+        case "magenta":
+            mask = 255 << 16 | 255
+        case "yellow":
+            mask = 255 << 16 | 255 << 8
+        case _:
+            raise ValueError("Invalid stain.")
+
+    mask = mask | alpha << 24
+
+    colour_table = gray_colour_table & mask
+    colour_table[:threshold] = 0
+
+    return colour_table

@@ -15,11 +15,13 @@ from histalign.backend.models import (
 )
 from histalign.backend.workspace import VolumeSlicer
 from histalign.frontend.common_widgets import MouseTrackingFilter
+from histalign.frontend.pyside_helpers import get_colour_table
 
 
 class AlignmentWidget(QtWidgets.QWidget):
     background_threshold: int = 0
     global_alpha: int = 255
+    lut: str = str
 
     scene: QtWidgets.QGraphicsScene
     view: QtWidgets.QGraphicsView
@@ -27,16 +29,20 @@ class AlignmentWidget(QtWidgets.QWidget):
     volume_slicer: Optional[VolumeSlicer] = None
     histology_pixmap: QtWidgets.QGraphicsPixmapItem
     histology_image: QtGui.QImage
-    background_alpha_mask: Optional[QtGui.QImage] = None
-    global_alpha_mask: Optional[QtGui.QImage] = None
 
     alignment_settings: Optional[AlignmentSettings] = None
     volume_settings: Optional[VolumeSettings] = None
     histology_settings: Optional[HistologySettings] = None
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(
+        self, lut: str = "grey", parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
         super().__init__(parent)
 
+        #
+        self.lut = lut
+
+        #
         self.scene = QtWidgets.QGraphicsScene(self)
 
         self.view = QtWidgets.QGraphicsView(self.scene)
@@ -75,9 +81,6 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
 
     def update_histological_slice(self, array: Optional[np.ndarray]) -> None:
-        self.invalidate_background_mask()
-        self.invalidate_global_alpha()
-
         if array is None:
             self.histology_image = QtGui.QImage()
         else:
@@ -86,21 +89,9 @@ class AlignmentWidget(QtWidgets.QWidget):
                 array.shape[1],
                 array.shape[0],
                 array.shape[1],
-                QtGui.QImage.Format.Format_Grayscale8,
+                QtGui.QImage.Format.Format_Indexed8,
             )
-
-            self.histology_image.setAlphaChannel(
-                QtGui.QImage(
-                    (
-                        np.zeros(shape=(array.shape[0], array.shape[1]), dtype=np.uint8)
-                        + 255
-                    ).tobytes(),
-                    array.shape[1],
-                    array.shape[0],
-                    array.shape[1],
-                    QtGui.QImage.Format.Format_Alpha8,
-                )
-            )
+            self.histology_image.setColorTable(get_colour_table(self.lut))
 
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
         self.update_histology_pixmap()
@@ -125,68 +116,6 @@ class AlignmentWidget(QtWidgets.QWidget):
             return
 
         self.update_histology_pixmap()
-
-    def compute_alpha(self) -> None:
-        if self.histology_image.isNull():
-            return
-
-        if self.background_alpha_mask is None:
-            # Since there isn't any easy way to threshold in PySide, we have to go through
-            # NumPy.
-            # Note that the image is 32-bit at this point, but we only care about the
-            # last 8 of each pixel (hence [::4]).
-            background_alpha_array = np.where(
-                np.array(self.histology_image.constBits(), dtype=np.uint8)[::4]
-                >= self.background_threshold,
-                255,
-                0,
-            ).astype(np.uint8)
-            background_mask = QtGui.QImage(
-                background_alpha_array.tobytes(),
-                self.histology_image.width(),
-                self.histology_image.height(),
-                self.histology_image.width(),
-                QtGui.QImage.Format.Format_Alpha8,
-            )
-            self.background_alpha_mask = background_mask
-
-        if self.global_alpha_mask is None:
-            general_alpha_mask = QtGui.QImage(
-                (
-                    np.zeros(
-                        (self.histology_image.height(), self.histology_image.width()),
-                        dtype=np.uint8,
-                    )
-                    + self.global_alpha
-                ).tobytes(),
-                self.histology_image.width(),
-                self.histology_image.height(),
-                self.histology_image.width(),
-                QtGui.QImage.Format.Format_Alpha8,
-            )
-            self.global_alpha_mask = general_alpha_mask
-
-        total_alpha = np.minimum(
-            self.background_alpha_mask.constBits(),
-            self.global_alpha_mask.constBits(),
-        ).astype(np.uint8)
-        total_alpha = QtGui.QImage(
-            total_alpha.tobytes(),
-            self.histology_image.width(),
-            self.histology_image.height(),
-            self.histology_image.width(),
-            QtGui.QImage.Format.Format_Alpha8,
-        )
-
-        alpha_image = self.histology_image.copy()
-        alpha_image.setAlphaChannel(total_alpha)
-        self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(alpha_image))
-
-    def invalidate_background_mask(self) -> None:
-        self.background_alpha_mask = None
-
-    def invalidate_global_alpha(self) -> None:
-        self.global_alpha_mask = None
 
     def locate_mouse(self) -> None:
         if not hasattr(self.parent(), "statusBar"):
@@ -331,18 +260,29 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.histology_pixmap.setTransform(transform)
 
     @QtCore.Slot()
+    def update_lut(self, new_lut: str) -> None:
+        self.lut = new_lut
+        self.recompute_colour_map()
+
+    @QtCore.Slot()
+    def recompute_colour_map(self) -> None:
+        if self.histology_image.isNull():
+            return
+
+        self.histology_image.setColorTable(
+            get_colour_table(self.lut, self.global_alpha, self.background_threshold)
+        )
+        self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
+
+    @QtCore.Slot()
     def update_background_alpha(self, threshold: int) -> None:
         self.background_threshold = threshold
-        self.invalidate_background_mask()
-
-        self.compute_alpha()
+        self.recompute_colour_map()
 
     @QtCore.Slot()
     def update_global_alpha(self, alpha: int) -> None:
         self.global_alpha = alpha
-        self.invalidate_global_alpha()
-
-        self.compute_alpha()
+        self.recompute_colour_map()
 
     @staticmethod
     def convert_8_bit_numpy_to_pixmap(array: np.ndarray) -> QtGui.QPixmap:

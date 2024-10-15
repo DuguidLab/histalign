@@ -31,7 +31,7 @@ from histalign.frontend.registration.thumbnails import ThumbnailsWidget
 
 
 class RegistrationMenuBar(BasicMenuBar):
-    action_groups: dict[str, list[QtGui.QAction]]
+    action_groups: dict[str, list[QtWidgets.QMenu | QtGui.QAction]]
 
     new_action: QtGui.QAction
     save_action: QtGui.QAction
@@ -40,6 +40,8 @@ class RegistrationMenuBar(BasicMenuBar):
     new_requested: QtCore.Signal = QtCore.Signal()
     save_requested: QtCore.Signal = QtCore.Signal()
     open_directory_requested: QtCore.Signal = QtCore.Signal()
+
+    lut_change_requested: QtCore.Signal = QtCore.Signal(str)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -96,6 +98,49 @@ class RegistrationMenuBar(BasicMenuBar):
             ][0],
             open_directory_action,
         )
+
+        #
+        lut_menu = self.addMenu("&LUT")
+
+        lut_menu.setEnabled(False)
+        self.action_groups["project_required"].append(lut_menu)
+
+        #
+        lut_group = QtGui.QActionGroup(lut_menu)
+
+        lut_group.triggered.connect(
+            lambda action: self.lut_change_requested.emit(action.toolTip().lower())
+        )
+
+        grey_lut_action = QtGui.QAction("Gr&ey")
+        grey_lut_action.setCheckable(True)
+        grey_lut_action.setChecked(True)
+        lut_group.addAction(grey_lut_action)
+        lut_menu.addAction(grey_lut_action)
+        red_lut_action = QtGui.QAction("&Red")
+        red_lut_action.setCheckable(True)
+        lut_group.addAction(red_lut_action)
+        lut_menu.addAction(red_lut_action)
+        green_lut_action = QtGui.QAction("&Green")
+        green_lut_action.setCheckable(True)
+        lut_group.addAction(green_lut_action)
+        lut_menu.addAction(green_lut_action)
+        blue_lut_action = QtGui.QAction("&Blue")
+        blue_lut_action.setCheckable(True)
+        lut_group.addAction(blue_lut_action)
+        lut_menu.addAction(blue_lut_action)
+        cyan_lut_action = QtGui.QAction("&Cyan")
+        cyan_lut_action.setCheckable(True)
+        lut_group.addAction(cyan_lut_action)
+        lut_menu.addAction(cyan_lut_action)
+        magenta_lut_action = QtGui.QAction("&Magenta")
+        magenta_lut_action.setCheckable(True)
+        lut_group.addAction(magenta_lut_action)
+        lut_menu.addAction(magenta_lut_action)
+        yellow_lut_action = QtGui.QAction("&Yellow")
+        yellow_lut_action.setCheckable(True)
+        lut_group.addAction(yellow_lut_action)
+        lut_menu.addAction(yellow_lut_action)
 
     def opened_project(self) -> None:
         for action in self.action_groups["project_required"]:
@@ -229,16 +274,17 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
+        #
+        alignment_widget = AlignmentWidget()
+
+        self.alignment_widget = alignment_widget
+
+        #
         super().__init__(parent)
 
         self.logger = logging.getLogger(
             f"{self.__module__}.{self.__class__.__qualname__}"
         )
-
-        #
-        alignment_widget = AlignmentWidget()
-
-        self.alignment_widget = alignment_widget
 
         #
         thumbnails_widget = ThumbnailsWidget()
@@ -320,6 +366,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
         menu_bar.close_requested.connect(self.close_project)
         menu_bar.open_directory_requested.connect(self.show_open_image_directory_dialog)
         menu_bar.exit_requested.connect(self.exit_application)
+
+        menu_bar.lut_change_requested.connect(self.alignment_widget.update_lut)
 
         self.setMenuBar(menu_bar)
 
