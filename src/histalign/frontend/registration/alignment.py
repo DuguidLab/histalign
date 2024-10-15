@@ -40,7 +40,9 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.scene = QtWidgets.QGraphicsScene(self)
 
         self.view = QtWidgets.QGraphicsView(self.scene)
-        self.view.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(0, 0, 0, 255)))
+        self.view.setBackgroundBrush(
+            QtGui.QBrush(QtWidgets.QApplication.instance().palette().base())
+        )
         self.view.setVerticalScrollBarPolicy(
             QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
