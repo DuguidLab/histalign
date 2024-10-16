@@ -7,7 +7,6 @@ import contextlib
 import hashlib
 import json
 import logging
-import math
 import os
 from pathlib import Path
 import re
@@ -26,15 +25,14 @@ from vtkmodules.vtkCommonDataModel import vtkDataSet
 from histalign.backend.ccf.downloads import download_atlas
 from histalign.backend.ccf.paths import get_atlas_path
 import histalign.backend.io as io
+from histalign.backend.maths import compute_normal, compute_origin_from_orientation
 from histalign.backend.models import (
     AlignmentSettings,
     Orientation,
     ProjectSettings,
-    QuantificationSettings,
     Resolution,
     VolumeSettings,
 )
-from histalign.backend.models.errors import InvalidOrientationError
 
 DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
 THUMBNAIL_DIMENSIONS = (320, 180)
@@ -426,10 +424,10 @@ class VolumeSlicer:
         return_mesh: bool = False,
     ) -> np.ndarray | vedo.Mesh:
         plane_mesh = self.volume.slice_plane(
-            origin=self.compute_origin_from_orientation(
+            origin=compute_origin_from_orientation(
                 self.volume.dataset.GetCenter(), settings
             ),
-            normal=self.compute_normal(settings),
+            normal=compute_normal(settings),
             autocrop=True,
             mode=interpolation,
         )
@@ -450,66 +448,6 @@ class VolumeSlicer:
             slice_array = ndimage.rotate(slice_array, -settings.pitch)
 
         return slice_array
-
-    @staticmethod
-    def compute_origin_from_orientation(
-        center: list[float] | tuple[float, ...], settings: VolumeSettings
-    ) -> list[float]:
-        if len(center) != 3:
-            raise ValueError(f"Expected center with 3 coordinates, got {len(center)}.")
-
-        # vedo computes the center with float precision but offset calculations assume
-        # integer values.
-        center = list(map(math.ceil, center))
-
-        match settings.orientation:
-            case Orientation.CORONAL:
-                # Increasing the offset should bring the user more anterior, hence take
-                # away the offset to the center.
-                # Also, just like the max value of int8 is 127, the center 0-value needs
-                # to be shifted one back. (i.e., an axis with length 10 can have an
-                # offset between (10 // 2 = 5) and (10 // 2 - 1 + int(10 % 2)).
-                center[0] -= 1
-                center[0] -= settings.offset
-            case Orientation.HORIZONTAL:
-                center[1] += settings.offset
-            case Orientation.SAGITTAL:
-                center[2] += settings.offset
-            case other:
-                # Should be impossible thanks to pydantic
-                raise InvalidOrientationError(other)
-
-        return center
-
-    @staticmethod
-    def compute_normal(settings: VolumeSettings) -> list[float]:
-        pitch_radians = math.radians(settings.pitch)
-        yaw_radians = math.radians(settings.yaw)
-
-        match settings.orientation:
-            case Orientation.CORONAL:
-                normal = [
-                    math.cos(yaw_radians) * math.cos(pitch_radians),
-                    -math.sin(pitch_radians),
-                    -math.sin(yaw_radians) * math.cos(pitch_radians),
-                ]
-            case Orientation.HORIZONTAL:
-                normal = [
-                    math.sin(pitch_radians),
-                    math.cos(yaw_radians) * math.cos(pitch_radians),
-                    math.sin(yaw_radians) * math.cos(pitch_radians),
-                ]
-            case Orientation.SAGITTAL:
-                normal = [
-                    math.sin(yaw_radians) * math.cos(pitch_radians),
-                    math.sin(pitch_radians),
-                    math.cos(yaw_radians) * math.cos(pitch_radians),
-                ]
-            case other:
-                # Should be impossible thanks to pydantic
-                raise InvalidOrientationError(other)
-
-        return normal
 
 
 class Workspace(QtCore.QObject):
