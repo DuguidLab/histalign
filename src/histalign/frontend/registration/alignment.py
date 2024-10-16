@@ -2,15 +2,20 @@
 #
 # SPDX-License-Identifier: MIT
 
-from typing import Callable, Optional
+from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
 
+from histalign.backend.maths import (
+    apply_rotation_vector,
+    compute_rotation_vector_from_volume_settings,
+    convert_volume_coordinates_to_ccf,
+    convert_volume_position_to_coordinates,
+)
 from histalign.backend.models import (
     AlignmentSettings,
     HistologySettings,
-    Orientation,
     VolumeSettings,
 )
 from histalign.backend.workspace import VolumeSlicer
@@ -121,27 +126,51 @@ class AlignmentWidget(QtWidgets.QWidget):
         if not hasattr(self.parent(), "statusBar"):
             return
 
-        global_position = QtGui.QCursor.pos()
-        scene_position = self.view.mapToScene(self.view.mapFromGlobal(global_position))
+        # Get the position of the cursor relative to the application window
+        cursor_global_position = QtGui.QCursor.pos()
+        # Convert it to the coordinate system of the alignment scene
+        cursor_scene_position = self.view.mapToScene(
+            self.view.mapFromGlobal(cursor_global_position)
+        )
 
+        # Abort and clear status if the cursor is not hovering the volume
         if not isinstance(
-            self.scene.itemAt(scene_position, QtGui.QTransform()),
+            self.scene.itemAt(cursor_scene_position, QtGui.QTransform()),
             QtWidgets.QGraphicsPixmapItem,
         ):
             self.clear_status()
             return
 
-        position = self.volume_pixmap.mapFromScene(scene_position)
-
-        ccf_position = QtCore.QPoint(
-            int(position.x() + self.volume_pixmap.pixmap().width() // 2),
-            int(position.y() + self.volume_pixmap.pixmap().height() // 2),
+        # Convert the scene position to a volume position in the alignment volume.
+        # Note that this is still a position as it is still 2D at this point.
+        cursor_volume_position = self.volume_pixmap.mapFromScene(cursor_scene_position)
+        # Add the offset to get 3D coordinates of the position.
+        # Note this does not yet take into account the rotation so it not yet correct.
+        cursor_volume_coordinates = convert_volume_position_to_coordinates(
+            cursor_volume_position,
+            self.volume_settings,
         )
 
-        position_string = self.build_position_string(ccf_position)
+        # Get the rotation vector from the pitch and yaw
+        rotation_vector = compute_rotation_vector_from_volume_settings(
+            self.volume_settings,
+        )
+        # Apply it to the naive coordinates to get the actual volume coordinates
+        cursor_volume_rotated_coordinates = apply_rotation_vector(
+            rotation_vector,
+            cursor_volume_coordinates,
+            self.volume_settings,
+        )
+
+        # Convert to the CCF coordinate system
+        ccf_aligned_coordinates = convert_volume_coordinates_to_ccf(
+            cursor_volume_rotated_coordinates,
+            self.volume_settings,
+        )
 
         self.parent().statusBar().showMessage(
-            f"CCF coordinates of cursor: {position_string}"
+            f"CCF coordinates of cursor: "
+            f"{', '.join(map(str, map(round, map(int, ccf_aligned_coordinates))))}"
         )
 
     def clear_status(self) -> None:
@@ -149,39 +178,6 @@ class AlignmentWidget(QtWidgets.QWidget):
             return
 
         self.parent().statusBar().clearMessage()
-
-    def build_position_string(self, ccf_position: QtCore.QPoint) -> str:
-        offset = self.alignment_settings.volume_settings.offset
-        match self.alignment_settings.volume_settings.orientation:
-            case Orientation.CORONAL:
-                static_coordinate = (
-                    offset + self.alignment_settings.volume_settings.shape[0] // 2
-                )
-                string = (
-                    f"({static_coordinate}, "
-                    f"{int(ccf_position.x())}, "
-                    f"{int(ccf_position.y())})"
-                )
-            case Orientation.HORIZONTAL:
-                static_coordinate = (
-                    offset + self.alignment_settings.volume_settings.shape[1] // 2
-                )
-                string = (
-                    f"({int(ccf_position.x())}, "
-                    f"{static_coordinate}, "
-                    f"{int(ccf_position.y())})"
-                )
-            case Orientation.SAGITTAL:
-                static_coordinate = (
-                    offset + self.alignment_settings.volume_settings.shape[2] // 2
-                )
-                string = (
-                    f"({int(ccf_position.x())}, "
-                    f"{int(ccf_position.y())}, "
-                    f"{static_coordinate})"
-                )
-
-        return string
 
     @QtCore.Slot()
     def update_volume_pixmap(self) -> None:

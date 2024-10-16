@@ -73,8 +73,8 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
                 # Should be impossible thanks to pydantic
                 raise Exception("Panic: assert not reached")
 
-        self.offset_spin_box.setMinimum(-axis_length // 2)
-        self.offset_spin_box.setMaximum(axis_length // 2 + (axis_length % 2 != 0) - 1)
+        self.offset_spin_box.setMinimum(-axis_length // 2 + (axis_length % 2 == 0))
+        self.offset_spin_box.setMaximum(axis_length // 2)
 
     def reload_settings(self) -> None:
         self.offset_spin_box.setValue(self.settings.offset)

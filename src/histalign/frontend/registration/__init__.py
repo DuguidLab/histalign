@@ -20,7 +20,6 @@ from histalign.frontend.dialogs import (
     AtlasProgressDialog,
     InvalidProjectFileDialog,
     NewProjectDialog,
-    OpenProjectDialog,
     SaveProjectConfirmationDialog,
 )
 from histalign.frontend.registration.alignment import AlignmentWidget

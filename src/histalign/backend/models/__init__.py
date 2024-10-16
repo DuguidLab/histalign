@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum, IntEnum
 import hashlib
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from pydantic import (
     BaseModel,
@@ -111,11 +111,7 @@ class VolumeSettings(BaseModel, validate_assignment=True):
             case _:
                 raise Exception("Panic: assert not reached")
 
-        if (
-            not -axis_length // 2
-            <= value
-            <= axis_length // 2 + (axis_length % 2 != 0) - 1
-        ):
+        if not -axis_length // 2 + (axis_length % 2 == 0) <= value <= axis_length // 2:
             raise ValueError("offset should be <= half of orientation-relevant axis")
         return value
 
