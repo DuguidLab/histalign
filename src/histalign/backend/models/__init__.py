@@ -111,7 +111,10 @@ class VolumeSettings(BaseModel, validate_assignment=True):
             case _:
                 raise Exception("Panic: assert not reached")
 
-        if not -axis_length // 2 + (axis_length % 2 == 0) <= value <= axis_length // 2:
+        if (
+            not -axis_length // 2 + (axis_length % 2 == 0) <= value <= axis_length // 2
+            and axis_length != value != 0
+        ):
             raise ValueError("offset should be <= half of orientation-relevant axis")
         return value
 
