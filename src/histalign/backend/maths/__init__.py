@@ -56,34 +56,25 @@ def apply_rotation_vector(
     return rotated_offset_vector
 
 
-def compute_normal(settings: VolumeSettings) -> list[float]:
-    pitch_radians = math.radians(settings.pitch)
-    yaw_radians = math.radians(settings.yaw)
+def compute_normal(settings: VolumeSettings) -> np.ndarray:
+    pitch = settings.pitch
+    yaw = settings.yaw
 
     match settings.orientation:
         case Orientation.CORONAL:
-            normal = [
-                math.cos(yaw_radians) * math.cos(pitch_radians),
-                -math.sin(pitch_radians),
-                -math.sin(yaw_radians) * math.cos(pitch_radians),
-            ]
+            normal = [-1, 0, 0]
+            rotation = Rotation.from_euler("ZY", [pitch, yaw], degrees=True)
         case Orientation.HORIZONTAL:
-            normal = [
-                math.sin(pitch_radians),
-                math.cos(yaw_radians) * math.cos(pitch_radians),
-                math.sin(yaw_radians) * math.cos(pitch_radians),
-            ]
+            normal = [0, 1, 0]
+            rotation = Rotation.from_euler("ZX", [pitch, yaw], degrees=True)
         case Orientation.SAGITTAL:
-            normal = [
-                math.sin(yaw_radians) * math.cos(pitch_radians),
-                math.sin(pitch_radians),
-                math.cos(yaw_radians) * math.cos(pitch_radians),
-            ]
+            normal = [0, 0, 1]
+            rotation = Rotation.from_euler("XY", [pitch, yaw], degrees=True)
         case other:
             # Should be impossible thanks to pydantic
             raise InvalidOrientationError(other)
 
-    return normal
+    return rotation.apply(normal)
 
 
 def compute_origin_from_orientation(

@@ -439,11 +439,10 @@ class VolumeSlicer:
             plane_mesh.metadata["shape"]
         )
 
-        if settings.orientation == Orientation.CORONAL:
-            slice_array = ndimage.rotate(slice_array, settings.pitch)
         if settings.orientation == Orientation.HORIZONTAL:
             slice_array = ndimage.rotate(slice_array, -90)
-            slice_array = ndimage.rotate(slice_array, -settings.pitch)
+        if settings.orientation != Orientation.SAGITTAL:
+            slice_array = ndimage.rotate(slice_array, settings.pitch)
 
         return slice_array
 
