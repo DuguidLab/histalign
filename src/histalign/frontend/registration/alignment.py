@@ -101,11 +101,13 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
         self.update_histology_pixmap()
 
-    def resizeEvent(self, event) -> None:
+    def handle_volume_scaling_change(self, size: Optional[QtCore.QSize] = None) -> None:
+        size = size or self.size()
+
         try:
             volume_scale_ratio = self.compute_scaling(
                 self.volume_pixmap.pixmap().size(),
-                event.size(),
+                size,
                 self.layout().contentsMargins(),
             )
             self.alignment_settings.volume_scaling = volume_scale_ratio
@@ -121,6 +123,9 @@ class AlignmentWidget(QtWidgets.QWidget):
             return
 
         self.update_histology_pixmap()
+
+    def resizeEvent(self, event) -> None:
+        self.handle_volume_scaling_change(event.size())
 
     def locate_mouse(self) -> None:
         if not hasattr(self.parent(), "statusBar"):
@@ -185,11 +190,7 @@ class AlignmentWidget(QtWidgets.QWidget):
             self.volume_slicer.slice(self.volume_settings)
         )
         self.volume_pixmap.setPixmap(pixmap)
-        self.volume_pixmap.setOffset(
-            -self.volume_pixmap.pixmap().width() / 2,
-            -self.volume_pixmap.pixmap().height() / 2,
-        )
-        self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
+        self.handle_volume_scaling_change()
 
     @QtCore.Slot()
     def update_histology_pixmap(self) -> None:
