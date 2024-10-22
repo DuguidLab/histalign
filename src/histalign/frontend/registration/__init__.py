@@ -8,6 +8,7 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend.io import clear_directory
 from histalign.backend.models import ProjectSettings
 from histalign.backend.workspace import VolumeLoaderThread, Workspace
 from histalign.frontend.common_widgets import (
@@ -484,6 +485,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
     @QtCore.Slot()
     def create_project(self, project_settings: ProjectSettings) -> None:
+        clear_directory(project_settings.project_path)
+
         self.workspace = Workspace(project_settings)
         self.propagate_new_workspace()
 

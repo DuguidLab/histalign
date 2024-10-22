@@ -3,15 +3,17 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 from typing import Optional
 
+from PIL import Image
+from PySide6 import QtCore
 import h5py
 import nrrd
 import numpy as np
-from PIL import Image
-from PySide6 import QtCore
 import vedo
 
 from histalign.backend.models import AlignmentSettings
@@ -108,3 +110,14 @@ def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
 def load_alignment_settings(path: str | Path) -> AlignmentSettings:
     with open(path) as handle:
         return AlignmentSettings(**json.load(handle))
+
+
+def clear_directory(directory_path: str | Path) -> None:
+    if isinstance(directory_path, str):
+        directory_path = Path(directory_path)
+
+    for path in directory_path.iterdir():
+        if path.is_file():
+            os.remove(path)
+        else:
+            shutil.rmtree(path)

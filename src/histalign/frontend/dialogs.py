@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import ProjectSettings
 
@@ -103,6 +103,7 @@ class InvalidProjectFileDialog(QtWidgets.QMessageBox):
 class NewProjectDialog(QtWidgets.QDialog):
     orientation_widget: QtWidgets.QComboBox
     resolution_widget: QtWidgets.QComboBox
+    project_path_label: QtWidgets.QLabel
     project_path_widget: QtWidgets.QLineEdit
     submit_button: QtWidgets.QPushButton
 
@@ -160,7 +161,8 @@ class NewProjectDialog(QtWidgets.QDialog):
         project_picker_layout.setHorizontalSpacing(5)
         project_picker_layout.setVerticalSpacing(10)
 
-        project_picker_label = QtWidgets.QLabel("Project directory (must be empty)")
+        project_picker_label = QtWidgets.QLabel("Project directory")
+        self.project_path_label = project_picker_label
 
         project_picker_line_edit = QtWidgets.QLineEdit()
         project_picker_line_edit.textChanged.connect(self.validate_project_path)
@@ -181,7 +183,6 @@ class NewProjectDialog(QtWidgets.QDialog):
         )
 
         submit_button = button_box.button(QtWidgets.QDialogButtonBox.Ok)
-        submit_button.setEnabled(False)
         submit_button.clicked.connect(self.submit)
         self.submit_button = submit_button
 
@@ -200,30 +201,55 @@ class NewProjectDialog(QtWidgets.QDialog):
     def show_directory_picker(self) -> None:
         choice = QtWidgets.QFileDialog.getExistingDirectory(
             self,
-            caption="Select an empty project directory",
+            caption="Select a project directory",
             options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
         )
 
         if choice != "":
             self.project_path_widget.setText(choice)
 
+    def show_confirm_overwrite_dialog(self) -> bool:
+        dialog = ConfirmOverwriteDialog(self)
+
+        return dialog.exec() == QtWidgets.QMessageBox.StandardButton.Ok
+
     @QtCore.Slot()
-    def validate_project_path(self, path: str) -> None:
+    def validate_project_path(self, path: str) -> bool:
         path = Path(path)
 
-        valid = False
+        empty = False
         if path.is_dir():
             try:
                 next(path.iterdir())
             except FileNotFoundError:
                 pass
             except StopIteration:
-                valid = True
+                empty = True
 
-        self.submit_button.setEnabled(valid)
+        if not empty:
+            self.project_path_label.setText(
+                "Project directory (contents will be overwritten)"
+            )
+
+            pallete = self.project_path_label.palette()
+            pallete.setColor(
+                QtGui.QPalette.ColorRole.WindowText, QtCore.Qt.GlobalColor.red
+            )
+            self.project_path_label.setPalette(pallete)
+        else:
+            self.project_path_label.setText("Project directory")
+            self.project_path_label.setPalette(
+                QtWidgets.QApplication.instance().palette()
+            )
+
+        return empty
 
     @QtCore.Slot()
     def submit(self) -> None:
+        if not self.validate_project_path(self.project_path_widget.text()):
+            if not self.show_confirm_overwrite_dialog():
+                return
+
         self.submitted.emit(
             ProjectSettings(
                 project_path=self.project_path_widget.text(),
@@ -264,3 +290,20 @@ class SaveProjectConfirmationDialog(QtWidgets.QMessageBox):
             | QtWidgets.QMessageBox.Cancel
         )
         self.setIcon(QtWidgets.QMessageBox.Question)
+
+
+class ConfirmOverwriteDialog(QtWidgets.QMessageBox):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setWindowTitle("Overwrite directory?")
+        self.setText(
+            "Are you sure you want to delete all the contents of this directory?"
+        )
+        self.setStandardButtons(
+            QtWidgets.QMessageBox.StandardButton.Ok
+            | QtWidgets.QMessageBox.StandardButton.Cancel
+        )
+        self.setButtonText(QtWidgets.QMessageBox.StandardButton.Ok, "Confirm")
+
+        self.setIcon(QtWidgets.QMessageBox.Icon.Warning)
