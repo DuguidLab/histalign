@@ -25,7 +25,11 @@ from vtkmodules.vtkCommonDataModel import vtkDataSet
 from histalign.backend.ccf.downloads import download_atlas
 from histalign.backend.ccf.paths import get_atlas_path
 import histalign.backend.io as io
-from histalign.backend.maths import compute_normal, compute_origin_from_orientation
+from histalign.backend.maths import (
+    compute_mesh_centre,
+    compute_normal,
+    compute_origin_from_orientation,
+)
 from histalign.backend.models import (
     AlignmentSettings,
     Orientation,
@@ -421,30 +425,52 @@ class VolumeSlicer:
         self,
         settings: VolumeSettings,
         interpolation: Literal["nearest", "linear", "cubic"] = "cubic",
+        autocrop: bool = True,
         return_mesh: bool = False,
+        correct_rotation: bool = True,
     ) -> np.ndarray | vedo.Mesh:
         plane_mesh = self.volume.slice_plane(
             origin=compute_origin_from_orientation(
                 self.volume.dataset.GetCenter(), settings
             ),
-            normal=compute_normal(settings),
-            autocrop=True,
+            normal=compute_normal(settings).tolist(),
+            autocrop=autocrop,
             mode=interpolation,
         )
 
         if return_mesh:
             return plane_mesh
 
+        # vedo cuts down the mesh in a way I don't fully understand. Therefore, the
+        # origin of the plane used with `slice_plane` is not actually the centre of
+        # the image that we can recover from mesh. Instead, it needs to be translated
+        # (which is done through padding to ensure we don't cut anything out).
+        original_mesh_center = compute_mesh_centre(
+            plane_mesh.metadata["original_bounds"]
+        )
+
+        if (padding := original_mesh_center[1]) > 0:
+            i_padding = (int(round(2 * padding)), 0)
+        else:
+            i_padding = (0, int(round(2 * -padding)))
+
+        if (padding := original_mesh_center[0]) > 0:
+            j_padding = (int(round(2 * padding)), 0)
+        else:
+            j_padding = (0, int(round(2 * -padding)))
+
         slice_array = plane_mesh.pointdata["ImageScalars"].reshape(
             plane_mesh.metadata["shape"]
         )
+        padded_slice_array = np.pad(slice_array, (i_padding, j_padding))
 
-        if settings.orientation == Orientation.HORIZONTAL:
-            slice_array = ndimage.rotate(slice_array, -90)
-        if settings.orientation != Orientation.SAGITTAL:
-            slice_array = ndimage.rotate(slice_array, settings.pitch)
+        if correct_rotation:
+            if settings.orientation == Orientation.HORIZONTAL:
+                padded_slice_array = ndimage.rotate(padded_slice_array, -90)
+            if settings.orientation != Orientation.SAGITTAL:
+                padded_slice_array = ndimage.rotate(padded_slice_array, settings.pitch)
 
-        return slice_array
+        return padded_slice_array
 
 
 class Workspace(QtCore.QObject):

@@ -8,10 +8,10 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
 
 from histalign.backend.maths import (
-    apply_rotation_vector,
-    compute_rotation_vector_from_volume_settings,
+    apply_offset,
+    apply_rotation,
+    convert_pixmap_position_to_coordinates,
     convert_volume_coordinates_to_ccf,
-    convert_volume_position_to_coordinates,
 )
 from histalign.backend.models import (
     AlignmentSettings,
@@ -149,22 +149,22 @@ class AlignmentWidget(QtWidgets.QWidget):
         # Convert the scene position to a volume position in the alignment volume.
         # Note that this is still a position as it is still 2D at this point.
         cursor_volume_position = self.volume_pixmap.mapFromScene(cursor_scene_position)
-        # Add the offset to get 3D coordinates of the position.
-        # Note this does not yet take into account the rotation so it not yet correct.
-        cursor_volume_coordinates = convert_volume_position_to_coordinates(
+        # Convert the 2D position to 3D by appending an axis with value 0 depending
+        # on the orientation.
+        cursor_volume_coordinates = convert_pixmap_position_to_coordinates(
             cursor_volume_position,
             self.volume_settings,
         )
 
-        # Get the rotation vector from the pitch and yaw
-        rotation_vector = compute_rotation_vector_from_volume_settings(
-            self.volume_settings,
-        )
-        # Apply it to the naive coordinates to get the actual volume coordinates
-        cursor_volume_rotated_coordinates = apply_rotation_vector(
-            rotation_vector,
+        # Apply rotation to the naive coordinates
+        cursor_volume_rotated_coordinates = apply_rotation(
             cursor_volume_coordinates,
             self.volume_settings,
+        )
+        # Apply the offset to get the true coordinates of the cursor relative to the
+        # volume centre.
+        cursor_volume_rotated_coordinates = apply_offset(
+            cursor_volume_rotated_coordinates, self.volume_settings
         )
 
         # Convert to the CCF coordinate system
