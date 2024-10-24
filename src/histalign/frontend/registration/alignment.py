@@ -7,19 +7,12 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
 
-from histalign.backend.maths import (
-    apply_offset,
-    apply_rotation,
-    convert_pixmap_position_to_coordinates,
-    convert_volume_coordinates_to_ccf,
-)
 from histalign.backend.models import (
     AlignmentSettings,
     HistologySettings,
     VolumeSettings,
 )
 from histalign.backend.workspace import VolumeSlicer
-from histalign.frontend.common_widgets import MouseTrackingFilter
 from histalign.frontend.pyside_helpers import get_colour_table
 
 
@@ -70,15 +63,6 @@ class AlignmentWidget(QtWidgets.QWidget):
         layout.addWidget(self.view)
         self.setLayout(layout)
 
-        self.view.installEventFilter(
-            MouseTrackingFilter(
-                tracking_callback=self.locate_mouse,
-                leaving_callback=self.clear_status,
-                watched_type=QtWidgets.QGraphicsView,
-                parent=self,
-            )
-        )
-
     def prepare_slicer(self) -> None:
         self.volume_slicer = VolumeSlicer(
             path=self.alignment_settings.volume_path,
@@ -126,63 +110,6 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     def resizeEvent(self, event) -> None:
         self.handle_volume_scaling_change(event.size())
-
-    def locate_mouse(self) -> None:
-        if not hasattr(self.parent(), "statusBar"):
-            return
-
-        # Get the position of the cursor relative to the application window
-        cursor_global_position = QtGui.QCursor.pos()
-        # Convert it to the coordinate system of the alignment scene
-        cursor_scene_position = self.view.mapToScene(
-            self.view.mapFromGlobal(cursor_global_position)
-        )
-
-        # Abort and clear status if the cursor is not hovering the volume
-        if not isinstance(
-            self.scene.itemAt(cursor_scene_position, QtGui.QTransform()),
-            QtWidgets.QGraphicsPixmapItem,
-        ):
-            self.clear_status()
-            return
-
-        # Convert the scene position to a volume position in the alignment volume.
-        # Note that this is still a position as it is still 2D at this point.
-        cursor_volume_position = self.volume_pixmap.mapFromScene(cursor_scene_position)
-        # Convert the 2D position to 3D by appending an axis with value 0 depending
-        # on the orientation.
-        cursor_volume_coordinates = convert_pixmap_position_to_coordinates(
-            cursor_volume_position,
-            self.volume_settings,
-        )
-
-        # Apply rotation to the naive coordinates
-        cursor_volume_rotated_coordinates = apply_rotation(
-            cursor_volume_coordinates,
-            self.volume_settings,
-        )
-        # Apply the offset to get the true coordinates of the cursor relative to the
-        # volume centre.
-        cursor_volume_rotated_coordinates = apply_offset(
-            cursor_volume_rotated_coordinates, self.volume_settings
-        )
-
-        # Convert to the CCF coordinate system
-        ccf_aligned_coordinates = convert_volume_coordinates_to_ccf(
-            cursor_volume_rotated_coordinates,
-            self.volume_settings,
-        )
-
-        self.parent().statusBar().showMessage(
-            f"CCF coordinates of cursor: "
-            f"{', '.join(map(str, map(round, map(int, ccf_aligned_coordinates))))}"
-        )
-
-    def clear_status(self) -> None:
-        if not hasattr(self.parent(), "statusBar"):
-            return
-
-        self.parent().statusBar().clearMessage()
 
     @QtCore.Slot()
     def update_volume_pixmap(self) -> None:

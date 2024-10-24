@@ -8,13 +8,21 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend.ccf.paths import get_annotation_path
 from histalign.backend.io import clear_directory
+from histalign.backend.maths import (
+    apply_offset,
+    apply_rotation,
+    convert_pixmap_position_to_coordinates,
+    convert_volume_coordinates_to_ccf,
+)
 from histalign.backend.models import ProjectSettings
-from histalign.backend.workspace import VolumeLoaderThread, Workspace
+from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     BasicMenuBar,
     DynamicThemeIcon,
+    MouseTrackingFilter,
     ShortcutAwareToolButton,
 )
 from histalign.frontend.dialogs import (
@@ -277,6 +285,15 @@ class RegistrationMainWindow(BasicApplicationWindow):
         #
         alignment_widget = AlignmentWidget()
 
+        alignment_widget.view.installEventFilter(
+            MouseTrackingFilter(
+                tracking_callback=self.locate_mouse,
+                leaving_callback=self.clear_status,
+                watched_type=QtWidgets.QGraphicsView,
+                parent=alignment_widget.view,
+            )
+        )
+
         self.alignment_widget = alignment_widget
 
         #
@@ -425,6 +442,61 @@ class RegistrationMainWindow(BasicApplicationWindow):
     def dirty_workspace(self) -> None:
         if self.workspace_loaded:
             self.workspace_dirtied = True
+
+    def locate_mouse(self) -> None:
+        # Get the position of the cursor relative to the application window
+        cursor_global_position = QtGui.QCursor.pos()
+        # Convert it to the coordinate system of the alignment scene
+        cursor_scene_position = self.alignment_widget.view.mapToScene(
+            self.alignment_widget.view.mapFromGlobal(cursor_global_position)
+        )
+
+        # Abort and clear status if the cursor is not hovering the volume
+        if not isinstance(
+            self.alignment_widget.scene.itemAt(
+                cursor_scene_position, QtGui.QTransform()
+            ),
+            QtWidgets.QGraphicsPixmapItem,
+        ):
+            self.clear_status()
+            return
+
+        # Convert the scene position to a volume position in the alignment volume.
+        # Note that this is still a position as it is still 2D at this point.
+        cursor_volume_position = self.alignment_widget.volume_pixmap.mapFromScene(
+            cursor_scene_position
+        )
+        # Convert the 2D position to 3D by appending an axis with value 0 depending
+        # on the orientation.
+        cursor_volume_coordinates = convert_pixmap_position_to_coordinates(
+            cursor_volume_position,
+            self.alignment_widget.volume_settings,
+        )
+
+        # Apply rotation to the naive coordinates
+        cursor_volume_rotated_coordinates = apply_rotation(
+            cursor_volume_coordinates,
+            self.alignment_widget.volume_settings,
+        )
+        # Apply the offset to get the true coordinates of the cursor relative to the
+        # volume centre.
+        cursor_volume_rotated_coordinates = apply_offset(
+            cursor_volume_rotated_coordinates, self.alignment_widget.volume_settings
+        )
+
+        # Convert to the CCF coordinate system
+        ccf_aligned_coordinates = convert_volume_coordinates_to_ccf(
+            cursor_volume_rotated_coordinates,
+            self.alignment_widget.volume_settings,
+        )
+
+        self.statusBar().showMessage(
+            f"CCF coordinates of cursor: "
+            f"{', '.join(map(str, map(round, map(int, ccf_aligned_coordinates))))}"
+        )
+
+    def clear_status(self) -> None:
+        self.statusBar().clearMessage()
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         if self.workspace is not None:
