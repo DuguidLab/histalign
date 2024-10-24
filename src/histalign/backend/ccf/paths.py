@@ -3,10 +3,16 @@
 # SPDX-License-Identifier: MIT
 
 import os
-from typing import Any
 from typing import Literal
 
-from histalign.backend.ccf import ATLAS_ROOT_DIRECTORY, DATA_ROOT, MASK_ROOT_DIRECTORY
+from allensdk.core.structure_tree import StructureTree
+
+from histalign.backend.ccf import (
+    ANNOTATION_ROOT_DIRECTORY,
+    ATLAS_ROOT_DIRECTORY,
+    DATA_ROOT,
+    MASK_ROOT_DIRECTORY,
+)
 from histalign.backend.models import Resolution
 
 
@@ -15,6 +21,10 @@ def get_atlas_path(
     atlas_type: Literal["average_template", "ara_nissl"] = "average_template",
 ):
     return str(ATLAS_ROOT_DIRECTORY / f"{atlas_type}_{resolution.value}.nrrd")
+
+
+def get_annotation_path(resolution: Resolution):
+    return str(ANNOTATION_ROOT_DIRECTORY / f"annotation_{resolution}.nrrd")
 
 
 def get_structure_id(structure_name: str, resolution: Resolution) -> int:
@@ -30,7 +40,7 @@ def get_structure_mask_path(structure_name: str, resolution: Resolution) -> str:
     return str(mask_directory / f"structure_{structure_id}.nrrd")
 
 
-def get_structure_tree(resolution: Resolution) -> Any:
+def get_structure_tree(resolution: Resolution) -> StructureTree:
     # This takes a long time to import (~4 seconds on my machine) so only "lazily"
     # import it.
     from allensdk.core.reference_space_cache import ReferenceSpaceCache

@@ -4,15 +4,17 @@
 
 import logging
 import os
+from pathlib import Path
 import shutil
 import ssl
-import urllib.error
-from pathlib import Path
 from typing import Literal
+import urllib.error
 from urllib.request import urlopen
 
 from histalign.backend.ccf import (
+    ANNOTATION_ROOT_DIRECTORY,
     ATLAS_ROOT_DIRECTORY,
+    BASE_ANNOTATION_URL,
     BASE_ATLAS_URL,
     BASE_MASK_URL,
     MASK_ROOT_DIRECTORY,
@@ -32,6 +34,14 @@ def download_atlas(
     atlas_path = ATLAS_ROOT_DIRECTORY / atlas_file_name
 
     download(url, atlas_path)
+
+
+def download_annotation_volume(resolution: Resolution) -> None:
+    volume_file_name = f"annotation_{resolution}.nrrd"
+    url = "/".join([BASE_ANNOTATION_URL, volume_file_name])
+    volume_path = ANNOTATION_ROOT_DIRECTORY / volume_file_name
+
+    download(url, volume_path)
 
 
 def download_structure_mask(structure_name: str, resolution: Resolution) -> None:

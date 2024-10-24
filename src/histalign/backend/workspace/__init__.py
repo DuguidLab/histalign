@@ -22,8 +22,8 @@ from skimage.transform import resize
 import vedo
 from vtkmodules.vtkCommonDataModel import vtkDataSet
 
-from histalign.backend.ccf.downloads import download_atlas
-from histalign.backend.ccf.paths import get_atlas_path
+from histalign.backend.ccf.downloads import download_annotation_volume, download_atlas
+from histalign.backend.ccf.paths import get_atlas_path, get_structure_tree
 import histalign.backend.io as io
 from histalign.backend.maths import (
     compute_mesh_centre,
@@ -364,7 +364,7 @@ class Volume:
 
         self.downloaded.set()
 
-    def ensure_loaded(self) -> None:
+    def ensure_loaded(self, **kwargs) -> None:
         if self._volume is None:
             if not self.downloading:
                 self.ensure_downloaded()
@@ -373,12 +373,72 @@ class Volume:
 
             if not self.loading:
                 self.loading = True
-                self._volume = io.load_volume(self.file_path, self.dtype)
+                self._volume = io.load_volume(self.file_path, self.dtype, **kwargs)
                 self.loading = False
             else:
                 self.loaded.wait()
 
         self.loaded.set()
+
+
+class AnnotationVolume(Volume):
+    """A wrapper around the Allen Institute's annotated CCF volumes.
+
+    Since the Allen Institute has reserved some ID ranges, there are huge gaps in the
+    values of the annotated volume. This wrapper maps the IDs present in the raw file
+    into sequential values to allow a volume of uint16 instead of uint32, freeing a lot
+    of memory and not really incurring any loading cost (around 2 seconds on my
+    machine for the 25um annotated volume).
+
+    The algorithm to efficiently replace the values in the annotated volume is taken
+    from here: https://stackoverflow.com/a/29408060.
+    """
+
+    def get_name_from_voxel(self, coordinates: tuple | list | np.ndarray) -> str:
+        if not hasattr(self, "_structure_tree"):
+            return ""
+
+        if isinstance(coordinates, np.ndarray):
+            coordinates = coordinates.tolist()
+        if isinstance(coordinates, list):
+            coordinates = tuple(map(int, coordinates))
+
+        for i in range(3):
+            if coordinates[i] < 0 or coordinates[i] >= self._volume.shape[i]:
+                return ""
+
+        value = self._volume.tonumpy()[coordinates]
+
+        node_details = self._structure_tree.get_structures_by_id(
+            [self._id_translation_table[value]]
+        )[0]
+        if node_details is not None:
+            name = node_details["name"]
+        else:
+            name = ""
+
+        return name
+
+    def ensure_downloaded(self) -> None:
+        if not os.path.exists(self.file_path):
+            self.downloading = True
+            download_annotation_volume(self.resolution)
+            self.downloading = False
+
+        self.downloaded.set()
+
+    def ensure_loaded(self) -> None:
+        super().ensure_loaded(return_raw_array=True)
+
+        if isinstance(self._volume, np.ndarray):
+            unique_values = np.unique(self._volume)
+            replacement_array = np.empty(self._volume.max() + 1, dtype=np.uint16)
+            replacement_array[unique_values] = np.arange(len(unique_values))
+
+            self._volume = vedo.Volume(replacement_array[self._volume])
+
+            self._id_translation_table = unique_values
+            self._structure_tree = get_structure_tree(Resolution.MICRONS_100)
 
 
 class VolumeLoaderThread(QtCore.QThread):
