@@ -511,6 +511,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         )
         structure_string = f" ({structure_name})" if structure_name else ""
 
+        # Correct coordinates for resolution
+        ccf_aligned_coordinates *= self.workspace.resolution.value
+
         self.statusBar().showMessage(
             f"CCF coordinates of cursor: "
             f"{', '.join(map(str, map(round, map(int, ccf_aligned_coordinates))))}"
