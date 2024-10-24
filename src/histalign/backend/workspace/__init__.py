@@ -508,6 +508,7 @@ class VolumeSlicer:
         original_mesh_center = compute_mesh_centre(
             plane_mesh.metadata["original_bounds"]
         )
+        original_mesh_center[:2] -= [0.5, 0.5]
 
         if (padding := original_mesh_center[1]) > 0:
             i_padding = (int(round(2 * padding)), 0)
