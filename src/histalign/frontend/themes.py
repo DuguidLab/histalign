@@ -469,7 +469,3 @@ def build_dark_theme() -> QPalette:
 
 LIGHT_THEME: QPalette = build_light_theme()
 DARK_THEME: QPalette = build_dark_theme()
-
-
-if __name__ == "__main__":
-    print("hello")
