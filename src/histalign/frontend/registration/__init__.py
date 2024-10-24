@@ -270,6 +270,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
     workspace_loaded: bool = False
     workspace_dirtied: bool = False
 
+    annotation_volume: Optional[AnnotationVolume] = None
+
     toolbar: RegistrationToolBar
     alignment_widget: AlignmentWidget
     thumbnails_widget: ThumbnailsWidget
@@ -426,6 +428,18 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         dialog = AtlasProgressDialog(self)
 
+        # Sneak the annotation volume in here. It doesn't usually take long but if
+        # it turns out to in the future, we can give feedback to the user.
+        self.annotation_volume = AnnotationVolume(
+            get_annotation_path(self.workspace.resolution),
+            self.workspace.resolution,
+            lazy=True,
+        )
+        annotation_loader_thread = VolumeLoaderThread(self.annotation_volume, self)
+        annotation_loader_thread.volume_loaded.connect(
+            annotation_loader_thread.deleteLater
+        )
+
         # Using terminate rather than exit to avoid waiting for a long download/load
         dialog.canceled.connect(loader_thread.terminate)
         dialog.canceled.connect(loader_thread.wait)
@@ -436,6 +450,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         loader_thread.volume_loaded.connect(dialog.reset)
         loader_thread.volume_loaded.connect(self.open_atlas_in_aligner)
 
+        annotation_loader_thread.start()
         loader_thread.start()
         dialog.exec()
 
@@ -490,9 +505,16 @@ class RegistrationMainWindow(BasicApplicationWindow):
             self.alignment_widget.volume_settings,
         )
 
+        # Get the name of the structure at those coordinates
+        structure_name = self.annotation_volume.get_name_from_voxel(
+            ccf_aligned_coordinates
+        )
+        structure_string = f" ({structure_name})" if structure_name else ""
+
         self.statusBar().showMessage(
             f"CCF coordinates of cursor: "
             f"{', '.join(map(str, map(round, map(int, ccf_aligned_coordinates))))}"
+            f"{structure_string}"
         )
 
     def clear_status(self) -> None:
