@@ -4,13 +4,13 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 from PIL import Image
 from PySide6 import QtCore, QtGui
 import cv2
 import numpy as np
-from skimage.transform import AffineTransform, rescale, warp
+from skimage.transform import AffineTransform, rescale as sk_rescale, warp
 import vedo
 
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
@@ -49,11 +49,9 @@ class Registrator:
         image: np.ndarray,
         settings: AlignmentSettings,
     ) -> np.ndarray:
-        scaling = self._get_histology_scaling(settings)
+        scaling = get_histology_scaling(settings)
 
-        image = self._rescale(
-            image, scaling, fast=self.fast_rescale, interpolation="nearest"
-        )
+        image = rescale(image, scaling, fast=self.fast_rescale, interpolation="nearest")
 
         volume = workspace.Volume(
             Path(), settings.volume_settings.resolution, lazy=True
@@ -62,9 +60,9 @@ class Registrator:
         slicer = workspace.VolumeSlicer(volume=volume)
         target_shape = slicer.slice(settings.volume_settings).shape
 
-        image = self._pad(image, (target_shape[0], target_shape[1]))
+        image = pad(image, (target_shape[0], target_shape[1]))
 
-        image = self._transform_image(
+        image = transform_image(
             image, settings, fast=self.fast_transform, interpolation=self.interpolation
         )
 
@@ -114,221 +112,29 @@ class Registrator:
         if histology_image is None:
             histology_image = load_image(settings.histology_path)
 
-        volume_final_scaling = self._get_volume_scaling_factor(settings)
+        volume_final_scaling = get_volume_scaling_factor(settings)
 
         volume_image = self._volume_slicer.slice(
             settings.volume_settings, interpolation="linear"
         )
-        volume_image = self._rescale(
+        volume_image = rescale(
             volume_image,
             volume_final_scaling,
             fast=self.fast_rescale,
             interpolation=self.interpolation,
         )
-        volume_image = self._transform_image(
+        volume_image = transform_image(
             volume_image,
             settings,
             fast=self.fast_transform,
             interpolation=self.interpolation,
             forward=False,
         )
-        return self._crop_down(volume_image, histology_image.shape)
-
-    @staticmethod
-    def _rescale(
-        image: np.ndarray, scaling: float, fast: bool, interpolation: str
-    ) -> np.ndarray:
-        # NOTE: PIL's resize is much faster but less accurate.
-        #       However, it is appropriate for masks.
-        match interpolation:
-            case "nearest":
-                resample = Image.Resampling.NEAREST
-                order = 0
-            case "bilinear":
-                resample = Image.Resampling.BILINEAR
-                order = 1
-            case _:
-                raise ValueError(f"Unknown interpolation '{interpolation}'")
-
-        if fast:
-            return np.array(
-                Image.fromarray(image.T).resize(
-                    np.round(np.array(image.shape) * scaling).astype(int).tolist(),
-                    resample=resample,
-                )
-            ).T
-        else:
-            return rescale(
-                image,
-                scaling,
-                preserve_range=True,
-                clip=True,
-                order=order,
-            ).astype(image.dtype)
-
-    @staticmethod
-    def _transform_image(
-        image: np.ndarray,
-        alignment_settings: AlignmentSettings,
-        fast: bool,
-        interpolation: str,
-        forward: bool = True,
-    ) -> np.ndarray:
-        histology_settings = alignment_settings.histology_settings
-
-        initial_width = image.shape[1]
-        initial_height = image.shape[0]
-
-        effective_width = histology_settings.scale_x * initial_width
-        effective_height = histology_settings.scale_y * initial_height
-
-        x_displacement = histology_settings.shear_x * effective_height
-        y_displacement = histology_settings.shear_y * effective_width
-
-        translation_factor = (
-            alignment_settings.histology_scaling / alignment_settings.volume_scaling
-            if forward
-            else alignment_settings.histology_downsampling
+        return crop_down(
+            volume_image,
+            histology_image.shape,
+            get_top_left_point(volume_image.shape, histology_image.shape),
         )
-        q_transform = (
-            QtGui.QTransform()
-            .translate(  # Translation to apply rotation around the center of the image
-                initial_width / 2,
-                initial_height / 2,
-            )
-            .rotate(  # Regular rotation
-                histology_settings.rotation,
-            )
-            .translate(  # Translation to get back to position before rotation
-                -initial_width / 2,
-                -initial_height / 2,
-            )
-            .translate(  # Regular translation
-                histology_settings.translation_x * translation_factor,
-                histology_settings.translation_y * translation_factor,
-            )
-            .translate(  # Translation to apply scaling from the center of the image
-                -(effective_width - initial_width) / 2,
-                -(effective_height - initial_height) / 2,
-            )
-            .scale(  # Regular scaling
-                histology_settings.scale_x,
-                histology_settings.scale_y,
-            )
-            .translate(  # Translation to apply shearing from the center of the image
-                -x_displacement / 2,
-                -y_displacement / 2,
-            )
-            .shear(  # Regular shearing
-                histology_settings.shear_x,
-                histology_settings.shear_y,
-            )
-        )
-
-        if forward:
-            q_transform, success = q_transform.inverted()
-            if not success:
-                raise ValueError("Could not invert the affine matrix.")
-
-        matrix = (
-            str(q_transform).replace("PySide6.QtGui.QTransform(", "").replace(")", "")
-        )
-        matrix = (
-            np.array([float(value) for value in matrix.split(", ")]).reshape(3, 3).T
-        )
-
-        match interpolation:
-            case "nearest":
-                flag = cv2.INTER_NEAREST
-                order = 0
-            case "bilinear":
-                flag = cv2.INTER_LINEAR
-                order = 1
-            case _:
-                raise ValueError(f"Unknown interpolation '{interpolation}'")
-
-        # NOTE: OpenCV's warp is much faster but seemingly less accurate
-        if fast:
-            return cv2.warpPerspective(
-                image,
-                matrix,
-                image.shape[::-1],
-                flags=flag | cv2.WARP_INVERSE_MAP,
-            )
-        else:
-            sk_transform = AffineTransform(matrix=matrix)
-            return warp(
-                image, sk_transform, order=order, preserve_range=True, clip=True
-            ).astype(image.dtype)
-
-    @staticmethod
-    def _pad(image: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
-        vertical_padding = max(0, target_shape[0] - image.shape[0])
-        horizontal_padding = max(0, target_shape[1] - image.shape[1])
-
-        return np.pad(
-            image,
-            (
-                (
-                    vertical_padding // 2,
-                    vertical_padding // 2 + bool(vertical_padding % 2),
-                ),
-                (
-                    horizontal_padding // 2,
-                    horizontal_padding // 2 + bool(horizontal_padding % 2),
-                ),
-            ),
-            "constant",
-            constant_values=(0,),
-        )
-
-    @staticmethod
-    def _crop_down(image: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
-        top_left = Registrator._get_top_left_point(image.shape, shape)
-
-        return image[
-            top_left[0] : top_left[0] + shape[0],
-            top_left[1] : top_left[1] + shape[1],
-        ]
-
-    @staticmethod
-    def _get_top_left_point(
-        larger_shape: tuple[int, ...], smaller_shape: tuple[int, ...]
-    ) -> tuple[int, int]:
-        if len(larger_shape) != 2 or len(smaller_shape) != 2:
-            raise ValueError(
-                f"Invalid shapes, should be 2-dimensional. "
-                f"Got {len(larger_shape)}D and {len(smaller_shape)}D."
-            )
-
-        ratios = np.array(larger_shape) / np.array(smaller_shape)
-        if np.min(ratios) < 1.0:
-            raise ValueError(
-                f"Large image has at least one dimension that is smaller than smaller "
-                f"image (larger: {larger_shape} vs "
-                f"smaller: {smaller_shape})."
-            )
-
-        maximum = np.max(ratios)
-
-        if ratios[0] == maximum:
-            top_left = ((larger_shape[0] - smaller_shape[0]) // 2, 0)
-        else:
-            top_left = (0, (larger_shape[1] - smaller_shape[1]) // 2)
-
-        return top_left
-
-    @staticmethod
-    def _get_histology_scaling(settings: AlignmentSettings) -> float:
-        return settings.histology_scaling / (
-            settings.volume_scaling * settings.histology_downsampling
-        )
-
-    @staticmethod
-    def _get_volume_scaling_factor(settings: AlignmentSettings) -> float:
-        return (
-            settings.volume_scaling / settings.histology_scaling
-        ) * settings.histology_downsampling
 
 
 class ContourGeneratorThread(QtCore.QThread):
@@ -400,3 +206,212 @@ class ContourGeneratorThread(QtCore.QThread):
         if self.should_emit:
             self.mask_ready.emit(structure_mask)
             self.contours_ready.emit(contours)
+
+
+def crop_down(
+    image: np.ndarray,
+    shape: tuple[int, ...],
+    top_left: Optional[tuple[int, ...]] = (0, 0),
+) -> np.ndarray:
+    return image[
+        top_left[0] : top_left[0] + shape[0],
+        top_left[1] : top_left[1] + shape[1],
+    ]
+
+
+def get_histology_scaling(settings: AlignmentSettings) -> float:
+    return settings.histology_scaling / (
+        settings.volume_scaling * settings.histology_downsampling
+    )
+
+
+def get_top_left_point(
+    larger_shape: tuple[int, ...], smaller_shape: tuple[int, ...]
+) -> tuple[int, int]:
+    if len(larger_shape) != 2 or len(smaller_shape) != 2:
+        raise ValueError(
+            f"Invalid shapes, should be 2-dimensional. "
+            f"Got {len(larger_shape)}D and {len(smaller_shape)}D."
+        )
+
+    ratios = np.array(larger_shape) / np.array(smaller_shape)
+    if np.min(ratios) < 1.0:
+        raise ValueError(
+            f"Large image has at least one dimension that is smaller than smaller "
+            f"image (larger: {larger_shape} vs "
+            f"smaller: {smaller_shape})."
+        )
+
+    maximum = np.max(ratios)
+
+    if ratios[0] == maximum:
+        top_left = ((larger_shape[0] - smaller_shape[0]) // 2, 0)
+    else:
+        top_left = (0, (larger_shape[1] - smaller_shape[1]) // 2)
+
+    return top_left
+
+
+def get_transformation_matrix_from_q_transform(
+    q_transform: QtGui.QTransform, invert: bool = False
+) -> np.ndarray:
+    if invert:
+        q_transform, success = q_transform.inverted()
+        if not success:
+            raise ValueError("Could not invert the affine matrix.")
+
+    matrix = str(q_transform).replace("PySide6.QtGui.QTransform(", "").replace(")", "")
+    return np.array([float(value) for value in matrix.split(", ")]).reshape(3, 3).T
+
+
+def get_volume_scaling_factor(settings: AlignmentSettings) -> float:
+    return (
+        settings.volume_scaling / settings.histology_scaling
+    ) * settings.histology_downsampling
+
+
+def pad(image: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
+    vertical_padding = max(0, target_shape[0] - image.shape[0])
+    horizontal_padding = max(0, target_shape[1] - image.shape[1])
+
+    return np.pad(
+        image,
+        (
+            (
+                vertical_padding // 2,
+                vertical_padding // 2 + bool(vertical_padding % 2),
+            ),
+            (
+                horizontal_padding // 2,
+                horizontal_padding // 2 + bool(horizontal_padding % 2),
+            ),
+        ),
+        "constant",
+        constant_values=(0,),
+    )
+
+
+def recreate_q_transform_from_alignment(
+    image_shape: Sequence[int],
+    settings: AlignmentSettings,
+    invert: bool = False,
+) -> QtGui.QTransform:
+    histology_settings = settings.histology_settings
+
+    initial_width = image_shape[1]
+    initial_height = image_shape[0]
+
+    effective_width = histology_settings.scale_x * initial_width
+    effective_height = histology_settings.scale_y * initial_height
+
+    x_displacement = histology_settings.shear_x * effective_height
+    y_displacement = histology_settings.shear_y * effective_width
+
+    translation_factor = (
+        settings.histology_scaling / settings.volume_scaling
+        if invert
+        else settings.histology_downsampling
+    )
+    return (
+        QtGui.QTransform()
+        .translate(  # Translation to apply rotation around the center of the image
+            initial_width / 2,
+            initial_height / 2,
+        )
+        .rotate(  # Regular rotation
+            histology_settings.rotation,
+        )
+        .translate(  # Translation to get back to position before rotation
+            -initial_width / 2,
+            -initial_height / 2,
+        )
+        .translate(  # Regular translation
+            histology_settings.translation_x * translation_factor,
+            histology_settings.translation_y * translation_factor,
+        )
+        .translate(  # Translation to apply scaling from the center of the image
+            -(effective_width - initial_width) / 2,
+            -(effective_height - initial_height) / 2,
+        )
+        .scale(  # Regular scaling
+            histology_settings.scale_x,
+            histology_settings.scale_y,
+        )
+        .translate(  # Translation to apply shearing from the center of the image
+            -x_displacement / 2,
+            -y_displacement / 2,
+        )
+        .shear(  # Regular shearing
+            histology_settings.shear_x,
+            histology_settings.shear_y,
+        )
+    )
+
+
+def rescale(
+    image: np.ndarray, scaling: float, fast: bool, interpolation: str
+) -> np.ndarray:
+    # NOTE: PIL's resize is much faster but less accurate.
+    #       However, it is appropriate for masks.
+    match interpolation:
+        case "nearest":
+            resample = Image.Resampling.NEAREST
+            order = 0
+        case "bilinear":
+            resample = Image.Resampling.BILINEAR
+            order = 1
+        case _:
+            raise ValueError(f"Unknown interpolation '{interpolation}'")
+
+    if fast:
+        return np.array(
+            Image.fromarray(image.T).resize(
+                np.round(np.array(image.shape) * scaling).astype(int).tolist(),
+                resample=resample,
+            )
+        ).T
+    else:
+        return sk_rescale(
+            image,
+            scaling,
+            preserve_range=True,
+            clip=True,
+            order=order,
+        ).astype(image.dtype)
+
+
+def transform_image(
+    image: np.ndarray,
+    alignment_settings: AlignmentSettings,
+    fast: bool,
+    interpolation: str,
+    forward: bool = True,
+) -> np.ndarray:
+    q_transform = recreate_q_transform_from_alignment(
+        image.shape, alignment_settings, forward
+    )
+    matrix = get_transformation_matrix_from_q_transform(q_transform, forward)
+
+    match interpolation:
+        case "nearest":
+            flag = cv2.INTER_NEAREST
+            order = 0
+        case "bilinear":
+            flag = cv2.INTER_LINEAR
+            order = 1
+        case _:
+            raise ValueError(f"Unknown interpolation '{interpolation}'")
+
+    # NOTE: OpenCV's warp is much faster but seemingly less accurate
+    if fast:
+        return cv2.warpPerspective(
+            image,
+            matrix,
+            image.shape[::-1],
+            flags=flag | cv2.WARP_INVERSE_MAP,
+        )
+    else:
+        sk_transform = AffineTransform(matrix=matrix)
+        return warp(
+            image, sk_transform, order=order, preserve_range=True, clip=True
+        ).astype(image.dtype)
