@@ -573,7 +573,7 @@ class Workspace(QtCore.QObject):
         return self.project_settings.resolution
 
     def parse_image_directory(
-        self, directory_path: str, only_neun: bool = True
+        self, directory_path: str, only_neun: bool = False
     ) -> None:
         self.last_parsed_directory = directory_path
 
