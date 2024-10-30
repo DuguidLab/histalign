@@ -33,6 +33,12 @@ def get_structure_id(structure_name: str, resolution: Resolution) -> int:
     ]
 
 
+def get_structure_name_by_acronym(acronym: str, resolution: Resolution) -> str:
+    return get_structure_tree(resolution).get_structures_by_acronym([acronym.strip()])[
+        0
+    ]["name"]
+
+
 def get_structure_mask_path(structure_name: str, resolution: Resolution) -> str:
     structure_id = get_structure_id(structure_name, resolution)
     mask_directory = MASK_ROOT_DIRECTORY / f"structure_masks_{resolution.value}"
