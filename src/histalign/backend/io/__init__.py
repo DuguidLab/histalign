@@ -59,6 +59,13 @@ def load_image(
                     )
         case "npy":
             array = np.load(file_path)
+        case "npz":
+            try:
+                array = np.load(file_path)["array"]
+            except KeyError:
+                raise ValueError(
+                    "Expected .npz file to have a key 'array' for the volume."
+                )
         case "jpg" | "jpeg" | "png":
             array = np.array(Image.open(file_path))
         case other:
@@ -83,6 +90,13 @@ def load_volume(
             array = nrrd.read(file_path)[0]
         case "npy":
             array = np.load(file_path)
+        case "npz":
+            try:
+                array = np.load(file_path)["array"]
+            except KeyError:
+                raise ValueError(
+                    "Expected .npz file to have a key 'array' for the volume."
+                )
         case other:
             raise ValueError(f"Unknown volume file extension '{other}'.")
 
