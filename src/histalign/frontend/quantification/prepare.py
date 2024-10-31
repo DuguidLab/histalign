@@ -7,12 +7,14 @@ from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from histalign.backend.models import QuantificationSettings
+from histalign.backend.models import (
+    MeasureSettings,
+    QuantificationSettings,
+)
 from histalign.backend.quantification import QuantificationThread
 from histalign.backend.workspace import Workspace
 from histalign.frontend.common_widgets import (
     ProjectDirectoriesComboBox,
-    SelectedStructuresWidget,
 )
 from histalign.frontend.quantification.measure_widgets import (
     AverageFluorescenceWidget,
@@ -25,15 +27,19 @@ class PrepareWidget(QtWidgets.QWidget):
 
     form_layout: QtWidgets.QFormLayout
     directory_widget: ProjectDirectoriesComboBox
-    approach_widget: QtWidgets.QComboBox
     measure_widget: QtWidgets.QComboBox
-    structures_widget: SelectedStructuresWidget
+    measure_settings_widgets: list[QtWidgets.QWidget]
     progress_layout: QtWidgets.QHBoxLayout
     run_button: QtWidgets.QPushButton
     progress_bar: QtWidgets.QProgressBar
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
+
+        #
+        measure_settings_widgets = []
+
+        self.measure_settings_widgets = measure_settings_widgets
 
         #
         directory_widget = ProjectDirectoriesComboBox()
@@ -59,6 +65,8 @@ class PrepareWidget(QtWidgets.QWidget):
         average_fluorescence_widget.setMinimumHeight(0)
         average_fluorescence_widget.setMaximumHeight(0)
 
+        measure_settings_widgets.append(average_fluorescence_widget)
+
         self.average_fluorescence_widget = average_fluorescence_widget
 
         #
@@ -67,6 +75,8 @@ class PrepareWidget(QtWidgets.QWidget):
         cortical_depth_widget.setMinimumHeight(0)
         cortical_depth_widget.setMaximumHeight(0)
         cortical_depth_widget.setHidden(True)
+
+        measure_settings_widgets.append(cortical_depth_widget)
 
         self.cortical_depth_widget = cortical_depth_widget
 
@@ -112,18 +122,23 @@ class PrepareWidget(QtWidgets.QWidget):
         self.run_button.setEnabled(not enabled)
 
     def toggle_measure_widget(self, widget: QtWidgets.QWidget) -> None:
-        widgets_to_hide = [
-            self.average_fluorescence_widget,
-            self.cortical_depth_widget,
-        ]
-        if widget not in widgets_to_hide:
+        if widget not in self.measure_settings_widgets:
             raise ValueError(f"Received unknown widget to toggle ('{widget}').")
-        widgets_to_hide.remove(widget)
 
-        for widget_to_hide in widgets_to_hide:
-            widget_to_hide.hide()
+        for measure_widget in self.measure_settings_widgets:
+            if measure_widget is not widget:
+                measure_widget.hide()
 
         widget.show()
+
+    def collect_measure_settings(self) -> MeasureSettings:
+        for widget in self.measure_settings_widgets:
+            if widget.isVisible():
+                return widget.settings
+
+        raise ValueError(
+            "Failed to retrieve measure settings as no widget was visible."
+        )
 
     @QtCore.Slot()
     def run_quantification(self) -> None:
@@ -133,16 +148,15 @@ class PrepareWidget(QtWidgets.QWidget):
             self.directory_widget.currentText()
         )
 
-        settings = QuantificationSettings(
-            approach=self.approach_widget.currentText(),
+        quantification_settings = QuantificationSettings(
             alignment_directory=str(self.project_directory / directory_hash),
             original_directory=self.directory_widget.currentText(),
             quantification_measure="_".join(
                 self.measure_widget.currentText().lower().split(" ")
             ),
-            structures=list(self.structures_widget.structure_tags_mapping.keys()),
             fast_rescale=True,
             fast_transform=True,
+            measure_settings=self.collect_measure_settings(),
         )
 
         quantification_thread = QuantificationThread(settings, self)

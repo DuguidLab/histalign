@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+from abc import ABC
 from datetime import datetime
 from enum import Enum, IntEnum
 import hashlib
@@ -35,6 +36,7 @@ class Resolution(IntEnum):
 
 class QuantificationMeasure(str, Enum):
     AVERAGE_FLUORESCENCE = "average_fluorescence"
+    CORTICAL_DEPTH = "cortical_depth"
 
 
 class HistologySettings(BaseModel, validate_assignment=True):
@@ -161,14 +163,27 @@ class ProjectSettings(BaseModel, validate_assignment=True):
         return str(value)
 
 
-class QuantificationSettings(BaseModel, validate_assignment=True):
+class MeasureSettings(BaseModel, ABC):
+    pass
+
+
+class AverageFluorescenceMeasureSettings(MeasureSettings, validate_assignment=True):
     approach: str
+    structures: list[str]
+
+
+class CorticalDepthMeasureSettings(MeasureSettings, validate_assignment=True):
+    cortex_structure: str
+    sub_cortical_structures: list[str]
+
+
+class QuantificationSettings(BaseModel, validate_assignment=True):
     alignment_directory: DirectoryPath
     original_directory: DirectoryPath
     quantification_measure: QuantificationMeasure
-    structures: list[str]
-    fast_rescale: bool
-    fast_transform: bool
+    fast_rescale: bool = True
+    fast_transform: bool = True
+    measure_settings: MeasureSettings
 
     @field_serializer("alignment_directory", "original_directory")
     def serialise_path(self, value: DirectoryPath) -> str:
