@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.model_view import StructureModel, StructureNode
-from histalign.frontend.dialogs import NewProjectDialog, OpenProjectDialog
+from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.pyside_helpers import FakeQtABC, connect_single_shot_slot
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
@@ -1011,3 +1011,83 @@ class MouseTrackingFilter(QtCore.QObject):
                         self.leaving_callback()
 
         return super().eventFilter(watched, event)
+
+
+class AnimatedHeightWidget(QtWidgets.QWidget):
+    """A base class for animating widgets by growing/shrinking their height.
+
+    The animation is started on `showEvent`s and `hideEvent`s.
+    """
+
+    def __init__(
+        self,
+        animated: bool = True,
+        duration: int = 200,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self._animated = animated
+        self.duration = duration
+        self._setup_required = animated
+        self.animation_group = None
+
+        if animated:
+            self.setMinimumHeight(0)
+            self.setMaximumHeight(0)
+
+    @QtCore.Property(bool)
+    def animated(self) -> bool:
+        return self._animated
+
+    @animated.setter
+    def animated(self, value: bool) -> None:
+        self._animated = value
+        self._setup_required = value
+
+    def set_up_animation(self) -> None:
+        if not self.animated:
+            return
+
+        animation_group = QtCore.QParallelAnimationGroup(self)
+
+        minimum_height_animation = QtCore.QPropertyAnimation(self, b"minimumHeight")
+        minimum_height_animation.setStartValue(0)
+        minimum_height_animation.setEndValue(self.sizeHint().height())
+        minimum_height_animation.setDuration(self.duration)
+
+        maximum_height_animation = QtCore.QPropertyAnimation(self, b"maximumHeight")
+        maximum_height_animation.setStartValue(0)
+        maximum_height_animation.setEndValue(self.sizeHint().height())
+        maximum_height_animation.setDuration(self.duration)
+
+        animation_group.addAnimation(minimum_height_animation)
+        animation_group.addAnimation(maximum_height_animation)
+
+        self.animation_group = animation_group
+
+        self._setup_required = False
+
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        if self._setup_required:
+            self.set_up_animation()
+
+        if not self.animated:
+            return super().showEvent(event)
+
+        self.animation_group.setDirection(QtCore.QAbstractAnimation.Direction.Forward)
+        self.animation_group.start()
+
+        return super().showEvent(event)
+
+    def hideEvent(self, event: QtGui.QHideEvent) -> None:
+        if self._setup_required:
+            self.set_up_animation()
+
+        if not self.animated:
+            return super().hideEvent(event)
+
+        self.animation_group.setDirection(QtCore.QAbstractAnimation.Direction.Backward)
+        self.animation_group.start()
+
+        return super().hideEvent(event)
