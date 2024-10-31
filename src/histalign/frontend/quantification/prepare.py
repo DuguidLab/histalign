@@ -14,6 +14,10 @@ from histalign.frontend.common_widgets import (
     ProjectDirectoriesComboBox,
     SelectedStructuresWidget,
 )
+from histalign.frontend.quantification.measure_widgets import (
+    AverageFluorescenceWidget,
+    CorticalDepthWidget,
+)
 
 
 class PrepareWidget(QtWidgets.QWidget):
@@ -37,28 +41,41 @@ class PrepareWidget(QtWidgets.QWidget):
         self.directory_widget = directory_widget
 
         #
-        approach_widget = QtWidgets.QComboBox()
-        approach_widget.addItems(["Whole-brain", "Per-slice"])
-
-        self.approach_widget = approach_widget
-
-        #
         measure_widget = QtWidgets.QComboBox()
-        measure_widget.addItems(["Average fluorescence"])
+
+        measure_widget.addItems(["Average fluorescence", "Cortical depth"])
+
+        measure_widget.currentTextChanged.connect(self.update_layout)
 
         self.measure_widget = measure_widget
 
         #
-        structures_widget = SelectedStructuresWidget()
+        average_fluorescence_widget = AverageFluorescenceWidget(animated=False)
 
-        self.structures_widget = structures_widget
+        # Skip the first animation as this is the default visible widget
+        average_fluorescence_widget.show()
+        average_fluorescence_widget.animated = True
+
+        average_fluorescence_widget.setMinimumHeight(0)
+        average_fluorescence_widget.setMaximumHeight(0)
+
+        self.average_fluorescence_widget = average_fluorescence_widget
+
+        #
+        cortical_depth_widget = CorticalDepthWidget()
+
+        cortical_depth_widget.setMinimumHeight(0)
+        cortical_depth_widget.setMaximumHeight(0)
+        cortical_depth_widget.setHidden(True)
+
+        self.cortical_depth_widget = cortical_depth_widget
 
         #
         form_layout = QtWidgets.QFormLayout()
         form_layout.addRow("Directory", directory_widget)
-        form_layout.addRow("Approach", approach_widget)
         form_layout.addRow("Measure", measure_widget)
-        form_layout.addRow("Structures", structures_widget)
+        form_layout.addRow(average_fluorescence_widget)
+        form_layout.addRow(cortical_depth_widget)
 
         self.form_layout = form_layout
 
@@ -94,6 +111,20 @@ class PrepareWidget(QtWidgets.QWidget):
         self.form_layout.setEnabled(not enabled)
         self.run_button.setEnabled(not enabled)
 
+    def toggle_measure_widget(self, widget: QtWidgets.QWidget) -> None:
+        widgets_to_hide = [
+            self.average_fluorescence_widget,
+            self.cortical_depth_widget,
+        ]
+        if widget not in widgets_to_hide:
+            raise ValueError(f"Received unknown widget to toggle ('{widget}').")
+        widgets_to_hide.remove(widget)
+
+        for widget_to_hide in widgets_to_hide:
+            widget_to_hide.hide()
+
+        widget.show()
+
     @QtCore.Slot()
     def run_quantification(self) -> None:
         self.set_quantification_running_state(True)
@@ -128,3 +159,13 @@ class PrepareWidget(QtWidgets.QWidget):
         quantification_thread.results_computed.connect(self.progress_bar.reset)
 
         quantification_thread.start()
+
+    @QtCore.Slot()
+    def update_layout(self, value: str) -> None:
+        match value:
+            case "Average fluorescence":
+                self.toggle_measure_widget(self.average_fluorescence_widget)
+            case "Cortical depth":
+                self.toggle_measure_widget(self.cortical_depth_widget)
+            case _:
+                raise ValueError("Invalid measure.")
