@@ -2,13 +2,18 @@
 #
 # SPDX-License-Identifier: MIT
 
-import json
 from dataclasses import dataclass
+import json
+import logging
+import os
 from typing import Any, Iterator, Optional
 
 from PySide6 import QtCore, QtGui
 
 from histalign.backend.ccf.paths import get_structures_hierarchy_path
+from histalign.backend.io import DATA_ROOT
+
+_module_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -37,6 +42,18 @@ class StructureNode(QtGui.QStandardItem):
     def uncheck(self) -> None:
         if self.checkState() == QtCore.Qt.CheckState.Checked:
             self.setCheckState(QtCore.Qt.CheckState.Unchecked)
+
+    def toJson(self) -> dict:
+        return {
+            "acronym": self.acronym,
+            "rgb_triplet": self.rgb_triplet,
+            "graph_id": self.graph_id,
+            "graph_order": self.graph_order,
+            "id": self.id,
+            "name": self.name,
+            "structure_id_path": self.structure_id_path,
+            "structure_set_ids": self.structure_set_ids,
+        }
 
 
 class StructureModel(QtGui.QStandardItemModel):
@@ -110,6 +127,23 @@ class StructureModel(QtGui.QStandardItemModel):
                              visible.
         """
 
+        cache_path = DATA_ROOT / "parsed_structures.json"
+        if cache_path.exists():
+            _module_logger.info("Found cached structure model.")
+            with open(cache_path) as handle:
+                data = json.load(handle)
+
+            if data[0] == list(os.stat(structures_hierarchy_path)):
+                hierarchy = data[1]
+                deserialise_hierarchy(hierarchy, self.invisibleRootItem())
+                if root_text:
+                    self.zoom_on(root_text)
+                return
+            else:
+                _module_logger.info(
+                    "Invalidating cache as cached stat is different from original file."
+                )
+
         def find_node(nodes: list[StructureNode], id_: int) -> int:
             for index, node in enumerate(nodes):
                 if node.id == id_:
@@ -158,6 +192,16 @@ class StructureModel(QtGui.QStandardItemModel):
 
             if not processed_a_node:
                 raise ValueError(f"Found orphaned nodes: \n{nodes_to_insert}")
+
+        with open(cache_path, "w") as handle:
+            _module_logger.info("Caching parsed structure model.")
+
+            data = [
+                os.stat(structures_hierarchy_path),
+                serialise_hierarchy(self.invisibleRootItem()),
+            ]
+
+            json.dump(data, handle)
 
         if root_text:
             self.zoom_on(root_text)
@@ -212,3 +256,36 @@ class StructureModel(QtGui.QStandardItemModel):
             nodes.append(node)
 
         return nodes
+
+
+def serialise_hierarchy(
+    root: QtGui.QStandardItem,
+) -> list:
+    hierarchy = []
+    for i in range(root.rowCount()):
+        child = root.child(i, 0)
+        child_dictionary = child.toJson()
+        if child.hasChildren():
+            child_dictionary["children"] = serialise_hierarchy(child)
+        else:
+            child_dictionary["children"] = None
+
+        hierarchy.append(child_dictionary)
+
+    return hierarchy
+
+
+def deserialise_hierarchy(hierarchy: list, root: QtGui.QStandardItem) -> None:
+    if hierarchy is None:
+        return
+
+    for node in hierarchy:
+        children = node.pop("children")
+        node = StructureNode(**node)
+        node.setEditable(False)
+        node.setCheckable(True)
+        node.setCheckState(QtCore.Qt.CheckState.Unchecked)
+
+        deserialise_hierarchy(children, node)
+
+        root.appendRow(node)
