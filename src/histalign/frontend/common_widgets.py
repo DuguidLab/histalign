@@ -287,12 +287,12 @@ class SelectedStructuresWidget(QtWidgets.QWidget):
             self.structure_finder_widget.hide()
             return
 
-        # Assign own parent to popup, this way it can be shown over other widgets.
-        # This relies on self being child of main window.
         if self.structure_finder_widget.parent() is None:
-            self.structure_finder_widget.setParent(self.parent())
+            self.structure_finder_widget.setParent(self.window())
 
-            position = self.mapToParent(self.scroll_area.geometry().bottomLeft())
+            position = self.mapTo(
+                self.window(), self.scroll_area.geometry().bottomLeft()
+            )
 
             self.structure_finder_widget.setGeometry(
                 position.x(),
