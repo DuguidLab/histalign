@@ -12,10 +12,28 @@ from typing import Any, Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 from pydantic import ValidationError
 
-from histalign.backend.models import QuantificationResults
-from histalign.frontend.common_widgets import (
-    SelectedStructuresWidget,
+from histalign.backend.models import (
+    AverageFluorescenceMeasureSettings,
+    CorticalDepthMeasureSettings,
+    MeasureSettings,
+    QuantificationResults,
 )
+
+
+def get_appropriate_measure_settings(
+    quantification_measure: str,
+) -> type[MeasureSettings]:
+    match quantification_measure:
+        case "average_fluorescence":
+            settings = AverageFluorescenceMeasureSettings
+        case "cortical_depth":
+            settings = CorticalDepthMeasureSettings
+        case _:
+            raise ValueError(
+                f"Unknown quantification measure '{quantification_measure}'."
+            )
+
+    return settings
 
 
 class ResultsTableModel(QtCore.QAbstractTableModel):
@@ -25,7 +43,7 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
         super().__init__(parent)
 
         self._data = self.parse_project(project_directory)
-        self._columns = ["", "Date", "Approach", "Measure", "Structures", "Directory"]
+        self._columns = ["", "Date", "Measure", "Directory"]
 
     def data(
         self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex, role: int = ...
@@ -97,6 +115,10 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
                 with open(file) as handle:
                     contents = json.load(handle)
                 results = QuantificationResults(**contents)
+
+                results.settings.measure_settings = get_appropriate_measure_settings(
+                    contents["settings"]["quantification_measure"]
+                )(**contents["settings"]["measure_settings"])
             except (ValidationError, json.JSONDecodeError) as error:
                 logging.getLogger(__name__).error(
                     f"Failed to load quantification results from '{file}'."
@@ -104,13 +126,17 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
                 logging.getLogger(__name__).error(error)
                 continue
 
+            quantification_measure = (
+                results.settings.quantification_measure.value.replace("_", " ")
+            )
+            quantification_measure = (
+                quantification_measure[0].upper() + quantification_measure[1:]
+            )
             data.append(
                 [
                     "[ ]",
                     results.timestamp.strftime("%Y/%m/%d - %H:%M"),
-                    results.settings.approach,
-                    results.settings.quantification_measure.value,
-                    ", ".join(results.settings.structures),
+                    quantification_measure,
                     str(results.settings.original_directory),
                     results,
                 ]
@@ -120,8 +146,7 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
 
 
 class ResultsTableFilterProxyModel(QtCore.QSortFilterProxyModel):
-    approach_regex: str = ""
-    structures_regex: str = ""
+    measure_regex: str = ""
 
     filter_changed: QtCore.Signal = QtCore.Signal()
     checked_state_changed: QtCore.Signal = QtCore.Signal()
@@ -129,12 +154,8 @@ class ResultsTableFilterProxyModel(QtCore.QSortFilterProxyModel):
     def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
         super().__init__(parent)
 
-    def set_approach_regular_expression(self, pattern: str) -> None:
-        self.approach_regex = pattern
-        self.invalidateFilter()
-
-    def set_structures_regular_expression(self, pattern: str) -> None:
-        self.structures_regex = pattern
+    def set_measure_regular_expression(self, pattern: str) -> None:
+        self.measure_regex = pattern
         self.invalidateFilter()
 
     def setData(
@@ -150,15 +171,10 @@ class ResultsTableFilterProxyModel(QtCore.QSortFilterProxyModel):
     def filterAcceptsRow(
         self, source_row: int, source_parent: QtCore.QModelIndex
     ) -> bool:
-        approach_index = self.sourceModel().index(source_row, 2, source_parent)
-        structures_index = self.sourceModel().index(source_row, 4, source_parent)
+        measure_index = self.sourceModel().index(source_row, 2, source_parent)
+        measure = measure_index.data(QtCore.Qt.ItemDataRole.DisplayRole)
 
-        approach = approach_index.data(QtCore.Qt.ItemDataRole.DisplayRole)
-        structures = structures_index.data(QtCore.Qt.ItemDataRole.DisplayRole)
-
-        return bool(re.findall(self.approach_regex, approach)) and bool(
-            re.findall(self.structures_regex, structures)
-        )
+        return bool(re.findall(self.measure_regex, measure))
 
     def invalidateFilter(self):
         super().invalidateFilter()
@@ -229,7 +245,6 @@ class ResultsWidget(QtWidgets.QWidget):
     project_directory: Optional[Path] = None
 
     filter_layout: QtWidgets.QFormLayout
-    structures_widget: SelectedStructuresWidget
     model: ResultsTableModel
     proxy_model: ResultsTableFilterProxyModel
     view: ResultsTableView
@@ -242,34 +257,22 @@ class ResultsWidget(QtWidgets.QWidget):
         super().__init__(parent)
 
         #
-        approach_widget = QtWidgets.QComboBox()
-        approach_widget.addItems(["Whole-brain", "Per-slice"])
+        measure_widget = QtWidgets.QComboBox()
+        measure_widget.addItems(["Average fluorescence", "Cortical depth"])
 
-        approach_widget.currentTextChanged.connect(self.filter_model)
+        measure_widget.currentTextChanged.connect(self.filter_model)
 
-        self.approach_widget = approach_widget
-
-        #
-        structures_widget = SelectedStructuresWidget()
-        structures_widget.structure_added.connect(self.filter_model)
-        structures_widget.structure_removed.connect(self.filter_model)
-
-        self.structures_widget = structures_widget
+        self.measure_widget = measure_widget
 
         #
         filter_layout = QtWidgets.QFormLayout()
-        filter_layout.addRow("Approach", approach_widget)
-        filter_layout.addRow("Structures", structures_widget)
+        filter_layout.addRow("Measure", measure_widget)
 
         self.filter_layout = filter_layout
 
         #
         view = ResultsTableView()
-        self.approach_widget.currentTextChanged.connect(self.update_submit_button_state)
-        self.structures_widget.structure_added.connect(self.update_submit_button_state)
-        self.structures_widget.structure_removed.connect(
-            self.update_submit_button_state
-        )
+        self.measure_widget.currentTextChanged.connect(self.update_submit_button_state)
 
         self.view = view
 
@@ -343,19 +346,12 @@ class ResultsWidget(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def filter_model(self, _) -> None:
-        approach_regex = self.approach_widget.currentText()
-        self.proxy_model.set_approach_regular_expression(approach_regex)
-
-        structure_names = list(self.structures_widget.structure_tags_mapping.keys())
-        regex = f"(({'|'.join(structure_names)}),? ?){{{len(structure_names)}}}"
-        self.proxy_model.set_structures_regular_expression(regex)
+        measure_regex = self.measure_widget.currentText()
+        self.proxy_model.set_measure_regular_expression(measure_regex)
 
     @QtCore.Slot()
     def update_submit_button_state(self) -> None:
-        self.submit_button.setEnabled(
-            self.has_at_least_one_checked()
-            and bool(self.structures_widget.structure_tags_mapping)
-        )
+        self.submit_button.setEnabled(self.has_at_least_one_checked())
 
     @QtCore.Slot()
     def submit_checked(self) -> None:

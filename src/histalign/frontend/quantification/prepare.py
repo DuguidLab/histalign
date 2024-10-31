@@ -159,7 +159,7 @@ class PrepareWidget(QtWidgets.QWidget):
             measure_settings=self.collect_measure_settings(),
         )
 
-        quantification_thread = QuantificationThread(settings, self)
+        quantification_thread = QuantificationThread(quantification_settings, self)
         quantification_thread.progress_count_computed.connect(
             self.progress_bar.setMaximum
         )
