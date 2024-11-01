@@ -83,6 +83,14 @@ def build_alignment_volume(
         )
 
         plane_mesh = slicer.slice(alignment_settings.volume_settings, return_mesh=True)
+
+        registered_slice = registered_slice[
+            plane_mesh.metadata["i_padding"][0] : registered_slice.shape[0]
+            - plane_mesh.metadata["i_padding"][1],
+            plane_mesh.metadata["j_padding"][0] : registered_slice.shape[1]
+            - plane_mesh.metadata["j_padding"][1],
+        ]
+
         plane_mesh.pointdata["ImageScalars"] = registered_slice.flatten()
 
         plane_meshes.append(plane_mesh)

@@ -498,9 +498,6 @@ class VolumeSlicer:
             mode=interpolation,
         )
 
-        if return_mesh:
-            return plane_mesh
-
         # vedo cuts down the mesh in a way I don't fully understand. Therefore, the
         # origin of the plane used with `slice_plane` is not actually the centre of
         # the image that we can recover from mesh. Instead, it needs to be translated
@@ -519,6 +516,12 @@ class VolumeSlicer:
             j_padding = (int(round(2 * padding)), 0)
         else:
             j_padding = (0, int(round(2 * -padding)))
+
+        if return_mesh:
+            plane_mesh.metadata["i_padding"] = i_padding
+            plane_mesh.metadata["j_padding"] = j_padding
+
+            return plane_mesh
 
         slice_array = plane_mesh.pointdata["ImageScalars"].reshape(
             plane_mesh.metadata["shape"]
