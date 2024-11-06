@@ -287,7 +287,6 @@ class SelectedStructuresWidget(QtWidgets.QWidget):
     @QtCore.Slot()
     def show_popup_structure_finder_widget(self) -> None:
         if self.structure_finder_widget.isVisible():
-            self.structure_finder_widget.hide()
             return
 
         if self.structure_finder_widget.parent() is None:
@@ -297,12 +296,26 @@ class SelectedStructuresWidget(QtWidgets.QWidget):
                 self.window(), self.scroll_area.geometry().bottomLeft()
             )
 
+            self.structure_finder_widget.setWindowFlags(QtCore.Qt.WindowType.Popup)
+
             self.structure_finder_widget.setGeometry(
                 position.x(),
                 position.y(),
                 self.width(),
                 500,
             )
+
+        # For some reason, turning the popup into a `WindowType.Popup` shifts the
+        # geometry one pixel to the right for its X coordinates every time it is shown
+        # so we correct that here. The `WindowType.Popup` flag is still useful to
+        # provide an easy way to get the popup to close when the user clicks anywhere
+        # else in the window.
+        self.structure_finder_widget.setGeometry(
+            self.structure_finder_widget.geometry().x() - 1,
+            self.structure_finder_widget.geometry().y(),
+            self.structure_finder_widget.width(),
+            self.structure_finder_widget.height(),
+        )
 
         self.structure_finder_widget.show()
         self.structure_finder_widget.line_edit.setFocus()
