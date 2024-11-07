@@ -166,7 +166,11 @@ class StructureFinderWidget(QtWidgets.QWidget):
                     break
 
         if selected_index == -2:
-            model_index = matching_model_indices[0]
+            try:
+                model_index = matching_model_indices[0]
+            except IndexError:
+                # Not found
+                return
         else:
             model_index = matching_model_indices[
                 (selected_index + 1) % len(matching_model_indices)
