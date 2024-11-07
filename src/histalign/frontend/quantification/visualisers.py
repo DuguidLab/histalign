@@ -348,7 +348,6 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
 
             self._canvases_count = 0
             self._structure_pairs = []
-            self._canvas_index = 0
             for cortex_structure in filtered_dataframe.cortex_structure.unique():
                 cortical_structures = filtered_dataframe.loc[
                     filtered_dataframe.cortex_structure == cortex_structure,
@@ -358,6 +357,9 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
 
                 for cortical_structure in cortical_structures:
                     self._structure_pairs.append((cortex_structure, cortical_structure))
+
+            if self._canvas_index > len(self._structure_pairs):
+                self._canvas_index = 0
 
             self._current_data = filtered_dataframe
 
