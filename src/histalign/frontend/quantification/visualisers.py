@@ -281,7 +281,9 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
         self._update_canvas()
 
     def parse_results(self, data: list[QuantificationResults]) -> None:
-        self._dataframe = self.parse_results_to_dataframe(data)
+        self._dataframe = self.parse_results_to_dataframe(
+            data, include_overlapping=True
+        )
 
         self._update_combo_boxes()
         self._update_canvas()
@@ -471,6 +473,7 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
     @staticmethod
     def parse_results_to_dataframe(
         results: list[QuantificationResults],
+        include_overlapping: bool = False,
     ) -> pd.DataFrame:
         dataframe_rows = []
         for result in results:
@@ -487,6 +490,8 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
             for slice_name, slice_result in result.data.items():
                 for cortical_structure, values in slice_result.items():
                     for i in range(len(values[0])):
+                        if values[0][i] == 0 and not include_overlapping:
+                            continue
                         dataframe_rows.append(
                             [
                                 str(alignment_directory),
