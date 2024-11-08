@@ -37,6 +37,14 @@ def get_appropriate_measure_settings(
     return settings
 
 
+def get_default_export_directory(project_directory: Path) -> Path:
+    export_directory = project_directory / "exports"
+    if not export_directory.exists():
+        os.makedirs(export_directory, exist_ok=True)
+
+    return export_directory
+
+
 class ResultsTableModel(QtCore.QAbstractTableModel):
     def __init__(
         self, project_directory: Path, parent: Optional[QtCore.QObject] = None
@@ -385,13 +393,20 @@ class ResultsWidget(QtWidgets.QWidget):
         )
         dataframe = visualiser.parse_results_to_dataframe(checked_items)
 
-        output_file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "Select file to save output CSV",
-            os.getcwd(),
-            "Comma Separated Value file (*.csv)",
-            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
+        file_dialog = QtWidgets.QFileDialog(self)
+        file_dialog.setWindowTitle("Select location to save results")
+        file_dialog.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
+        file_dialog.setAcceptMode(QtWidgets.QFileDialog.AcceptMode.AcceptSave)
+        file_dialog.selectFile("quantification_result.csv")
+        file_dialog.setDefaultSuffix("csv")
+        file_dialog.setDirectory(
+            str(get_default_export_directory(self.project_directory))
         )
+        file_dialog.setNameFilter("Comma Separated Value file (*.csv)")
+        file_dialog.setOption(QtWidgets.QFileDialog.Option.DontUseNativeDialog)
 
-        if output_file_path != "":
-            dataframe.to_csv(output_file_path)
+        file_dialog.exec()
+        if file_dialog.result() == QtWidgets.QDialog.DialogCode.Rejected:
+            return
+
+        dataframe.to_csv(file_dialog.selectedFiles()[0])
