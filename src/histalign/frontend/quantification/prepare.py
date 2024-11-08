@@ -144,6 +144,8 @@ class PrepareWidget(QtWidgets.QWidget):
     def run_quantification(self) -> None:
         self.set_quantification_running_state(True)
 
+        self.progress_bar.resetFormat()
+
         directory_hash = Workspace.generate_directory_hash(
             self.directory_widget.currentText()
         )
@@ -170,7 +172,9 @@ class PrepareWidget(QtWidgets.QWidget):
         quantification_thread.results_computed.connect(
             lambda: self.progress_bar.setMaximum(1)
         )
-        quantification_thread.results_computed.connect(self.progress_bar.reset)
+        quantification_thread.results_computed.connect(
+            self.display_finished_progress_bar
+        )
 
         quantification_thread.start()
 
@@ -183,3 +187,9 @@ class PrepareWidget(QtWidgets.QWidget):
                 self.toggle_measure_widget(self.cortical_depth_widget)
             case _:
                 raise ValueError("Invalid measure.")
+
+    @QtCore.Slot()
+    def display_finished_progress_bar(self) -> None:
+        self.progress_bar.setMaximum(1_000_000)
+        self.progress_bar.setValue(999_999)
+        self.progress_bar.setFormat("Done")
