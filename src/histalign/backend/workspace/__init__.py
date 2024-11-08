@@ -596,7 +596,7 @@ class Workspace(QtCore.QObject):
             ]
             added_paths = [
                 path
-                for path in self.gather_image_paths(directory_path)
+                for path in self.gather_image_paths(directory_path, only_neun)
                 if path not in previous_image_paths
             ]
 
