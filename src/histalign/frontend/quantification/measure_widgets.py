@@ -80,7 +80,8 @@ class CorticalDepthWidget(AnimatedHeightWidget):
         layout = QtWidgets.QFormLayout()
 
         layout.addRow("Cortex structure", cortex_structure_widget)
-        layout.addRow("Sub-cortical structures", sub_cortical_structures_widget)
+        layout.addRow("Cortical structures", sub_cortical_structures_widget)
+        layout.addRow("Cortical structures", cortical_structures_widget)
 
         self.setLayout(layout)
 
@@ -98,6 +99,6 @@ class CorticalDepthWidget(AnimatedHeightWidget):
         return CorticalDepthMeasureSettings(
             cortex_structure=cortex_structure,
             sub_cortical_structures=list(
-                self.sub_cortical_structures_widget.structure_tags_mapping.keys()
+                self.cortical_structures_widget.structure_tags_mapping.keys()
             ),
         )
