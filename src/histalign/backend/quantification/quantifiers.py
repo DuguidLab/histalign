@@ -240,12 +240,16 @@ class CorticalDepthQuantifier(Quantifier):
                     continue
 
                 if cortex_volume is None:
-                    cortex_volume = load_volume(
-                        get_structure_mask_path(
+                    cortex_path = get_structure_mask_path(
+                        self.measure_settings.cortex_structure,
+                        alignment_settings.volume_settings.resolution,
+                    )
+                    if not os.path.exists(cortex_path):
+                        download_structure_mask(
                             self.measure_settings.cortex_structure,
                             alignment_settings.volume_settings.resolution,
                         )
-                    )
+                    cortex_volume = load_volume(cortex_path)
                 if structure_volume is None:
                     structure_path = get_structure_mask_path(
                         structure_name,
