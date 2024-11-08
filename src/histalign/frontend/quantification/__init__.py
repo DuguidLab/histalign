@@ -39,6 +39,11 @@ class QuantificationMainWindow(BasicApplicationWindow):
         #
         view_tab = ViewWidget()
         results_tab.submitted.connect(view_tab.parse_results)
+        results_tab.submitted.connect(
+            lambda: self.tab_widget.tabBar().setCurrentIndex(
+                self.tab_widget.indexOf(self.view_tab)
+            )
+        )
 
         self.view_tab = view_tab
 
