@@ -7,7 +7,7 @@ name = "histalign"
 dynamic = ["version"]
 description = 'Processing workflow for histological image alignments to the Allen CCF.'
 readme = "README.md"
-requires-python = "<=3.11"
+requires-python = ">=3.10, <3.11.1"
 license = "MIT"
 keywords = []
 authors = [
