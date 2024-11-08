@@ -67,37 +67,33 @@ class CorticalDepthWidget(AnimatedHeightWidget):
         super().__init__(animated, duration, parent)
 
         #
-        cortex_structure_widget = SelectedStructuresWidget()
+        cortex_structure_combo_box = QtWidgets.QComboBox()
 
-        self.cortex_structure_widget = cortex_structure_widget
+        # TODO: Might be worth getting them programmatically from a
+        #       `SelectedStructuresWidget`.
+        cortex_structure_combo_box.addItems(
+            ["Isocortex", "Olfactory areas", "Hippocampal formation"]
+        )
+
+        self.cortex_structure_combo_box = cortex_structure_combo_box
 
         #
-        sub_cortical_structures_widget = SelectedStructuresWidget()
+        cortical_structures_widget = SelectedStructuresWidget()
 
-        self.sub_cortical_structures_widget = sub_cortical_structures_widget
+        self.cortical_structures_widget = cortical_structures_widget
 
         #
         layout = QtWidgets.QFormLayout()
 
-        layout.addRow("Cortex structure", cortex_structure_widget)
-        layout.addRow("Cortical structures", sub_cortical_structures_widget)
+        layout.addRow("Cortical plate structure", cortex_structure_combo_box)
         layout.addRow("Cortical structures", cortical_structures_widget)
 
         self.setLayout(layout)
 
     @property
     def settings(self) -> CorticalDepthMeasureSettings:
-        # TODO: Enforce only allowing a single checked structure for this widget.
-        cortex_structure = list(
-            self.cortex_structure_widget.structure_tags_mapping.keys()
-        )
-        if cortex_structure:
-            cortex_structure = cortex_structure[0]
-        else:
-            cortex_structure = ""
-
         return CorticalDepthMeasureSettings(
-            cortex_structure=cortex_structure,
+            cortex_structure=self.cortex_structure_combo_box.currentText(),
             sub_cortical_structures=list(
                 self.cortical_structures_widget.structure_tags_mapping.keys()
             ),
