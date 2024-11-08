@@ -60,6 +60,70 @@ class TreeView(QtWidgets.QTreeView):
             """
         )
 
+    def mousePressEvent(self, event):
+        if event.button() != QtCore.Qt.MouseButton.RightButton:
+            return super().mousePressEvent(event)
+
+        # Handle right clicks on on top of check boxes, checking or unchecking all of
+        # the direct children.
+        # Thanks a lot to this answer on Qt's forums without which figuring out the
+        # position of the check box would have been impossible to figure out:
+        # https://forum.qt.io/post/206804
+        option = QtWidgets.QStyleOptionViewItem()
+        self.itemDelegate().initStyleOption(option, self.indexAt(event.pos()))
+        rectangle = self.style().subElementRect(
+            QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
+            option,
+            self,
+        )
+        rectangle.moveTopLeft(
+            QtCore.QPoint(
+                self.visualRect(self.indexAt(event.pos())).x() + rectangle.x(),
+                self.visualRect(self.indexAt(event.pos())).y(),
+            )
+        )
+
+        if rectangle.contains(event.pos()):
+            index = self.indexAt(event.pos())
+
+            self.expand(index)
+            self.toggle_state_direct_children(index)
+
+            return True
+
+        return super().mousePressEvent(event)
+
+    def toggle_state_direct_children(self, index: QtCore.QModelIndex) -> None:
+        node = self.model().itemFromIndex(index)
+
+        tallies = {
+            QtCore.Qt.CheckState.Checked: 0,
+            QtCore.Qt.CheckState.Unchecked: 0,
+        }
+        for row in range(node.rowCount()):
+            tallies[node.child(row, 0).checkState()] += 1
+
+        # Align state to most common one unless all of them have the same state, then
+        # toggle the state of all of them.
+        new_state = max(tallies, key=tallies.get)
+        opposite_state = (
+            QtCore.Qt.CheckState.Checked
+            if new_state is QtCore.Qt.CheckState.Unchecked
+            else QtCore.Qt.CheckState.Unchecked
+        )
+        if tallies[opposite_state] == 0:
+            new_state = opposite_state
+
+        for row in range(node.rowCount()):
+            # Use `setData` instead of setting the state directly to potentially
+            # propagate uncheck to children of direct children. See
+            # `StructureModel.setData` for more details.
+            self.model().setData(
+                node.child(row, 0).index(),
+                new_state.value,  # Because of an interaction in setData, use .value
+                QtCore.Qt.ItemDataRole.CheckStateRole,
+            )
+
 
 class StructureTagFrame(QtWidgets.QFrame):
     removal_requested: QtCore.Signal = QtCore.Signal()
