@@ -281,36 +281,7 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
         self._update_canvas()
 
     def parse_results(self, data: list[QuantificationResults]) -> None:
-        results = []
-        for result in data:
-            original_directory = result.settings.original_directory
-            cortex_structure = result.settings.measure_settings.cortex_structure
-
-            for slice_name, slice_result in result.data.items():
-                for cortical_structure, values in slice_result.items():
-                    for i in range(len(values[0])):
-                        results.append(
-                            [
-                                str(original_directory),
-                                slice_name,
-                                cortex_structure,
-                                cortical_structure,
-                                values[0][i],
-                                values[1][i],
-                            ],
-                        )
-
-        self._dataframe = pd.DataFrame(
-            data=results,
-            columns=[
-                "original_directory",
-                "slice_name",
-                "cortex_structure",
-                "cortical_structure",
-                "baseline_data",
-                "registered_data",
-            ],
-        )
+        self._dataframe = self.parse_results_to_dataframe(data)
 
         self._update_combo_boxes()
         self._update_canvas()
@@ -496,3 +467,57 @@ class CorticalDepthVisualiser(QtWidgets.QWidget):
         self._current_display_data = None
 
         self._update_canvas()
+
+    @staticmethod
+    def parse_results_to_dataframe(
+        results: list[QuantificationResults],
+    ) -> pd.DataFrame:
+        dataframe_rows = []
+        for result in results:
+            alignment_directory = result.settings.alignment_directory
+            original_directory = result.settings.original_directory
+            quantification_measure = result.settings.quantification_measure
+            fast_rescale = result.settings.fast_rescale
+            fast_transform = result.settings.fast_transform
+            timestamp = result.timestamp
+            hash_ = result.hash
+
+            cortex_structure = result.settings.measure_settings.cortex_structure
+
+            for slice_name, slice_result in result.data.items():
+                for cortical_structure, values in slice_result.items():
+                    for i in range(len(values[0])):
+                        dataframe_rows.append(
+                            [
+                                str(alignment_directory),
+                                str(original_directory),
+                                quantification_measure,
+                                fast_rescale,
+                                fast_transform,
+                                timestamp,
+                                hash_,
+                                slice_name,
+                                cortex_structure,
+                                cortical_structure,
+                                values[0][i],
+                                values[1][i],
+                            ],
+                        )
+
+        return pd.DataFrame(
+            data=dataframe_rows,
+            columns=[
+                "alignment_directory",
+                "original_directory",
+                "quantification_measure",
+                "fast_rescale",
+                "fast_transform",
+                "timestamp",
+                "hash",
+                "slice_name",
+                "cortex_structure",
+                "cortical_structure",
+                "baseline_data",
+                "registered_data",
+            ],
+        )

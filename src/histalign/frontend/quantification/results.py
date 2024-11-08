@@ -18,6 +18,7 @@ from histalign.backend.models import (
     MeasureSettings,
     QuantificationResults,
 )
+from histalign.frontend.quantification.view import get_appropriate_visualiser
 
 
 def get_appropriate_measure_settings(
@@ -248,7 +249,8 @@ class ResultsWidget(QtWidgets.QWidget):
     model: ResultsTableModel
     proxy_model: ResultsTableFilterProxyModel
     view: ResultsTableView
-    submit_button: QtWidgets.QPushButton
+    view_button: QtWidgets.QPushButton
+    export_button: QtWidgets.QPushButton
     parsed_timestamp: float = -1.0
 
     submitted: QtCore.Signal = QtCore.Signal(list)
@@ -272,22 +274,35 @@ class ResultsWidget(QtWidgets.QWidget):
 
         #
         view = ResultsTableView()
-        self.measure_widget.currentTextChanged.connect(self.update_submit_button_state)
+        self.measure_widget.currentTextChanged.connect(self.update_buttons_state)
 
         self.view = view
 
         #
-        submit_button = QtWidgets.QPushButton("Submit")
-        submit_button.clicked.connect(self.submit_checked)
-        submit_button.setEnabled(False)
+        view_button = QtWidgets.QPushButton("View")
+        view_button.clicked.connect(self.submit_checked)
+        view_button.setEnabled(False)
 
-        self.submit_button = submit_button
+        self.view_button = view_button
+
+        #
+        export_button = QtWidgets.QPushButton("Export")
+        export_button.clicked.connect(self.export_checked)
+        export_button.setEnabled(False)
+
+        self.export_button = export_button
+
+        #
+        button_layout = QtWidgets.QHBoxLayout()
+
+        button_layout.addWidget(view_button)
+        button_layout.addWidget(export_button)
 
         #
         layout = QtWidgets.QVBoxLayout()
         layout.addLayout(filter_layout)
         layout.addWidget(view, stretch=1)
-        layout.addWidget(submit_button)
+        layout.addLayout(button_layout)
         self.setLayout(layout)
 
     def has_at_least_one_checked(self) -> bool:
@@ -330,7 +345,7 @@ class ResultsWidget(QtWidgets.QWidget):
         proxy_model = ResultsTableFilterProxyModel(self)
         proxy_model.setSourceModel(model)
 
-        proxy_model.checked_state_changed.connect(self.update_submit_button_state)
+        proxy_model.checked_state_changed.connect(self.update_buttons_state)
 
         self.model = model
         self.proxy_model = proxy_model
@@ -350,9 +365,33 @@ class ResultsWidget(QtWidgets.QWidget):
         self.proxy_model.set_measure_regular_expression(measure_regex)
 
     @QtCore.Slot()
-    def update_submit_button_state(self) -> None:
-        self.submit_button.setEnabled(self.has_at_least_one_checked())
+    def update_buttons_state(self) -> None:
+        self.view_button.setEnabled(self.has_at_least_one_checked())
+        self.export_button.setEnabled(self.has_at_least_one_checked())
 
     @QtCore.Slot()
     def submit_checked(self) -> None:
         self.submitted.emit(self.get_checked_items())
+
+    @QtCore.Slot()
+    def export_checked(self) -> None:
+        checked_items = self.get_checked_items()
+
+        if not checked_items:
+            return
+
+        visualiser = get_appropriate_visualiser(
+            checked_items[0].settings.quantification_measure
+        )
+        dataframe = visualiser.parse_results_to_dataframe(checked_items)
+
+        output_file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Select file to save output CSV",
+            os.getcwd(),
+            "Comma Separated Value file (*.csv)",
+            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
+        )
+
+        if output_file_path != "":
+            dataframe.to_csv(output_file_path)
