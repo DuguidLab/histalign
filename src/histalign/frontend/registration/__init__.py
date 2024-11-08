@@ -404,8 +404,14 @@ class RegistrationMainWindow(BasicApplicationWindow):
         toolbar = self.toolbar
 
         toolbar.save_requested.connect(self.workspace.save_alignment)
+        toolbar.save_requested.connect(
+            lambda: self.statusBar().showMessage("Alignment saved", 2000)
+        )
 
         toolbar.load_requested.connect(self.workspace.load_alignment)
+        toolbar.load_requested.connect(
+            lambda: self.statusBar().showMessage("Alignment loaded", 2000)
+        )
         toolbar.load_requested.connect(self.share_workspace_models)
         toolbar.load_requested.connect(self.settings_widget.reload_settings)
 
