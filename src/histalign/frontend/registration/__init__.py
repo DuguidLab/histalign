@@ -363,6 +363,11 @@ class RegistrationMainWindow(BasicApplicationWindow):
         toolbar.reset_volume_button.setEnabled(False)
 
         toolbar.save_requested.connect(lambda: toolbar.load_button.setEnabled(True))
+        toolbar.save_requested.connect(
+            lambda: self.thumbnails_widget.content_area.mark_thumbnail_as_complete(
+                self.workspace.current_aligner_image_index
+            )
+        )
         toolbar.background_threshold_changed.connect(
             alignment_widget.update_background_alpha
         )
@@ -397,6 +402,14 @@ class RegistrationMainWindow(BasicApplicationWindow):
         # Sync states
         self.alignment_widget.prepare_slicer()
         self.settings_widget.reload_settings()
+
+        for index, slice_ in enumerate(self.workspace._histology_slices):
+            if not os.path.exists(
+                self.workspace.working_directory + os.sep + slice_.hash + ".json"
+            ):
+                continue
+
+            self.thumbnails_widget.content_area.mark_thumbnail_as_complete(index)
 
     def connect_workspace(self) -> None:
         self.thumbnails_widget.connect_workspace(self.workspace)

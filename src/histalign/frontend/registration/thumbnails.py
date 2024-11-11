@@ -17,6 +17,7 @@ class ThumbnailLabel(QtWidgets.QLabel):
     index: int
     file_name: str
     thumbnail: Optional[QtGui.QPixmap]
+    complete: bool = False
 
     def __init__(
         self, index: int, file_name: str, parent: Optional[QtWidgets.QWidget] = None
@@ -31,6 +32,39 @@ class ThumbnailLabel(QtWidgets.QLabel):
         if self.thumbnail is None:
             self.thumbnail = pixmap
             pixmap = pixmap.scaled(pixmap.width() // 2, pixmap.height() // 2)
+
+        complete_icon_pixmap = QtGui.QPixmap(
+            "resources/icons/check-mark-square-icon.svg"
+        )
+        if not complete_icon_pixmap.isNull() and self.complete:
+            icon_dimension = pixmap.width() // 7
+            complete_icon_pixmap = complete_icon_pixmap.scaled(
+                icon_dimension, icon_dimension
+            )
+
+            icon_painter = QtGui.QPainter(complete_icon_pixmap)
+
+            icon_painter.setCompositionMode(
+                QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+            )
+            icon_painter.setBrush(QtGui.QBrush("#66CC00"))
+            icon_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+            icon_painter.drawRect(complete_icon_pixmap.rect())
+
+            icon_painter.end()
+
+            main_painter = QtGui.QPainter(pixmap)
+
+            main_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+            main_painter.drawPixmap(
+                QtCore.QPoint(pixmap.width() - icon_dimension - 5, 5),
+                complete_icon_pixmap,
+            )
+
+            main_painter.end()
+
         super().setPixmap(pixmap)
 
     def heightForWidth(self, width: int) -> int:
@@ -69,12 +103,15 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self._queued_activate_frame_index = None
         self._queued_activate_frame_colour = None
 
+        self._complete_thumbnails_indices = []
+
         self._initialise_widget()
 
     def flush_thumbnails(self) -> None:
         self.widget().deleteLater()
         self._queued_activate_frame_index = None
         self._queued_activate_frame_colour = None
+        self._complete_thumbnails_indices = []
         self._initialise_widget()
 
     def toggle_activate_frame(self, index: int, colour: str = "#0099FF") -> None:
@@ -101,6 +138,15 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
             )
 
         thumbnail.setPalette(palette)
+
+    def mark_thumbnail_as_complete(self, index: int) -> None:
+        thumbnail_item = self.get_thumbnail_item_from_index(index)
+        if thumbnail_item is not None:
+            thumbnail = thumbnail_item.widget()
+            thumbnail.complete = True
+            thumbnail.setPixmap(thumbnail.pixmap())
+
+        self._complete_thumbnails_indices.append(index)
 
     def _initialise_widget(self) -> None:
         layout = QtWidgets.QGridLayout()
@@ -138,6 +184,8 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
             )
         )
         thumbnail_label = self._build_thumbnail_label(index, file_name, self.widget())
+
+        thumbnail_label.complete = index in self._complete_thumbnails_indices
         thumbnail_label.setPixmap(thumbnail_pixmap)
         thumbnail_label.resize(self.get_available_column_width())
 
