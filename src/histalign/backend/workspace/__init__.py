@@ -579,6 +579,8 @@ class Workspace(QtCore.QObject):
         self, directory_path: str, only_neun: bool = False
     ) -> None:
         self.last_parsed_directory = directory_path
+        self.current_aligner_image_hash = None
+        self.current_aligner_image_index = None
 
         working_directory_hash = self.generate_directory_hash(directory_path)
         working_directory = (
@@ -733,15 +735,16 @@ class Workspace(QtCore.QObject):
         workspace_settings = contents["workspace_settings"]
         workspace.working_directory = workspace_settings["working_directory"]
         workspace.last_parsed_directory = workspace_settings["last_parsed_directory"]
+
+        if workspace.last_parsed_directory is not None:
+            workspace.parse_image_directory(workspace.last_parsed_directory)
+
         workspace.current_aligner_image_hash = workspace_settings[
             "current_aligner_image_hash"
         ]
         workspace.current_aligner_image_index = workspace_settings[
             "current_aligner_image_index"
         ]
-
-        if workspace.last_parsed_directory is not None:
-            workspace.parse_image_directory(workspace.last_parsed_directory)
 
         return workspace
 
