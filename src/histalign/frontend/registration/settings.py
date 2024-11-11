@@ -138,6 +138,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         rotation_spin_box.setMaximum(90.0)
         rotation_spin_box.setSingleStep(0.1)
         rotation_spin_box.valueChanged.connect(self.update_rotation)
+        rotation_spin_box.installEventFilter(self)
         self.rotation_spin_box = rotation_spin_box
 
         translation_x_spin_box = QtWidgets.QSpinBox()
@@ -160,6 +161,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         scale_x_spin_box.setValue(1.0)
         scale_x_spin_box.setSingleStep(0.01)
         scale_x_spin_box.valueChanged.connect(self.update_scale_x)
+        scale_x_spin_box.installEventFilter(self)
         self.scale_x_spin_box = scale_x_spin_box
 
         scale_y_spin_box = QtWidgets.QDoubleSpinBox()
@@ -168,6 +170,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         scale_y_spin_box.setValue(1.0)
         scale_y_spin_box.setSingleStep(0.01)
         scale_y_spin_box.valueChanged.connect(self.update_scale_y)
+        scale_y_spin_box.installEventFilter(self)
         self.scale_y_spin_box = scale_y_spin_box
 
         shear_x_spin_box = QtWidgets.QDoubleSpinBox()
@@ -176,6 +179,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         shear_x_spin_box.setValue(0.0)
         shear_x_spin_box.setSingleStep(0.01)
         shear_x_spin_box.valueChanged.connect(self.update_shear_x)
+        shear_x_spin_box.installEventFilter(self)
         self.shear_x_spin_box = shear_x_spin_box
 
         shear_y_spin_box = QtWidgets.QDoubleSpinBox()
@@ -184,6 +188,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         shear_y_spin_box.setValue(0.0)
         shear_y_spin_box.setSingleStep(0.01)
         shear_y_spin_box.valueChanged.connect(self.update_shear_y)
+        shear_y_spin_box.installEventFilter(self)
         self.shear_y_spin_box = shear_y_spin_box
 
         layout = QtWidgets.QFormLayout()
@@ -204,21 +209,49 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         if not watched.isEnabled():
             return super().eventFilter(watched, event)
 
+        modified = False
         match event.type():
-            case QtCore.QEvent.Type.Wheel:
-                if event.angleDelta().y() > 0:  # Scroll up
-                    watched.setValue(watched.value() + 5 * watched.singleStep())
-                elif event.angleDelta().y() < 0:  # Scroll down
-                    watched.setValue(watched.value() - 5 * watched.singleStep())
-                else:  # Could be horizontal scrolling
+            case QtCore.QEvent.Type.KeyPress:
+                combination = event.keyCombination()
+                if combination.key() == QtCore.Qt.Key.Key_Up:
+                    direction_multiplier = 1
+                elif combination.key() == QtCore.Qt.Key.Key_Down:
+                    direction_multiplier = -1
+                else:
                     return super().eventFilter(watched, event)
 
-                # Reproduce selection behaviour as it is with up/down buttons
-                watched.lineEdit().setSelection(
-                    len(watched.lineEdit().text()), -watched.lineEdit().maxLength()
-                )
+                if (
+                    combination.keyboardModifiers()
+                    == QtCore.Qt.KeyboardModifier.ShiftModifier
+                ):
+                    modified = True
+                elif (
+                    combination.keyboardModifiers()
+                    != QtCore.Qt.KeyboardModifier.NoModifier
+                ):
+                    # Drop Qt's default handling of combinations
+                    return True
+            case QtCore.QEvent.Type.Wheel:
+                modified = True
+                if event.angleDelta().y() > 0:  # Scroll up
+                    direction_multiplier = 1
+                elif event.angleDelta().y() < 0:  # Scroll down
+                    direction_multiplier = -1
+                else:  # Could be horizontal scrolling
+                    return super().eventFilter(watched, event)
             case _:
                 return super().eventFilter(watched, event)
+
+        step_size = watched.singleStep()
+        if modified:
+            step_size *= 5
+
+        watched.setValue(watched.value() + direction_multiplier * step_size)
+
+        # Reproduce selection behaviour as it is with up/down buttons
+        watched.lineEdit().setSelection(
+            len(watched.lineEdit().text()), -watched.lineEdit().maxLength()
+        )
 
         return True
 
