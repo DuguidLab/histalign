@@ -42,7 +42,11 @@ class ThumbnailLabel(QtWidgets.QLabel):
     def resize(self, width: int) -> None:
         height = self.heightForWidth(width)
         if self.thumbnail is not None:
-            self.setPixmap(self.thumbnail.scaled(width, height))
+            self.setPixmap(
+                self.thumbnail.scaled(
+                    width - self.lineWidth() * 2, height - self.lineWidth() * 2
+                )
+            )
 
         self.setFixedSize(width, height)
 
@@ -61,11 +65,42 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self._start_drag_position = None
         self._scroll_timer = QtCore.QTimer()
 
+        # Used when activation is requested but thumbnail has not loaded yet
+        self._queued_activate_frame_index = None
+        self._queued_activate_frame_colour = None
+
         self._initialise_widget()
 
     def flush_thumbnails(self) -> None:
         self.widget().deleteLater()
+        self._queued_activate_frame_index = None
+        self._queued_activate_frame_colour = None
         self._initialise_widget()
+
+    def toggle_activate_frame(self, index: int, colour: str = "#0099FF") -> None:
+        thumbnail_item = self.get_thumbnail_item_from_index(index)
+        if thumbnail_item is None:
+            self._queued_activate_frame_index = index
+            self._queued_activate_frame_colour = colour
+            return
+
+        thumbnail = thumbnail_item.widget()
+        palette = thumbnail.palette()
+        default_colour = (
+            QtWidgets.QApplication.instance()
+            .palette()
+            .color(QtGui.QPalette.ColorRole.Window)
+        )
+
+        if palette.color(QtGui.QPalette.ColorRole.WindowText) == default_colour:
+            palette.setColor(QtGui.QPalette.ColorRole.WindowText, colour)
+        else:
+            palette.setColor(
+                QtGui.QPalette.ColorRole.WindowText,
+                default_colour,
+            )
+
+        thumbnail.setPalette(palette)
 
     def _initialise_widget(self) -> None:
         layout = QtWidgets.QGridLayout()
@@ -79,7 +114,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                 QtGui.QImage.Format.Format_Alpha8,
             )
         )
-        placeholder_thumbnail_label = ThumbnailLabel(0, "")
+        placeholder_thumbnail_label = self._build_thumbnail_label(0, "")
         placeholder_thumbnail_label.setPixmap(placeholder_pixmap)
         for i in range(COLUMN_COUNT):
             layout.addWidget(placeholder_thumbnail_label, 0, i)
@@ -102,7 +137,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                 QtGui.QImage.Format.Format_Grayscale8,
             )
         )
-        thumbnail_label = ThumbnailLabel(index, file_name, self.widget())
+        thumbnail_label = self._build_thumbnail_label(index, file_name, self.widget())
         thumbnail_label.setPixmap(thumbnail_pixmap)
         thumbnail_label.resize(self.get_available_column_width())
 
@@ -112,9 +147,7 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self, index: int, replacement_widget: QtWidgets.QWidget
     ) -> None:
         layout = self.widget().layout()
-        old_widget_item = layout.itemAtPosition(
-            index // COLUMN_COUNT, index % COLUMN_COUNT
-        )
+        old_widget_item = self.get_thumbnail_item_from_index(index)
         if old_widget_item is not None:
             layout.takeAt(
                 layout.indexOf(old_widget_item.widget())
@@ -123,6 +156,13 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         layout.addWidget(
             replacement_widget, index // COLUMN_COUNT, index % COLUMN_COUNT
         )
+
+        if index == self._queued_activate_frame_index:
+            self.toggle_activate_frame(
+                self._queued_activate_frame_index, self._queued_activate_frame_colour
+            )
+            self._queued_activate_frame_index = None
+            self._queued_activate_frame_colour = None
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         available_column_width = self.get_available_column_width()
@@ -142,6 +182,15 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
             - (self.widget().layout().spacing() * (COLUMN_COUNT - 1))
             - self.verticalScrollBar().width()
         ) // COLUMN_COUNT
+
+    def get_thumbnail_item_from_index(
+        self, index: int
+    ) -> Optional[QtWidgets.QWidgetItem]:
+        return (
+            self.widget()
+            .layout()
+            .itemAtPosition(index // COLUMN_COUNT, index % COLUMN_COUNT)
+        )
 
     def drag_scroll(self, up_or_down: Literal["up", "down"], distance: int) -> None:
         speed = (SCROLL_THRESHOLD - distance) // 4
@@ -233,6 +282,27 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
                 return super().eventFilter(watched, event)
 
         return True
+
+    @staticmethod
+    def _build_thumbnail_label(
+        index: int, file_name: str, parent: Optional[QtWidgets.QWidget] = None
+    ) -> ThumbnailLabel:
+        thumbnail_label = ThumbnailLabel(index, file_name, parent)
+
+        thumbnail_label.setLineWidth(3)
+        thumbnail_label.setFrameShape(QtWidgets.QFrame.Shape.Box)
+
+        # Hide the border by default
+        palette = thumbnail_label.palette()
+        palette.setColor(
+            QtGui.QPalette.ColorRole.WindowText,
+            QtWidgets.QApplication.instance()
+            .palette()
+            .color(QtGui.QPalette.ColorRole.Window),
+        )
+        thumbnail_label.setPalette(palette)
+
+        return thumbnail_label
 
 
 class ThumbnailsWidget(QtWidgets.QWidget):

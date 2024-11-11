@@ -660,6 +660,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.dirty_workspace()
 
+        old_index = self.workspace.current_aligner_image_index
+
         image = self.workspace.get_image(index)
         if image is None:
             self.logger.error(
@@ -682,3 +684,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.toolbar.reset_histology_button.setEnabled(True)
         self.settings_widget.histology_settings_widget.setEnabled(True)
+
+        if old_index is not None:
+            self.thumbnails_widget.content_area.toggle_activate_frame(old_index)
+        if old_index != index:
+            self.thumbnails_widget.content_area.toggle_activate_frame(index)
