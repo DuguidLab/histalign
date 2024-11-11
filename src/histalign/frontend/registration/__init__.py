@@ -160,12 +160,14 @@ class RegistrationToolBar(QtWidgets.QToolBar):
     load_button: ShortcutAwareToolButton
     reset_histology_button: ShortcutAwareToolButton
     reset_volume_button: ShortcutAwareToolButton
+    apply_auto_threshold_button: ShortcutAwareToolButton
     background_threshold_spin_box: QtWidgets.QSpinBox
 
     save_requested: QtCore.Signal = QtCore.Signal()
     load_requested: QtCore.Signal = QtCore.Signal()
     reset_histology_requested: QtCore.Signal = QtCore.Signal()
     reset_volume_requested: QtCore.Signal = QtCore.Signal()
+    apply_auto_threshold_requested: QtCore.Signal = QtCore.Signal()
     background_threshold_changed: QtCore.Signal = QtCore.Signal(int)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -224,6 +226,26 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.reset_volume_button = reset_volume_button
 
         #
+        apply_auto_threshold_button = ShortcutAwareToolButton()
+
+        apply_auto_threshold_button.setToolTip(
+            "Apply a pass of ImageJ's brightness/contrast auto-thresholding algorithm."
+        )
+        apply_auto_threshold_button.setStatusTip(
+            "Apply a pass of ImageJ's brightness/contrast auto-thresholding algorithm."
+        )
+        apply_auto_threshold_button.setIcon(
+            DynamicThemeIcon("resources/icons/background-icon.png")
+        )
+
+        apply_auto_threshold_button.clicked.connect(
+            self.apply_auto_threshold_requested.emit
+        )
+        apply_auto_threshold_button.setShortcut(QtGui.QKeySequence("Ctrl+Shift+c"))
+
+        self.apply_auto_threshold_button = apply_auto_threshold_button
+
+        #
         background_spin_box_icon = QtWidgets.QToolButton()
 
         background_spin_box_icon.setIcon(
@@ -256,6 +278,8 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.addWidget(load_button)
         self.addWidget(reset_histology_button)
         self.addWidget(reset_volume_button)
+        self.addSeparator()
+        self.addWidget(apply_auto_threshold_button)
         self.addSeparator()
         self.addWidget(background_spin_box_icon)
         self.addWidget(background_spin_box)
@@ -361,8 +385,12 @@ class RegistrationMainWindow(BasicApplicationWindow):
         toolbar.load_button.setEnabled(False)
         toolbar.reset_histology_button.setEnabled(False)
         toolbar.reset_volume_button.setEnabled(False)
+        toolbar.apply_auto_threshold_button.setEnabled(False)
 
         toolbar.save_requested.connect(lambda: toolbar.load_button.setEnabled(True))
+        toolbar.save_requested.connect(
+            lambda: toolbar.apply_auto_threshold_button.setEnabled(True)
+        )
         toolbar.save_requested.connect(
             lambda: self.thumbnails_widget.content_area.mark_thumbnail_as_complete(
                 self.workspace.current_aligner_image_index
@@ -376,6 +404,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         )
         toolbar.reset_volume_requested.connect(
             settings_widget.volume_settings_widget.reset_to_defaults
+        )
+        toolbar.apply_auto_threshold_requested.connect(
+            self.alignment_widget.apply_auto_contrast
         )
 
         self.addToolBar(toolbar)
@@ -697,6 +728,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.toolbar.reset_histology_button.setEnabled(True)
         self.settings_widget.histology_settings_widget.setEnabled(True)
+        self.toolbar.apply_auto_threshold_button.setEnabled(True)
 
         if old_index is not None:
             self.thumbnails_widget.content_area.toggle_activate_frame(old_index)

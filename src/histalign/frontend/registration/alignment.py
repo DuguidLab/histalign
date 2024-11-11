@@ -12,6 +12,7 @@ from histalign.backend.models import (
     HistologySettings,
     VolumeSettings,
 )
+from histalign.backend.preprocessing import simulate_auto_contrast_passes
 from histalign.backend.workspace import VolumeSlicer
 from histalign.frontend.pyside_helpers import get_colour_table
 
@@ -20,6 +21,7 @@ class AlignmentWidget(QtWidgets.QWidget):
     background_threshold: int = 0
     global_alpha: int = 255
     lut: str = str
+    auto_contrast_passes: int = 0
 
     scene: QtWidgets.QGraphicsScene
     view: QtWidgets.QGraphicsView
@@ -57,6 +59,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
         self.histology_pixmap = self.scene.addPixmap(QtGui.QPixmap())
         self.histology_image = QtGui.QImage()
+        self.histology_array = np.array([])
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -70,6 +73,12 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
 
     def update_histological_slice(self, array: Optional[np.ndarray]) -> None:
+        self.histology_array = array
+        self.auto_contrast_passes = 0
+
+        self.update_histology_image(array)
+
+    def update_histology_image(self, array: np.ndarray) -> None:
         if array is None:
             self.histology_image = QtGui.QImage()
         else:
@@ -80,7 +89,9 @@ class AlignmentWidget(QtWidgets.QWidget):
                 array.shape[1],
                 QtGui.QImage.Format.Format_Indexed8,
             )
-            self.histology_image.setColorTable(get_colour_table(self.lut))
+            self.histology_image.setColorTable(
+                get_colour_table(self.lut, self.global_alpha, self.background_threshold)
+            )
 
         self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
         self.update_histology_pixmap()
@@ -107,6 +118,19 @@ class AlignmentWidget(QtWidgets.QWidget):
             return
 
         self.update_histology_pixmap()
+
+    def apply_auto_contrast(self) -> None:
+        self.auto_contrast_passes += 1
+
+        new_array, successful = simulate_auto_contrast_passes(
+            self.histology_array, self.auto_contrast_passes
+        )
+
+        if not successful:
+            self.auto_contrast_passes = 0
+            new_array = self.histology_array
+
+        self.update_histology_image(new_array)
 
     def resizeEvent(self, event) -> None:
         self.handle_volume_scaling_change(event.size())

@@ -144,9 +144,9 @@ def compute_mean(
     return float(np.mean(array[(lower_bound <= array) & (array <= upper_bound)]))
 
 
-def apply_auto_contrast(
+def simulate_auto_contrast_passes(
     image: np.ndarray, passes: int = 1, normalise: bool = True, inplace: bool = False
-) -> np.ndarray:
+) -> tuple[np.ndarray, bool]:
     """Apply the ImageJ auto-contrast algorithm to an image.
 
     Args:
@@ -161,6 +161,7 @@ def apply_auto_contrast(
     Returns:
         np.ndarray: The result of applying `passes` number of passes on `image` using
                     the auto-contrast algorithm.
+        bool: Whether the algorithm was successful. Passing `passes=0` returns False.
 
     References:
         https://github.com/imagej/ImageJ/blob/master/ij/plugin/frame/ContrastAdjuster.java#L815
@@ -172,7 +173,7 @@ def apply_auto_contrast(
                 "Returning the image as is."
             )
 
-        return image
+        return image, False
 
     if not inplace:
         image = image.copy()
@@ -216,6 +217,7 @@ def apply_auto_contrast(
     histogram_maximum = j
 
     # If algorithm was successful, clip the image. Otherwise, don't modify the image.
+    successful = False
     if histogram_minimum < histogram_maximum:
         np.clip(
             image,
@@ -223,8 +225,9 @@ def apply_auto_contrast(
             histogram[1][histogram_maximum],
             out=image,
         )
+        successful = True
 
     if normalise:
         image[:] = normalise_array(image)
 
-    return image
+    return image, successful
