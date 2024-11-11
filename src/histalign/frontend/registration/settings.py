@@ -110,7 +110,7 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
 class HistologySettingsWidget(QtWidgets.QWidget):
     settings: Optional[HistologySettings] = None
 
-    rotation_spin_box: QtWidgets.QSpinBox
+    rotation_spin_box: QtWidgets.QDoubleSpinBox
     translation_x_spin_box: QtWidgets.QSpinBox
     translation_y_spin_box: QtWidgets.QSpinBox
     scale_x_spin_box: QtWidgets.QDoubleSpinBox
@@ -133,9 +133,10 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         separator = QtWidgets.QFrame()
         separator.setFrameShape(QtWidgets.QFrame.HLine)
 
-        rotation_spin_box = QtWidgets.QSpinBox()
-        rotation_spin_box.setMinimum(-90)
-        rotation_spin_box.setMaximum(90)
+        rotation_spin_box = QtWidgets.QDoubleSpinBox()
+        rotation_spin_box.setMinimum(-90.0)
+        rotation_spin_box.setMaximum(90.0)
+        rotation_spin_box.setSingleStep(0.1)
         rotation_spin_box.valueChanged.connect(self.update_rotation)
         self.rotation_spin_box = rotation_spin_box
 
@@ -268,7 +269,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
     @QtCore.Slot()
     def reset_to_defaults(self) -> None:
         self.blockSignals(True)  # Avoid notifying for every value reset
-        self.rotation_spin_box.setValue(0)
+        self.rotation_spin_box.setValue(0.0)
         self.translation_x_spin_box.setValue(0)
         self.translation_y_spin_box.setValue(0)
         self.scale_x_spin_box.setValue(1.0)

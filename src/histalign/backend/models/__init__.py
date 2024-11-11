@@ -40,7 +40,7 @@ class QuantificationMeasure(str, Enum):
 
 
 class HistologySettings(BaseModel, validate_assignment=True):
-    rotation: int = 0
+    rotation: float = 0.0
     translation_x: int = 0
     translation_y: int = 0
     scale_x: float = 1.0
@@ -50,8 +50,8 @@ class HistologySettings(BaseModel, validate_assignment=True):
 
     @field_validator("rotation")
     @classmethod
-    def validate_rotation(cls, value: int) -> int:
-        if not -90 <= value <= 90:
+    def validate_rotation(cls, value: float) -> float:
+        if not -90.0 <= value <= 90.0:
             raise ValueError("rotation is limited to the range -90 to 90")
         return value
 
