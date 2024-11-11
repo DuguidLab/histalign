@@ -109,6 +109,8 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
 
 class HistologySettingsWidget(QtWidgets.QWidget):
     settings: Optional[HistologySettings] = None
+    scaling_linked: bool = True
+    scaling_ratio: float = 1.0
 
     rotation_spin_box: QtWidgets.QDoubleSpinBox
     translation_x_spin_box: QtWidgets.QSpinBox
@@ -117,6 +119,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
     scale_y_spin_box: QtWidgets.QDoubleSpinBox
     shear_x_spin_box: QtWidgets.QDoubleSpinBox
     shear_y_spin_box: QtWidgets.QDoubleSpinBox
+    scale_link_button = QtWidgets.QPushButton
 
     values_changed: QtCore.Signal = QtCore.Signal()
 
@@ -191,6 +194,23 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         shear_y_spin_box.installEventFilter(self)
         self.shear_y_spin_box = shear_y_spin_box
 
+        #
+        scale_link_button = QtWidgets.QPushButton()
+
+        scale_link_button.clicked.connect(self.toggle_scale_link)
+
+        scale_link_button.setIcon(QtGui.QIcon("resources/icons/link-icon.png"))
+
+        self.scale_link_button = scale_link_button
+
+        #
+        scale_link_layout = QtWidgets.QHBoxLayout()
+
+        scale_link_layout.addWidget(
+            scale_link_button, alignment=QtCore.Qt.AlignmentFlag.AlignRight
+        )
+
+        #
         layout = QtWidgets.QFormLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addRow(title)
@@ -199,6 +219,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         layout.addRow("X Translation", self.translation_x_spin_box)
         layout.addRow("Y Translation", self.translation_y_spin_box)
         layout.addRow("X Scale", self.scale_x_spin_box)
+        layout.addRow(scale_link_layout)
         layout.addRow("Y Scale", self.scale_y_spin_box)
         layout.addRow("X Shear", self.shear_x_spin_box)
         layout.addRow("Y Shear", self.shear_y_spin_box)
@@ -282,11 +303,25 @@ class HistologySettingsWidget(QtWidgets.QWidget):
     @QtCore.Slot()
     def update_scale_x(self, new_value: float) -> None:
         self.settings.scale_x = round(new_value, 2)
+
+        if self.scaling_linked:
+            self.settings.scale_y = new_value / self.scaling_ratio
+            self.scale_y_spin_box.setValue(self.settings.scale_y)
+        else:
+            self.scaling_ratio = self.settings.scale_x / self.settings.scale_y
+
         self.values_changed.emit()
 
     @QtCore.Slot()
     def update_scale_y(self, new_value: float) -> None:
         self.settings.scale_y = round(new_value, 2)
+
+        if self.scaling_linked:
+            self.settings.scale_x = new_value * self.scaling_ratio
+            self.scale_x_spin_box.setValue(self.settings.scale_x)
+        else:
+            self.scaling_ratio = self.settings.scale_x / self.settings.scale_y
+
         self.values_changed.emit()
 
     @QtCore.Slot()
@@ -312,6 +347,19 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.blockSignals(False)
 
         self.values_changed.emit()
+
+    @QtCore.Slot()
+    def toggle_scale_link(self) -> None:
+        self.scaling_linked = not self.scaling_linked
+
+        if self.scaling_linked:
+            self.scale_link_button.setIcon(QtGui.QIcon("resources/icons/link-icon.png"))
+        else:
+            self.scale_link_button.setIcon(
+                QtGui.QIcon("resources/icons/broken-link-icon.png")
+            )
+
+        self.scale_link_button.update()
 
 
 class SettingsWidget(QtWidgets.QWidget):
