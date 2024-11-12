@@ -7,6 +7,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import HistologySettings, Orientation, VolumeSettings
+from histalign.frontend.common_widgets import Icon
 
 
 class VolumeSettingsWidget(QtWidgets.QWidget):
@@ -199,7 +200,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         scale_link_button.clicked.connect(self.toggle_scale_link)
 
-        scale_link_button.setIcon(QtGui.QIcon("resources/icons/link-icon.png"))
+        scale_link_button.setIcon(QtGui.QIcon("resources/icons/link-vertical-icon.png"))
 
         self.scale_link_button = scale_link_button
 
@@ -211,16 +212,37 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         )
 
         #
+        scale_x_layout = QtWidgets.QHBoxLayout()
+
+        scale_x_layout.addWidget(scale_x_spin_box, stretch=1)
+        scale_x_layout.addWidget(
+            Icon("resources/icons/arrow-thin-chevron-top-right-corner-icon.png")
+        )
+
+        #
+        scale_y_layout = QtWidgets.QHBoxLayout()
+
+        scale_y_layout.addWidget(scale_y_spin_box, stretch=1)
+        scale_y_layout.addWidget(
+            Icon("resources/icons/arrow-thin-chevron-bottom-right-corner-icon.png")
+        )
+
+        #
         layout = QtWidgets.QFormLayout()
+
         layout.setContentsMargins(0, 0, 0, 0)
+
         layout.addRow(title)
         layout.addRow(separator)
         layout.addRow("Rotation", self.rotation_spin_box)
+        layout.addRow(QtWidgets.QWidget())
         layout.addRow("X Translation", self.translation_x_spin_box)
         layout.addRow("Y Translation", self.translation_y_spin_box)
-        layout.addRow("X Scale", self.scale_x_spin_box)
+        layout.addRow(QtWidgets.QWidget())
+        layout.addRow("X Scale", scale_x_layout)
         layout.addRow(scale_link_layout)
-        layout.addRow("Y Scale", self.scale_y_spin_box)
+        layout.addRow("Y Scale", scale_y_layout)
+        layout.addRow(QtWidgets.QWidget())
         layout.addRow("X Shear", self.shear_x_spin_box)
         layout.addRow("Y Shear", self.shear_y_spin_box)
 
@@ -371,10 +393,12 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.scaling_linked = not self.scaling_linked
 
         if self.scaling_linked:
-            self.scale_link_button.setIcon(QtGui.QIcon("resources/icons/link-icon.png"))
+            self.scale_link_button.setIcon(
+                QtGui.QIcon("resources/icons/link-vertical-icon.png")
+            )
         else:
             self.scale_link_button.setIcon(
-                QtGui.QIcon("resources/icons/broken-link-icon.png")
+                QtGui.QIcon("resources/icons/broken-link-vertical-icon.png")
             )
 
         self.scale_link_button.update()

@@ -1235,3 +1235,25 @@ class Canvas(FigureCanvasQTAgg):
         self.axes = figure.add_subplot(111)
 
         super().__init__(figure)
+
+
+class Icon(QtWidgets.QPushButton):
+    def __init__(
+        self,
+        icon_path: Optional[str] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.setFlat(True)
+
+        #
+        if icon_path is not None:
+            self.setIcon(DynamicThemeIcon(icon_path))
+
+    def event(self, e: QtCore.QEvent) -> bool:
+        if e.type() != QtCore.QEvent.Type.Paint:
+            return True
+
+        return super().event(e)
