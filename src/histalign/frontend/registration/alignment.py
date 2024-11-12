@@ -17,6 +17,52 @@ from histalign.backend.workspace import VolumeSlicer
 from histalign.frontend.pyside_helpers import get_colour_table
 
 
+class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
+    """A movable and zoomable class for QGraphicsPixmapItem.
+
+    This is not suitable for `common_widgets.py` because of a bit of spaghetti code.
+    Since QGraphicsItems are not QObjects, they cannot have signals. The workaround is
+    to have them call a function which is patched through by the parent to emit a
+    signal.
+    """
+
+    previous_position: Optional[QtCore.QPointF] = None
+
+    def move(self, translation: QtCore.QPoint) -> None:
+        raise NotImplementedError("Function was not patched.")
+
+    def zoom(self, steps: int) -> None:
+        raise NotImplementedError("Function was not patched.")
+
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+        self.previous_position = event.scenePos()
+
+    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+        new_position = event.scenePos()
+
+        movement = new_position - self.previous_position
+        self.move(QtCore.QPoint(round(movement.x()), round(movement.y())))
+
+        self.previous_position = new_position
+
+    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+        self.previous_position = None
+
+    def wheelEvent(self, event: QtWidgets.QGraphicsSceneWheelEvent):
+        modified = event.modifiers() == QtCore.Qt.KeyboardModifier.ShiftModifier
+        if event.delta() > 0:
+            direction_multiplier = 1
+        elif event.delta() < 0:
+            direction_multiplier = -1
+        else:  # Horizontal scrolling
+            return super().eventFilter(watched, event)
+
+        # TODO: Avoid hard-coding 5x for modifier here and in `settings.py`
+        if modified:
+            direction_multiplier *= 5
+        self.zoom(direction_multiplier)
+
+
 class AlignmentWidget(QtWidgets.QWidget):
     background_threshold: int = 0
     global_alpha: int = 255
@@ -33,6 +79,9 @@ class AlignmentWidget(QtWidgets.QWidget):
     alignment_settings: Optional[AlignmentSettings] = None
     volume_settings: Optional[VolumeSettings] = None
     histology_settings: Optional[HistologySettings] = None
+
+    translation_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
+    zoom_changed: QtCore.Signal = QtCore.Signal(int)
 
     def __init__(
         self, lut: str = "grey", parent: Optional[QtWidgets.QWidget] = None
@@ -56,8 +105,23 @@ class AlignmentWidget(QtWidgets.QWidget):
             QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
+        #
         self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
-        self.histology_pixmap = self.scene.addPixmap(QtGui.QPixmap())
+
+        self.histology_pixmap = MovableAndZoomableGraphicsPixmapItem(
+            self.scene.addPixmap(QtGui.QPixmap())
+        )
+        # Step through a lambda to scale the translation properly. Without this, the
+        # translation is still correct but is smaller than the mouse movement which
+        # is unintuitive from a UX POV.
+        self.histology_pixmap.move = lambda x: self.translation_changed.emit(
+            QtCore.QPoint(
+                x.x() / self.alignment_settings.histology_scaling,
+                x.y() / self.alignment_settings.histology_scaling,
+            )
+        )
+        self.histology_pixmap.zoom = self.zoom_changed.emit
+
         self.histology_image = QtGui.QImage()
         self.histology_array = np.array([])
 

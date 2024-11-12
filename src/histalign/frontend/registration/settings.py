@@ -285,6 +285,9 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.shear_x_spin_box.setValue(self.settings.shear_x)
         self.shear_y_spin_box.setValue(self.settings.shear_y)
 
+    def compute_scaling_ratio(self) -> None:
+        self.scaling_ratio = self.settings.scale_x / self.settings.scale_y
+
     @QtCore.Slot()
     def update_rotation(self, new_angle: int) -> None:
         self.settings.rotation = new_angle
@@ -308,7 +311,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
             self.settings.scale_y = new_value / self.scaling_ratio
             self.scale_y_spin_box.setValue(self.settings.scale_y)
         else:
-            self.scaling_ratio = self.settings.scale_x / self.settings.scale_y
+            self.compute_scaling_ratio()
 
         self.values_changed.emit()
 
@@ -320,7 +323,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
             self.settings.scale_x = new_value * self.scaling_ratio
             self.scale_x_spin_box.setValue(self.settings.scale_x)
         else:
-            self.scaling_ratio = self.settings.scale_x / self.settings.scale_y
+            self.compute_scaling_ratio()
 
         self.values_changed.emit()
 
@@ -366,6 +369,32 @@ class HistologySettingsWidget(QtWidgets.QWidget):
             )
 
         self.scale_link_button.update()
+
+    @QtCore.Slot()
+    def handle_outside_zoom(self, steps: int) -> None:
+        scaling_linked = self.scaling_linked
+        if not scaling_linked:
+            self.toggle_scale_link()
+
+        spin_box = (
+            self.scale_x_spin_box
+            if self.scale_x_spin_box.value() > self.scale_y_spin_box.value()
+            else self.scale_y_spin_box
+        )
+
+        spin_box.setValue(spin_box.value() + steps * spin_box.singleStep())
+
+        if not scaling_linked:
+            self.toggle_scale_link()
+
+    @QtCore.Slot()
+    def handle_outside_translation(self, translation: QtCore.QPoint) -> None:
+        self.translation_x_spin_box.setValue(
+            self.translation_x_spin_box.value() + translation.x()
+        )
+        self.translation_y_spin_box.setValue(
+            self.translation_y_spin_box.value() + translation.y()
+        )
 
 
 class SettingsWidget(QtWidgets.QWidget):

@@ -357,6 +357,13 @@ class RegistrationMainWindow(BasicApplicationWindow):
             alignment_widget.update_histology_pixmap
         )
 
+        alignment_widget.translation_changed.connect(
+            settings_widget.histology_settings_widget.handle_outside_translation
+        )
+        alignment_widget.zoom_changed.connect(
+            settings_widget.histology_settings_widget.handle_outside_zoom
+        )
+
         self.settings_widget = settings_widget
 
         #
