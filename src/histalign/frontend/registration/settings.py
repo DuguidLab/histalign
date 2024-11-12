@@ -280,8 +280,13 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.rotation_spin_box.setValue(self.settings.rotation)
         self.translation_x_spin_box.setValue(self.settings.translation_x)
         self.translation_y_spin_box.setValue(self.settings.translation_y)
+        scaling_linked = self.scaling_linked
+        if scaling_linked:
+            self.toggle_scale_link()
         self.scale_x_spin_box.setValue(self.settings.scale_x)
         self.scale_y_spin_box.setValue(self.settings.scale_y)
+        if scaling_linked:
+            self.toggle_scale_link()
         self.shear_x_spin_box.setValue(self.settings.shear_x)
         self.shear_y_spin_box.setValue(self.settings.shear_y)
 
