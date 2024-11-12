@@ -32,6 +32,10 @@ class ThumbnailLabel(QtWidgets.QLabel):
         if self.thumbnail is None:
             self.thumbnail = pixmap
             pixmap = pixmap.scaled(pixmap.width() // 2, pixmap.height() // 2)
+        if pixmap is None:
+            pixmap = self.thumbnail.scaled(
+                self.pixmap().width(), self.pixmap().height()
+            )
 
         complete_icon_pixmap = QtGui.QPixmap(
             "resources/icons/check-mark-square-icon.svg"
@@ -139,14 +143,17 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
 
         thumbnail.setPalette(palette)
 
-    def mark_thumbnail_as_complete(self, index: int) -> None:
+    def toggle_thumbnail_complete_state(self, index: int) -> None:
         thumbnail_item = self.get_thumbnail_item_from_index(index)
         if thumbnail_item is not None:
             thumbnail = thumbnail_item.widget()
-            thumbnail.complete = True
-            thumbnail.setPixmap(thumbnail.pixmap())
+            thumbnail.complete = not thumbnail.complete
+            thumbnail.setPixmap(None)
 
-        self._complete_thumbnails_indices.append(index)
+        if index in self._complete_thumbnails_indices:
+            self._complete_thumbnails_indices.remove(index)
+        else:
+            self._complete_thumbnails_indices.append(index)
 
     def _initialise_widget(self) -> None:
         layout = QtWidgets.QGridLayout()

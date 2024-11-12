@@ -307,3 +307,20 @@ class ConfirmOverwriteDialog(QtWidgets.QMessageBox):
         self.setButtonText(QtWidgets.QMessageBox.StandardButton.Ok, "Confirm")
 
         self.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+
+
+class ConfirmDeleteDialog(QtWidgets.QMessageBox):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setWindowTitle("Delete file?")
+        self.setText(
+            "Are you sure you want to delete this file? This action is not reversible."
+        )
+        self.setStandardButtons(
+            QtWidgets.QMessageBox.StandardButton.Ok
+            | QtWidgets.QMessageBox.StandardButton.Cancel
+        )
+        self.setButtonText(QtWidgets.QMessageBox.StandardButton.Ok, "Confirm")
+
+        self.setIcon(QtWidgets.QMessageBox.Icon.Warning)

@@ -27,6 +27,7 @@ from histalign.frontend.common_widgets import (
 )
 from histalign.frontend.dialogs import (
     AtlasProgressDialog,
+    ConfirmDeleteDialog,
     InvalidProjectFileDialog,
     NewProjectDialog,
     SaveProjectConfirmationDialog,
@@ -158,6 +159,7 @@ class RegistrationMenuBar(BasicMenuBar):
 class RegistrationToolBar(QtWidgets.QToolBar):
     save_button: ShortcutAwareToolButton
     load_button: ShortcutAwareToolButton
+    delete_button: ShortcutAwareToolButton
     reset_histology_button: ShortcutAwareToolButton
     reset_volume_button: ShortcutAwareToolButton
     apply_auto_threshold_button: ShortcutAwareToolButton
@@ -165,6 +167,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
 
     save_requested: QtCore.Signal = QtCore.Signal()
     load_requested: QtCore.Signal = QtCore.Signal()
+    delete_requested: QtCore.Signal = QtCore.Signal()
     reset_histology_requested: QtCore.Signal = QtCore.Signal()
     reset_volume_requested: QtCore.Signal = QtCore.Signal()
     apply_auto_threshold_requested: QtCore.Signal = QtCore.Signal()
@@ -196,6 +199,17 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         load_button.setShortcut(QtGui.QKeySequence("Ctrl+l"))
 
         self.load_button = load_button
+
+        #
+        delete_button = ShortcutAwareToolButton()
+
+        delete_button.setToolTip("Delete the saved alignment for the current image.")
+        delete_button.setStatusTip("Delete the saved alignment for the current image.")
+        delete_button.setIcon(DynamicThemeIcon("resources/icons/recycle-bin-icon.png"))
+
+        delete_button.clicked.connect(self.delete_requested.emit)
+
+        self.delete_button = delete_button
 
         #
         reset_histology_button = ShortcutAwareToolButton()
@@ -276,6 +290,8 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         #
         self.addWidget(save_button)
         self.addWidget(load_button)
+        self.addWidget(delete_button)
+        self.addSeparator()
         self.addWidget(reset_histology_button)
         self.addWidget(reset_volume_button)
         self.addSeparator()
@@ -390,19 +406,24 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         toolbar.save_button.setEnabled(False)
         toolbar.load_button.setEnabled(False)
+        toolbar.delete_button.setEnabled(False)
         toolbar.reset_histology_button.setEnabled(False)
         toolbar.reset_volume_button.setEnabled(False)
         toolbar.apply_auto_threshold_button.setEnabled(False)
 
         toolbar.save_requested.connect(lambda: toolbar.load_button.setEnabled(True))
+        toolbar.save_requested.connect(lambda: toolbar.delete_button.setEnabled(True))
         toolbar.save_requested.connect(
             lambda: toolbar.apply_auto_threshold_button.setEnabled(True)
         )
         toolbar.save_requested.connect(
-            lambda: self.thumbnails_widget.content_area.mark_thumbnail_as_complete(
+            lambda: self.thumbnails_widget.content_area.toggle_thumbnail_complete_state(
                 self.workspace.current_aligner_image_index
             )
         )
+
+        toolbar.delete_requested.connect(self.show_confirm_delete_alignment_dialog)
+
         toolbar.background_threshold_changed.connect(
             alignment_widget.update_background_alpha
         )
@@ -447,7 +468,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
             ):
                 continue
 
-            self.thumbnails_widget.content_area.mark_thumbnail_as_complete(index)
+            self.thumbnails_widget.content_area.toggle_thumbnail_complete_state(index)
 
     def connect_workspace(self) -> None:
         self.thumbnails_widget.connect_workspace(self.workspace)
@@ -638,6 +659,22 @@ class RegistrationMainWindow(BasicApplicationWindow):
             self.workspace.start_thumbnail_generation()
 
     @QtCore.Slot()
+    def show_confirm_delete_alignment_dialog(self) -> None:
+        dialog = ConfirmDeleteDialog(self)
+
+        if dialog.exec() != QtWidgets.QMessageBox.StandardButton.Ok:
+            return
+
+        self.workspace.delete_alignment()
+        self.statusBar().showMessage("Deleted alignment", 2000)
+        self.thumbnails_widget.content_area.toggle_thumbnail_complete_state(
+            self.workspace.current_aligner_image_index
+        )
+
+        self.toolbar.load_button.setEnabled(False)
+        self.toolbar.delete_button.setEnabled(False)
+
+    @QtCore.Slot()
     def create_project(self, project_settings: ProjectSettings) -> None:
         clear_directory(project_settings.project_path)
 
@@ -730,6 +767,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.toolbar.save_button.setEnabled(True)
 
         self.toolbar.load_button.setEnabled(
+            os.path.exists(self.workspace.build_alignment_path())
+        )
+        self.toolbar.delete_button.setEnabled(
             os.path.exists(self.workspace.build_alignment_path())
         )
 

@@ -776,6 +776,14 @@ class Workspace(QtCore.QObject):
         self.alignment_settings = alignment_settings
 
     @QtCore.Slot()
+    def delete_alignment(self) -> None:
+        alignment_path = self.build_alignment_path()
+        if alignment_path is None:
+            return
+
+        os.remove(alignment_path)
+
+    @QtCore.Slot()
     def update_alignment_scaling(self, scaling: dict[str, float]) -> None:
         volume_scaling = scaling.get("volume_scaling")
         histology_scaling = scaling.get("histology_scaling")
