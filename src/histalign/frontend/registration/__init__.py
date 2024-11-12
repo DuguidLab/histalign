@@ -182,7 +182,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         save_button.setShortcut(QtGui.QKeySequence("Ctrl+s"))
         save_button.setToolTip("Save alignment for the current image. ")
         save_button.setStatusTip("Save alignment for the current image.")
-        save_button.setIcon(DynamicThemeIcon("resources/icons/file-line-icon.png"))
+        save_button.setIcon(DynamicThemeIcon("resources/icons/file-black-icon.png"))
 
         save_button.clicked.connect(self.save_requested.emit)
 
