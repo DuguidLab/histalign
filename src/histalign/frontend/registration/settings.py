@@ -314,7 +314,9 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         if self.scaling_linked:
             self.settings.scale_y = new_value / self.scaling_ratio
+            self.scale_y_spin_box.blockSignals(True)
             self.scale_y_spin_box.setValue(self.settings.scale_y)
+            self.scale_y_spin_box.blockSignals(False)
         else:
             self.compute_scaling_ratio()
 
@@ -326,7 +328,9 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         if self.scaling_linked:
             self.settings.scale_x = new_value * self.scaling_ratio
+            self.scale_x_spin_box.blockSignals(True)
             self.scale_x_spin_box.setValue(self.settings.scale_x)
+            self.scale_x_spin_box.blockSignals(False)
         else:
             self.compute_scaling_ratio()
 
