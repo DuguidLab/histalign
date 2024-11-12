@@ -7,7 +7,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import HistologySettings, Orientation, VolumeSettings
-from histalign.frontend.common_widgets import Icon
+from histalign.frontend.common_widgets import DynamicThemeIcon, Icon
 
 
 class VolumeSettingsWidget(QtWidgets.QWidget):
@@ -200,7 +200,9 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         scale_link_button.clicked.connect(self.toggle_scale_link)
 
-        scale_link_button.setIcon(QtGui.QIcon("resources/icons/link-vertical-icon.png"))
+        scale_link_button.setIcon(
+            DynamicThemeIcon("resources/icons/link-vertical-icon.png")
+        )
 
         self.scale_link_button = scale_link_button
 
@@ -394,11 +396,11 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         if self.scaling_linked:
             self.scale_link_button.setIcon(
-                QtGui.QIcon("resources/icons/link-vertical-icon.png")
+                DynamicThemeIcon("resources/icons/link-vertical-icon.png")
             )
         else:
             self.scale_link_button.setIcon(
-                QtGui.QIcon("resources/icons/broken-link-vertical-icon.png")
+                DynamicThemeIcon("resources/icons/broken-link-vertical-icon.png")
             )
 
         self.scale_link_button.update()
