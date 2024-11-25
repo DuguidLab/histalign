@@ -314,6 +314,10 @@ def recreate_q_transform_from_alignment(
     )
     return (
         QtGui.QTransform()
+        .translate(  # Regular translation
+            histology_settings.translation_x * translation_factor,
+            histology_settings.translation_y * translation_factor,
+        )
         .translate(  # Translation to apply rotation around the center of the image
             initial_width / 2,
             initial_height / 2,
@@ -324,10 +328,6 @@ def recreate_q_transform_from_alignment(
         .translate(  # Translation to get back to position before rotation
             -initial_width / 2,
             -initial_height / 2,
-        )
-        .translate(  # Regular translation
-            histology_settings.translation_x * translation_factor,
-            histology_settings.translation_y * translation_factor,
         )
         .translate(  # Translation to apply scaling from the center of the image
             -(effective_width - initial_width) / 2,

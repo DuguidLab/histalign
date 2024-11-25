@@ -236,6 +236,10 @@ class AlignmentWidget(QtWidgets.QWidget):
                 -initial_width / 2,
                 -initial_height / 2,
             )
+            .translate(  # Regular translation
+                self.histology_settings.translation_x,
+                self.histology_settings.translation_y,
+            )
             .translate(  # Translation to apply rotation around the center of the image
                 initial_width / 2,
                 initial_height / 2,
@@ -246,10 +250,6 @@ class AlignmentWidget(QtWidgets.QWidget):
             .translate(  # Translation to get back to position before rotation
                 -initial_width / 2,
                 -initial_height / 2,
-            )
-            .translate(  # Regular translation
-                self.histology_settings.translation_x,
-                self.histology_settings.translation_y,
             )
             .translate(  # Translation to apply scaling from the center of the image
                 -(effective_width - initial_width) / 2,
