@@ -31,6 +31,9 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
     def move(self, translation: QtCore.QPoint) -> None:
         raise NotImplementedError("Function was not patched.")
 
+    def rotate(self, steps: int) -> None:
+        raise NotImplementedError("Function was not patched.")
+
     def zoom(self, steps: int) -> None:
         raise NotImplementedError("Function was not patched.")
 
@@ -49,7 +52,8 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
         self.previous_position = None
 
     def wheelEvent(self, event: QtWidgets.QGraphicsSceneWheelEvent):
-        modified = event.modifiers() == QtCore.Qt.KeyboardModifier.ShiftModifier
+        modifiers = event.modifiers()
+        modified = modifiers & QtCore.Qt.KeyboardModifier.ShiftModifier
         if event.delta() > 0:
             direction_multiplier = 1
         elif event.delta() < 0:
@@ -60,7 +64,11 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
         # TODO: Avoid hard-coding 5x for modifier here and in `settings.py`
         if modified:
             direction_multiplier *= 5
-        self.zoom(direction_multiplier)
+
+        if modifiers & QtCore.Qt.KeyboardModifier.AltModifier:
+            self.rotate(direction_multiplier)
+        else:
+            self.zoom(direction_multiplier)
 
 
 class AlignmentWidget(QtWidgets.QWidget):
@@ -81,6 +89,7 @@ class AlignmentWidget(QtWidgets.QWidget):
     histology_settings: Optional[HistologySettings] = None
 
     translation_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
+    rotation_changed: QtCore.Signal = QtCore.Signal(int)
     zoom_changed: QtCore.Signal = QtCore.Signal(int)
 
     def __init__(
@@ -120,6 +129,7 @@ class AlignmentWidget(QtWidgets.QWidget):
                 x.y() / self.alignment_settings.histology_scaling,
             )
         )
+        self.histology_pixmap.rotate = self.rotation_changed.emit
         self.histology_pixmap.zoom = self.zoom_changed.emit
 
         self.histology_image = QtGui.QImage()

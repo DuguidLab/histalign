@@ -376,6 +376,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         alignment_widget.translation_changed.connect(
             settings_widget.histology_settings_widget.handle_outside_translation
         )
+        alignment_widget.rotation_changed.connect(
+            settings_widget.histology_settings_widget.handle_outside_rotation
+        )
         alignment_widget.zoom_changed.connect(
             settings_widget.histology_settings_widget.handle_outside_zoom
         )

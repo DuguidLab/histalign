@@ -423,6 +423,12 @@ class HistologySettingsWidget(QtWidgets.QWidget):
             self.toggle_scale_link()
 
     @QtCore.Slot()
+    def handle_outside_rotation(self, steps: int) -> None:
+        self.rotation_spin_box.setValue(
+            self.rotation_spin_box.value() + steps * self.rotation_spin_box.singleStep()
+        )
+
+    @QtCore.Slot()
     def handle_outside_translation(self, translation: QtCore.QPoint) -> None:
         self.translation_x_spin_box.setValue(
             self.translation_x_spin_box.value() + translation.x()
