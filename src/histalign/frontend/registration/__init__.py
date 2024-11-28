@@ -748,7 +748,11 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
     @QtCore.Slot()
     def open_image_in_aligner(self, index: int, force_open: bool = False) -> None:
-        if self.workspace.current_aligner_image_index == index and not force_open:
+        if (
+            self.workspace is None
+            or self.workspace.current_aligner_image_index == index
+            and not force_open
+        ):
             return
 
         self.dirty_workspace()
@@ -757,9 +761,10 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         image = self.workspace.get_image(index)
         if image is None:
-            self.logger.error(
-                f"Failed retrieving image at index {index}, index out of range."
-            )
+            if len(self.workspace._histology_slices) > 0:
+                self.logger.error(
+                    f"Failed retrieving image at index {index}, index out of range."
+                )
             return
 
         self.alignment_widget.update_histological_slice(image)
