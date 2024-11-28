@@ -16,6 +16,7 @@ from typing import Literal, Optional
 
 from PIL import Image
 from PySide6 import QtCore
+import h5py
 import numpy as np
 from scipy import ndimage
 from skimage.transform import resize
@@ -800,6 +801,16 @@ class Workspace(QtCore.QObject):
             if path.suffix in (".h5", ".hdf5", ".npy", ".jpg", ".jpeg", ".png"):
                 if only_neun and path.stem.split("-")[-1] != "neun":
                     continue
+
+                # Only consider 2D, single-dataset files as valid
+                if path.suffix in (".h5", ".hdf5"):
+                    file = h5py.File(path, mode="r")
+                    datasets = list(file.keys())
+                    if len(datasets) != 1:
+                        continue
+                    if len(file[datasets[0]].shape) != 2:
+                        continue
+
                 image_paths.append(str(path))
 
         # Natural sorting taken from: https://stackoverflow.com/a/16090640
