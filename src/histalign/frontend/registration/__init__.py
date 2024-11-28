@@ -420,8 +420,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
             lambda: toolbar.apply_auto_threshold_button.setEnabled(True)
         )
         toolbar.save_requested.connect(
-            lambda: self.thumbnails_widget.content_area.toggle_thumbnail_complete_state(
-                self.workspace.current_aligner_image_index
+            lambda: self.thumbnails_widget.content_area.set_thumbnail_complete_state(
+                self.workspace.current_aligner_image_index, True
             )
         )
 
@@ -471,7 +471,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
             ):
                 continue
 
-            self.thumbnails_widget.content_area.toggle_thumbnail_complete_state(index)
+            self.thumbnails_widget.content_area.set_thumbnail_complete_state(
+                index, True
+            )
 
     def connect_workspace(self) -> None:
         self.thumbnails_widget.connect_workspace(self.workspace)
@@ -670,8 +672,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.workspace.delete_alignment()
         self.statusBar().showMessage("Deleted alignment", 2000)
-        self.thumbnails_widget.content_area.toggle_thumbnail_complete_state(
-            self.workspace.current_aligner_image_index
+        self.thumbnails_widget.content_area.set_thumbnail_complete_state(
+            self.workspace.current_aligner_image_index, False
         )
 
         self.toolbar.load_button.setEnabled(False)

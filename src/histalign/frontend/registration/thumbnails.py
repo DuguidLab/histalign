@@ -143,16 +143,16 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
 
         thumbnail.setPalette(palette)
 
-    def toggle_thumbnail_complete_state(self, index: int) -> None:
+    def set_thumbnail_complete_state(self, index: int, state: bool) -> None:
         thumbnail_item = self.get_thumbnail_item_from_index(index)
         if thumbnail_item is not None:
             thumbnail = thumbnail_item.widget()
-            thumbnail.complete = not thumbnail.complete
+            thumbnail.complete = state
             thumbnail.setPixmap(None)
 
-        if index in self._complete_thumbnails_indices:
+        if index in self._complete_thumbnails_indices and state == False:
             self._complete_thumbnails_indices.remove(index)
-        else:
+        elif index not in self._complete_thumbnails_indices and state == True:
             self._complete_thumbnails_indices.append(index)
 
     def _initialise_widget(self) -> None:
