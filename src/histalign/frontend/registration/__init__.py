@@ -463,7 +463,13 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         # Sync states
         self.alignment_widget.prepare_slicer()
+
+        # Block signals for improved responsiveness
+        self.settings_widget.volume_settings_widget.blockSignals(True)
+        self.settings_widget.histology_settings_widget.blockSignals(True)
         self.settings_widget.reload_settings()
+        self.settings_widget.volume_settings_widget.blockSignals(False)
+        self.settings_widget.histology_settings_widget.blockSignals(False)
 
         for index, slice_ in enumerate(self.workspace._histology_slices):
             if not os.path.exists(
