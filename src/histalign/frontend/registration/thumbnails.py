@@ -119,13 +119,16 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         self._initialise_widget()
 
     def toggle_activate_frame(self, index: int, colour: str = "#0099FF") -> None:
-        thumbnail_item = self.get_thumbnail_item_from_index(index)
-        if thumbnail_item is None:
+        try:
+            thumbnail = self.get_thumbnail_item_from_index(index).widget()
+        except AttributeError:
+            thumbnail = None
+
+        if thumbnail is None or hex(id(thumbnail)) == self._placeholder_thumbnail_hex:
             self._queued_activate_frame_index = index
             self._queued_activate_frame_colour = colour
             return
 
-        thumbnail = thumbnail_item.widget()
         palette = thumbnail.palette()
         default_colour = (
             QtWidgets.QApplication.instance()
@@ -171,6 +174,8 @@ class ThumbnailScrollArea(QtWidgets.QScrollArea):
         placeholder_thumbnail_label.setPixmap(placeholder_pixmap)
         for i in range(COLUMN_COUNT):
             layout.addWidget(placeholder_thumbnail_label, 0, i)
+
+        self._placeholder_thumbnail_hex = hex(id(placeholder_thumbnail_label))
 
         container_widget = QtWidgets.QWidget()
         container_widget.setLayout(layout)
