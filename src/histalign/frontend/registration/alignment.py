@@ -117,23 +117,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         #
         self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
 
-        self.histology_pixmap = MovableAndZoomableGraphicsPixmapItem(
-            self.scene.addPixmap(QtGui.QPixmap())
-        )
-        # Step through a lambda to scale the translation properly. Without this, the
-        # translation is still correct but is smaller than the mouse movement which
-        # is unintuitive from a UX POV.
-        self.histology_pixmap.move = lambda x: self.translation_changed.emit(
-            QtCore.QPoint(
-                x.x() / self.alignment_settings.histology_scaling,
-                x.y() / self.alignment_settings.histology_scaling,
-            )
-        )
-        self.histology_pixmap.rotate = self.rotation_changed.emit
-        self.histology_pixmap.zoom = self.zoom_changed.emit
-
-        self.histology_image = QtGui.QImage()
-        self.histology_array = np.array([])
+        self.reset_histology()
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -208,6 +192,28 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     def resizeEvent(self, event) -> None:
         self.handle_volume_scaling_change(event.size())
+
+    def reset_histology(self) -> None:
+        if hasattr(self, "histology_pixmap"):
+            self.histology_pixmap.setPixmap(QtGui.QPixmap())
+        else:
+            self.histology_pixmap = MovableAndZoomableGraphicsPixmapItem(
+                self.scene.addPixmap(QtGui.QPixmap())
+            )
+            # Step through a lambda to scale the translation properly. Without this, the
+            # translation is still correct but is smaller than the mouse movement which
+            # is unintuitive from a UX POV.
+            self.histology_pixmap.move = lambda x: self.translation_changed.emit(
+                QtCore.QPoint(
+                    x.x() / self.alignment_settings.histology_scaling,
+                    x.y() / self.alignment_settings.histology_scaling,
+                )
+            )
+            self.histology_pixmap.rotate = self.rotation_changed.emit
+            self.histology_pixmap.zoom = self.zoom_changed.emit
+
+        self.histology_image = QtGui.QImage()
+        self.histology_array = np.array([])
 
     @QtCore.Slot()
     def update_volume_pixmap(self) -> None:

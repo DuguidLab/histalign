@@ -683,6 +683,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
     def create_project(self, project_settings: ProjectSettings) -> None:
         clear_directory(project_settings.project_path)
 
+        self.alignment_widget.reset_histology()
+
         self.workspace = Workspace(project_settings)
         self.propagate_new_workspace()
 
@@ -696,6 +698,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:
+        self.alignment_widget.reset_histology()
+
         try:
             self.workspace = Workspace.load(project_file_path)
         except ValueError:
