@@ -272,10 +272,21 @@ class HistologySlice:
 
 
 class ThumbnailGeneratorThread(QtCore.QThread):
-    stop_event: Event = Event()
+    stop_event: Event
 
     def __init__(self, parent: "Workspace") -> None:
         super().__init__(parent)
+
+        self.stop_event = Event()
+
+    def start(
+        self,
+        priority: Optional[
+            QtCore.QThread.Priority
+        ] = QtCore.QThread.Priority.InheritPriority,
+    ):
+        _module_logger.debug(f"Starting ThumbnailGeneratorThread ({hex(id(self))}).")
+        super().start(priority)
 
     def run(self) -> None:
         with ThreadPoolExecutor(max_workers=4) as executor:
