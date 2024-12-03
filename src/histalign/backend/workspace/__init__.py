@@ -2,26 +2,29 @@
 #
 # SPDX-License-Identifier: MIT
 
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import hashlib
 import json
 import logging
+from multiprocessing import Process, Queue
 import os
 from pathlib import Path
+from queue import Empty
 import re
 from threading import Event
 import time
-from typing import Literal, Optional
+from typing import Any, get_type_hints, Literal, Optional
 
-from PIL import Image
-from PySide6 import QtCore
+from allensdk.core.structure_tree import StructureTree  # type: ignore[import]
 import h5py
 import numpy as np
+from PIL import Image
+from PySide6 import QtCore
 from scipy import ndimage
 from skimage.transform import resize
-import vedo
-from vtkmodules.vtkCommonDataModel import vtkDataSet
+import vedo  # type: ignore[import]
 
 from histalign.backend.ccf.downloads import download_annotation_volume, download_atlas
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_tree
@@ -38,6 +41,8 @@ from histalign.backend.models import (
     Resolution,
     VolumeSettings,
 )
+
+_module_logger = logging.getLogger(__name__)
 
 DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
 THUMBNAIL_DIMENSIONS = (320, 180)
@@ -309,88 +314,103 @@ class ThumbnailGeneratorThread(QtCore.QThread):
         )
 
 
-class Volume:
-    """Wrapper class around vedo.Volume
+class Volume(QtCore.QObject):
+    """Wrapper class around vedo.Volume.
 
-    This class does not directly inherit from vedo.Volume to allow lazy methods for
-    downloading from the AllenSDK and loading from the filesystem.
+    It can be used anywhere a vedo.Volume is required as it passes attribute setting and
+    getting through to the underlying vedo object. The wrapping provides a way to only
+    lazily load the volume from disk, allowing the network and disk IO to happen in a
+    different task.
+
+    It is also a QObject which provides signals notifying of (down)loading progress.
     """
 
-    file_path: Path
+    path: Path
     resolution: Resolution
-    dtype: np.dtype
+    dtype: Optional[np.dtype]
 
-    downloading: bool = False
-    loading: bool = False
-    downloaded: Event = Event()
-    loaded: Event = Event()
+    _volume: Optional[vedo.Volume] = None
+
+    downloaded: QtCore.Signal = QtCore.Signal()
+    loaded: QtCore.Signal = QtCore.Signal()
 
     def __init__(
         self,
-        file_path: Path,
+        path: str | Path,
         resolution: Resolution,
-        convert_dtype: Optional[np.dtype] = None,
+        convert_dtype: Optional[type | np.dtype] = None,
         lazy: bool = False,
     ) -> None:
-        self.file_path = file_path
-        self.resolution = resolution
-        self.dtype = convert_dtype
+        super().__init__(None)
 
-        self._volume = None
+        if isinstance(path, str):
+            path = Path(path)
+        self.path = path
+
+        self.resolution = resolution
+
+        dtype = convert_dtype
+        if isinstance(dtype, type):
+            try:
+                dtype = np.dtype(dtype)
+            except TypeError:
+                dtype = np.dtype(np.uint8)
+                _module_logger.warning(
+                    f"Could not interpret '{convert_dtype}' as a NumPy datatype. "
+                    f"Defaulting to {dtype}."
+                )
+        self.dtype = dtype
+
         if not lazy:
             self.ensure_loaded()
 
     @property
-    def shape(self) -> tuple[int, int, int]:
-        if self._volume is None:
-            return 0, 0, 0
+    def is_loaded(self) -> bool:
+        return self._volume is not None
 
-        # Appease the type checking gods
-        return (
-            int(self._volume.shape[0]),
-            int(self._volume.shape[1]),
-            int(self._volume.shape[2]),
-        )
+    def ensure_loaded(self) -> None:
+        """Ensures the volume is loaded (and downloads it if necessary)."""
+        self._ensure_downloaded()
+        self._ensure_loaded()
 
-    @property
-    def dataset(self) -> vtkDataSet:
-        self.ensure_loaded()
-        return self._volume.dataset
+    def update_from_array(self, array: np.ndarray) -> None:
+        """Updates the wrapped volume with a `vedo.Volume` of `array`."""
+        self._volume = vedo.Volume(array)
 
-    def slice_plane(
-        self,
-        origin: list[float],
-        normal: list[float],
-        autocrop: bool = False,
-        border: float = 0.5,
-        mode: str = "linear",
-    ) -> vedo.Mesh:
-        self.ensure_loaded()
-        return self._volume.slice_plane(origin, normal, autocrop, border, mode)
+    def load(self) -> np.ndarray:
+        """Loads the raw numpy array this volume points to."""
+        return io.load_volume(self.path, self.dtype, return_raw_array=True)
 
-    def ensure_downloaded(self) -> None:
-        if not os.path.exists(self.file_path):
-            self.downloading = True
-            download_atlas(self.resolution)
-            self.downloading = False
+    def _ensure_downloaded(self) -> None:
+        if not self.path.exists() and not self.is_loaded:
+            self._download()
 
-        self.downloaded.set()
+        self.downloaded.emit()
 
-    def ensure_loaded(self, **kwargs) -> None:
-        if self._volume is None:
-            if not self.downloading:
-                self.ensure_downloaded()
-            else:
-                self.downloaded.wait()
+    def _download(self) -> None:
+        download_atlas(self.resolution)
 
-            if not self.loading:
-                self.loading = True
-                self._volume = io.load_volume(self.file_path, self.dtype, **kwargs)
-                self.loading = False
-            else:
-                self.loaded.wait()
+    def _ensure_loaded(self) -> None:
+        if not self.is_loaded:
+            self._load()
 
-        self.loaded.set()
+        self.loaded.emit()
+
+    def _load(self) -> None:
+        self.update_from_array(self.load())
+
+    def __getattr__(self, name: str) -> Any:
+        if not self.is_loaded:
+            self.ensure_loaded()
+        return getattr(self._volume, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in get_type_hints(type(self)).keys() or name in dir(self):
+            return super().__setattr__(name, value)
+
+        if not self.is_loaded:
+            self.ensure_loaded()
+        setattr(self._volume, name, value)
 
 
 class AnnotationVolume(Volume):
@@ -406,8 +426,21 @@ class AnnotationVolume(Volume):
     from here: https://stackoverflow.com/a/29408060.
     """
 
-    def get_name_from_voxel(self, coordinates: tuple | list | np.ndarray) -> str:
-        if not hasattr(self, "_structure_tree"):
+    _id_translation_table: np.ndarray
+    _structure_tree: StructureTree
+
+    def get_name_from_voxel(self, coordinates: Sequence) -> str:
+        """Returns the name of the brain structure at `coordinates`.
+
+        Args:
+            coordinates (Sequence): Integer coordinates of the voxel to return the name
+                                    of.
+
+        Returns:
+            str: The name of the structure at `coordinates`.
+        """
+
+        if not hasattr(self, "_structure_tree") or not self.is_loaded:
             return ""
 
         if isinstance(coordinates, np.ndarray):
@@ -415,7 +448,7 @@ class AnnotationVolume(Volume):
         if isinstance(coordinates, list):
             coordinates = tuple(map(int, coordinates))
 
-        for i in range(3):
+        for i in range(len(coordinates)):
             if coordinates[i] < 0 or coordinates[i] >= self._volume.shape[i]:
                 return ""
 
@@ -431,47 +464,88 @@ class AnnotationVolume(Volume):
 
         return name
 
-    def ensure_downloaded(self) -> None:
-        if not os.path.exists(self.file_path):
-            self.downloading = True
-            download_annotation_volume(self.resolution)
-            self.downloading = False
+    def update_from_array(self, array: np.ndarray) -> None:
+        unique_values = np.unique(array)
+        replacement_array = np.empty(array.max() + 1, dtype=np.uint16)
+        replacement_array[unique_values] = np.arange(len(unique_values))
 
-        self.downloaded.set()
+        self._id_translation_table = unique_values
+        self._structure_tree = get_structure_tree(Resolution.MICRONS_100)
 
-    def ensure_loaded(self) -> None:
-        super().ensure_loaded(return_raw_array=True)
+        super().update_from_array(replacement_array[array])
 
-        if isinstance(self._volume, np.ndarray):
-            unique_values = np.unique(self._volume)
-            replacement_array = np.empty(self._volume.max() + 1, dtype=np.uint16)
-            replacement_array[unique_values] = np.arange(len(unique_values))
-
-            self._volume = vedo.Volume(replacement_array[self._volume])
-
-            self._id_translation_table = unique_values
-            self._structure_tree = get_structure_tree(Resolution.MICRONS_100)
+    def _download(self) -> None:
+        download_annotation_volume(self.resolution)
 
 
 class VolumeLoaderThread(QtCore.QThread):
-    volume_slicer: Volume
+    """A QThread which uses a separate process to load a `Volume`.
 
-    volume_downloaded: QtCore.Signal = QtCore.Signal()
-    volume_loaded: QtCore.Signal = QtCore.Signal()
+    This class steps through a process to allow easier abrupt termination of the IO
+    operation. Only using a QThread which does the work on its own causes a freeze of
+    the whole application when abruptly terminating it while trying to close a file
+    handle. This approach of using a separate process incurs some overhead to create the
+    process but it is much easier to terminate it while allowing normal interruptions
+    on the QThread.
+    """
 
-    def __init__(
-        self, volume: "Volume", parent: Optional[QtCore.QObject] = None
-    ) -> None:
+    volume: Volume
+
+    def __init__(self, volume: Volume, parent: Optional[QtCore.QObject] = None) -> None:
         super().__init__(parent)
 
         self.volume = volume
 
-    def run(self) -> None:
-        self.volume.ensure_downloaded()
-        self.volume_downloaded.emit()
+    def start(
+        self,
+        priority: Optional[
+            QtCore.QThread.Priority
+        ] = QtCore.QThread.Priority.InheritPriority,
+    ):
+        _module_logger.debug(f"Starting VolumeLoaderThread ({hex(id(self))}).")
+        super().start(priority)
 
-        self.volume.ensure_loaded()
-        self.volume_loaded.emit()
+    def run(self):
+        # Shortcircuit to avoid pickling an already-loaded volume
+        if self.volume.is_loaded:
+            self.volume.downloaded.emit()
+            self.volume.loaded.emit()
+            return
+
+        # Download
+        process = Process(
+            target=lambda volume: volume._ensure_downloaded(), args=(self.volume,)
+        )
+        process.start()
+        while process.is_alive():
+            if self.isInterruptionRequested():
+                process.terminate()
+                process.join()
+                return
+
+            time.sleep(0.25)
+
+        self.volume.downloaded.emit()
+
+        # Load
+        queue = Queue()
+        process = Process(
+            target=lambda volume, queue: queue.put(volume.load()),
+            args=(self.volume, queue),
+        )
+
+        process.start()
+        while process.is_alive():
+            if self.isInterruptionRequested():
+                process.terminate()
+                process.join()
+                return
+
+            with contextlib.suppress(Empty):
+                self.volume.update_from_array(queue.get(block=False))
+                self.volume.loaded.emit()
+
+            time.sleep(0.1)
 
 
 class VolumeSlicer:

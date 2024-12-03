@@ -4,8 +4,8 @@
 
 from typing import Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import (
     AlignmentSettings,
@@ -115,8 +115,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
 
         #
-        self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
-
+        self.reset_volume()
         self.reset_histology()
 
         layout = QtWidgets.QVBoxLayout()
@@ -192,6 +191,13 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     def resizeEvent(self, event) -> None:
         self.handle_volume_scaling_change(event.size())
+
+    def reset_volume(self) -> None:
+        if hasattr(self, "volume_pixmap"):
+            self.volume_pixmap.setPixmap(QtGui.QPixmap())
+        else:
+            self.volume_pixmap = self.scene.addPixmap(QtGui.QPixmap())
+        self.volume_slicer = None
 
     def reset_histology(self) -> None:
         if hasattr(self, "histology_pixmap"):

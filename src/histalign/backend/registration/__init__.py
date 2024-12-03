@@ -6,12 +6,11 @@ import logging
 from pathlib import Path
 from typing import Optional, Sequence
 
-from PIL import Image
-from PySide6 import QtCore, QtGui
 import cv2
 import numpy as np
+from PIL import Image
+from PySide6 import QtCore, QtGui
 from skimage.transform import AffineTransform, rescale as sk_rescale, warp
-import vedo
 
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
@@ -53,10 +52,7 @@ class Registrator:
 
         image = rescale(image, scaling, fast=self.fast_rescale, interpolation="nearest")
 
-        volume = workspace.Volume(
-            Path(), settings.volume_settings.resolution, lazy=True
-        )
-        volume._volume = vedo.Volume(np.zeros(shape=settings.volume_settings.shape))
+        volume = vedo.Volume(np.zeros(shape=settings.volume_settings.shape))
         slicer = workspace.VolumeSlicer(volume=volume)
         target_shape = slicer.slice(settings.volume_settings).shape
 

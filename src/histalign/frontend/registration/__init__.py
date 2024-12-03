@@ -512,42 +512,58 @@ class RegistrationMainWindow(BasicApplicationWindow):
         )
         self.settings_widget.histology_settings_widget.settings = histology_settings
 
-    def load_atlas(self) -> None:
-        loader_thread = VolumeLoaderThread(self.alignment_widget.volume_slicer.volume)
-
-        dialog = AtlasProgressDialog(self)
-
+    def load_atlas(self) -> int:
+        # Gather the volumes
         # Sneak the annotation volume in here. It doesn't usually take long but if
         # it turns out to in the future, we can give feedback to the user.
-        self.annotation_volume = AnnotationVolume(
+        annotation_volume = AnnotationVolume(
             get_annotation_path(self.workspace.resolution),
             self.workspace.resolution,
             lazy=True,
         )
-        annotation_loader_thread = VolumeLoaderThread(self.annotation_volume, self)
-        annotation_loader_thread.volume_loaded.connect(
-            annotation_loader_thread.deleteLater
+        self.annotation_volume = annotation_volume
+        atlas_volume = self.alignment_widget.volume_slicer.volume
+
+        # Set up the dialog and loader threads
+        dialog = AtlasProgressDialog(self)
+        annotation_loader_thread = VolumeLoaderThread(annotation_volume)
+        atlas_loader_thread = VolumeLoaderThread(atlas_volume)
+
+        dialog.rejected.connect(lambda: self.logger.debug("Cancelling loader threads."))
+        dialog.rejected.connect(annotation_loader_thread.requestInterruption)
+        dialog.rejected.connect(atlas_loader_thread.requestInterruption)
+
+        atlas_volume.downloaded.connect(
+            lambda: dialog.setLabelText("Loading atlas"),
+            type=QtCore.Qt.ConnectionType.QueuedConnection,
+        )
+        atlas_volume.loaded.connect(
+            dialog.accept, type=QtCore.Qt.ConnectionType.QueuedConnection
+        )
+        atlas_volume.loaded.connect(
+            self.open_atlas_in_aligner, type=QtCore.Qt.ConnectionType.QueuedConnection
         )
 
-        # Using terminate rather than exit to avoid waiting for a long download/load
-        dialog.canceled.connect(loader_thread.terminate)
-        dialog.canceled.connect(loader_thread.wait)
-
-        loader_thread.volume_downloaded.connect(
-            lambda: dialog.setLabelText("Loading atlas")
-        )
-        loader_thread.volume_loaded.connect(dialog.reset)
-        loader_thread.volume_loaded.connect(self.open_atlas_in_aligner)
-
+        # Start dialog and threads
         annotation_loader_thread.start()
-        loader_thread.start()
-        dialog.exec()
+        atlas_loader_thread.start()
+
+        result = dialog.exec()  # Blocking
+
+        # Ensure we wait for the threads to be destroyed
+        annotation_loader_thread.wait()
+        atlas_loader_thread.wait()
+
+        return result
 
     def dirty_workspace(self) -> None:
         if self.workspace_loaded:
             self.workspace_dirtied = True
 
     def locate_mouse(self) -> None:
+        if self.annotation_volume is None:
+            return
+
         # Get the position of the cursor relative to the application window
         cursor_global_position = QtGui.QCursor.pos()
         # Convert it to the coordinate system of the alignment scene
@@ -611,6 +627,28 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
     def clear_status(self) -> None:
         self.statusBar().clearMessage()
+
+    def cancel_project_open(self) -> None:
+        self.logger.debug("Cancelling opening of project.")
+
+        # Clear aligner
+        self.close_atlas_in_aligner()
+        self.close_image_in_aligner()
+        self.annotation_volume = None
+
+        # Clear thumbnails
+        self.thumbnails_widget.content_area.flush_thumbnails()
+        self.thumbnails_widget.content_area._initialise_widget()
+
+        # Reset settings
+        self.settings_widget.reset_to_defaults(silent=True)
+
+        # Stop the workspace
+        self.workspace.stop_thumbnail_generation()
+        # Keep a reference to it to avoid killing the thumbnail QThread while it is
+        # still alive.
+        self._workspace = self.workspace
+        self.workspace = None
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         if self.workspace is not None:
@@ -695,7 +733,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.propagate_new_workspace()
 
         self.workspace.start_thumbnail_generation()
-        self.load_atlas()
+        if self.load_atlas() == QtWidgets.QDialog.DialogCode.Rejected:
+            return self.cancel_project_open()
 
         self.menuBar().opened_project()
 
@@ -714,7 +753,8 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.propagate_new_workspace()
 
         self.workspace.start_thumbnail_generation()
-        self.load_atlas()
+        if self.load_atlas() == QtWidgets.QDialog.DialogCode.Rejected:
+            return self.cancel_project_open()
 
         if self.workspace.current_aligner_image_hash is not None:
             self.open_image_in_aligner(
@@ -733,6 +773,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
     @QtCore.Slot()
     def open_atlas_in_aligner(self) -> None:
+        self.logger.debug("Opening atlas.")
         try:
             self.alignment_widget.update_volume_pixmap()
         except ValueError as error:
@@ -755,6 +796,17 @@ class RegistrationMainWindow(BasicApplicationWindow):
                 self.alignment_widget.size(), self.alignment_widget.size()
             )
         )
+
+    @QtCore.Slot()
+    def close_atlas_in_aligner(self) -> None:
+        self.logger.debug("Closing atlas.")
+
+        self.alignment_widget.reset_volume()
+
+        self.toolbar.reset_volume_button.setEnabled(False)
+
+        self.settings_widget.volume_settings_widget.reset_to_defaults(silent=True)
+        self.settings_widget.volume_settings_widget.setEnabled(False)
 
     @QtCore.Slot()
     def open_image_in_aligner(self, index: int, force_open: bool = False) -> None:
@@ -801,3 +853,13 @@ class RegistrationMainWindow(BasicApplicationWindow):
             self.thumbnails_widget.content_area.toggle_activate_frame(old_index)
         if old_index != index:
             self.thumbnails_widget.content_area.toggle_activate_frame(index)
+
+    @QtCore.Slot()
+    def close_image_in_aligner(self) -> None:
+        self.alignment_widget.reset_histology()
+
+        self.toolbar.save_button.setEnabled(False)
+        self.toolbar.delete_button.setEnabled(False)
+        self.toolbar.reset_histology_button.setEnabled(False)
+        self.toolbar.apply_auto_threshold_button.setEnabled(False)
+        self.settings_widget.histology_settings_widget.setEnabled(False)

@@ -98,14 +98,15 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
         self.values_changed.emit()
 
     @QtCore.Slot()
-    def reset_to_defaults(self) -> None:
+    def reset_to_defaults(self, silent: bool = False) -> None:
         self.blockSignals(True)  # Avoid notifying for every value reset
         self.offset_spin_box.setValue(0)
         self.pitch_spin_box.setValue(0)
         self.yaw_spin_box.setValue(0)
         self.blockSignals(False)
 
-        self.values_changed.emit()
+        if not silent:
+            self.values_changed.emit()
 
 
 class HistologySettingsWidget(QtWidgets.QWidget):
@@ -371,7 +372,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.values_changed.emit()
 
     @QtCore.Slot()
-    def reset_to_defaults(self) -> None:
+    def reset_to_defaults(self, silent: bool = False) -> None:
         self.blockSignals(True)  # Avoid notifying for every value reset
         self.rotation_spin_box.setValue(0.0)
         self.translation_x_spin_box.setValue(0)
@@ -388,7 +389,8 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.shear_y_spin_box.setValue(0.0)
         self.blockSignals(False)
 
-        self.values_changed.emit()
+        if not silent:
+            self.values_changed.emit()
 
     @QtCore.Slot()
     def toggle_scale_link(self) -> None:
@@ -471,3 +473,7 @@ class SettingsWidget(QtWidgets.QWidget):
     def reload_settings(self) -> None:
         self.volume_settings_widget.reload_settings()
         self.histology_settings_widget.reload_settings()
+
+    def reset_to_defaults(self, silent: bool = False) -> None:
+        self.volume_settings_widget.reset_to_defaults(silent)
+        self.histology_settings_widget.reset_to_defaults(silent)
