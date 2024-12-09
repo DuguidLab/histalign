@@ -9,11 +9,11 @@ import re
 import shutil
 from typing import Optional
 
-from PIL import Image
-from PySide6 import QtCore
 import h5py
 import nrrd
 import numpy as np
+from PIL import Image
+from PySide6 import QtCore
 import vedo
 
 from histalign.backend.models import AlignmentSettings
@@ -31,7 +31,9 @@ ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
 
 
 def load_image(
-    file_path: str | Path, normalise_dtype: Optional[np.dtype] = None
+    file_path: str | Path,
+    normalise_dtype: Optional[np.dtype] = None,
+    allow_stack: bool = False,
 ) -> np.ndarray:
     if isinstance(file_path, Path):
         file_path = str(file_path)
@@ -51,12 +53,13 @@ def load_image(
                 array = h5_handle[dataset_name[0]][:]
 
                 if len(array.shape) != 2:
-                    raise ValueError(
-                        f"Unexpected number of dataset dimensions. "
-                        f"Expected 2, found {len(array.shape)}. "
-                        f"Make sure the image has been project to only contain "
-                        f"XY data."
-                    )
+                    if not (allow_stack and len(array.shape) == 3):
+                        raise ValueError(
+                            f"Unexpected number of dataset dimensions. "
+                            f"Expected 2, found {len(array.shape)}. "
+                            f"Make sure the image has been project to only contain "
+                            f"XY data."
+                        )
         case "npy":
             array = np.load(file_path)
         case "npz":
