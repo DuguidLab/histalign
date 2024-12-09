@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
-from PySide6 import QtCore
 import numpy as np
+from PySide6 import QtCore
 from scipy.spatial.transform import Rotation
 
 from histalign.backend.models import (
@@ -73,10 +73,17 @@ def compute_mesh_centre(mesh_bounds: list | np.ndarray) -> np.ndarray:
 
 
 def compute_normal(settings: VolumeSettings) -> np.ndarray:
-    pitch = settings.pitch
-    yaw = settings.yaw
+    return compute_normal_from_raw(
+        settings.pitch,
+        settings.yaw,
+        settings.orientation,
+    )
 
-    match settings.orientation:
+
+def compute_normal_from_raw(
+    pitch: int, yaw: int, orientation: Orientation
+) -> np.ndarray:
+    match orientation:
         case Orientation.CORONAL:
             normal = [-1, 0, 0]
             rotation = Rotation.from_euler("ZY", [pitch, yaw], degrees=True)
