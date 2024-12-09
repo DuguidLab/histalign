@@ -335,7 +335,10 @@ class AlignmentWidget(QtWidgets.QWidget):
         new_size: QtCore.QSize | QtCore.QSizeF,
         margins: QtCore.QMargins,
     ) -> float:
+        width_margin = margins.left() + margins.right()
+        height_margin = margins.top() + margins.bottom()
+
         return min(
-            (new_size.width() - margins.left() - margins.right()) / old_size.width(),
-            (new_size.height() - margins.top() - margins.bottom()) / old_size.height(),
+            (new_size.width() - width_margin) / (old_size.width() - width_margin),
+            (new_size.height() - height_margin) / (old_size.height() - height_margin),
         )
