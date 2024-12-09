@@ -574,10 +574,15 @@ class VolumeSlicer:
         autocrop: bool = True,
         return_mesh: bool = False,
         correct_rotation: bool = True,
+        origin: Optional[list[float]] = None,
     ) -> np.ndarray | vedo.Mesh:
         plane_mesh = self.volume.slice_plane(
-            origin=compute_origin_from_orientation(
-                self.volume.dataset.GetCenter(), settings
+            origin=(
+                origin
+                if origin is not None
+                else compute_origin_from_orientation(
+                    self.volume.dataset.GetCenter(), settings
+                )
             ),
             normal=compute_normal(settings).tolist(),
             autocrop=autocrop,

@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image
 from PySide6 import QtCore, QtGui
 from skimage.transform import AffineTransform, rescale as sk_rescale, warp
+import vedo
 
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
@@ -47,6 +48,7 @@ class Registrator:
         self,
         image: np.ndarray,
         settings: AlignmentSettings,
+        origin: Optional[list[float]] = None,
     ) -> np.ndarray:
         scaling = get_histology_scaling(settings)
 
@@ -54,7 +56,10 @@ class Registrator:
 
         volume = vedo.Volume(np.zeros(shape=settings.volume_settings.shape))
         slicer = workspace.VolumeSlicer(volume=volume)
-        target_shape = slicer.slice(settings.volume_settings).shape
+        target_shape = slicer.slice(settings.volume_settings, origin=origin).shape
+
+        # TODO: Find why the shape can be off by one sometimes when working on Z-stacks
+        image = image[: target_shape[0], : target_shape[1]]
 
         image = pad(image, (target_shape[0], target_shape[1]))
 
