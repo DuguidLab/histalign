@@ -621,9 +621,13 @@ class VolumeSlicer:
 
         if correct_rotation:
             if settings.orientation == Orientation.HORIZONTAL:
-                padded_slice_array = ndimage.rotate(padded_slice_array, -90)
+                padded_slice_array = ndimage.rotate(
+                    padded_slice_array, -90, reshape=False
+                )
             if settings.orientation != Orientation.SAGITTAL:
-                padded_slice_array = ndimage.rotate(padded_slice_array, settings.pitch)
+                padded_slice_array = ndimage.rotate(
+                    padded_slice_array, settings.pitch, reshape=False
+                )
 
         return padded_slice_array
 
