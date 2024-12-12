@@ -32,7 +32,7 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
 
     previous_position: Optional[QtCore.QPointF] = None
 
-    def move(self, translation: QtCore.QPoint) -> None:
+    def move(self, old_position: QtCore.QPointF, new_position: QtCore.QPointF) -> None:
         raise NotImplementedError("Function was not patched.")
 
     def rotate(self, steps: int) -> None:
@@ -47,8 +47,7 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
     def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
         new_position = event.scenePos()
 
-        movement = new_position - self.previous_position
-        self.move(QtCore.QPoint(round(movement.x()), round(movement.y())))
+        self.move(self.previous_position, new_position)
 
         self.previous_position = new_position
 
@@ -218,20 +217,32 @@ class AlignmentWidget(QtWidgets.QWidget):
             self.histology_pixmap = MovableAndZoomableGraphicsPixmapItem(
                 self.scene.addPixmap(QtGui.QPixmap())
             )
-            # Step through a lambda to scale the translation properly. Without this, the
-            # translation is still correct but is smaller than the mouse movement which
-            # is unintuitive from a UX POV.
-            self.histology_pixmap.move = lambda x: self.translation_changed.emit(
-                QtCore.QPoint(
-                    x.x() / self.alignment_settings.histology_scaling,
-                    x.y() / self.alignment_settings.histology_scaling,
-                )
-            )
+            self.histology_pixmap.move = self.handle_mouse_translation
             self.histology_pixmap.rotate = self.rotation_changed.emit
             self.histology_pixmap.zoom = self.zoom_changed.emit
 
         self.histology_image = QtGui.QImage()
         self.histology_array = np.array([])
+
+    @QtCore.Slot()
+    def handle_mouse_translation(
+        self, old_position: QtCore.QPointF, new_position: QtCore.QPointF
+    ) -> None:
+        """Scales a translation from scene coordinates to volume pixmap coordinates.
+
+        Args:
+            old_position (QtCore.QPoint): Previous position in scene coordinates.
+            new_position (QtCore.QPoint): Current position in scene coordinates.
+        """
+        old_volume_coordinates = self.volume_pixmap.mapFromScene(old_position)
+        new_volume_coordinates = self.volume_pixmap.mapFromScene(new_position)
+
+        self.translation_changed.emit(
+            QtCore.QPoint(
+                round(new_volume_coordinates.x()) - round(old_volume_coordinates.x()),
+                round(new_volume_coordinates.y()) - round(old_volume_coordinates.y()),
+            )
+        )
 
     @QtCore.Slot()
     def update_volume_pixmap(self) -> None:
@@ -268,9 +279,13 @@ class AlignmentWidget(QtWidgets.QWidget):
                 self.histology_settings.shear_y,
             ),
             rotation=self.histology_settings.rotation,
+            # Adjust by the volume scaling so that translation is relative and remains
+            # relatively the same with resizing.
             translation=(
-                self.histology_settings.translation_x,
-                self.histology_settings.translation_y,
+                self.histology_settings.translation_x
+                * self.alignment_settings.volume_scaling,
+                self.histology_settings.translation_y
+                * self.alignment_settings.volume_scaling,
             ),
             # Move coordinate system origin to centre of image
             extra_translation=(
