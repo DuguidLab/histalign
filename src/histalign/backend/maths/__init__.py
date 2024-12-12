@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+import math
+
 import numpy as np
-from PySide6 import QtCore
+from PySide6 import QtCore, QtGui
 from scipy.spatial.transform import Rotation
+from skimage.transform import AffineTransform
 
 from histalign.backend.models import (
     Orientation,
@@ -156,9 +159,85 @@ def convert_pixmap_position_to_coordinates(
     return np.array(coordinates)
 
 
+def convert_sk_transform_to_q_transform(
+    transformation: AffineTransform,
+) -> QtGui.QTransform:
+    return QtGui.QTransform(*transformation.params.T.flatten().tolist())
+
+
 def convert_volume_coordinates_to_ccf(
     coordinates: np.ndarray, settings: VolumeSettings
 ) -> np.ndarray:
     volume_centre = (np.array(settings.shape) - 1) // 2
 
     return coordinates + volume_centre
+
+
+def get_sk_transform_from_parameters(
+    scale: tuple[float, float] = (1.0, 1.0),
+    shear: tuple[float, float] = (0.0, 0.0),
+    rotation: float = 0.0,
+    translation: tuple[float, float] = (0.0, 0.0),
+    extra_translation: tuple[float, float] = (0.0, 0.0),
+) -> AffineTransform:
+    """Builds a 2D `AffineTransform` from the given parameters.
+
+    This is equivalent to creating an `AffineTransform` from the result of this matrix
+    multiplication:
+        T @ R @ Sh @ Sc @ Te
+    where:
+        T is a 3x3 affine transform matrix from `translation`,
+        R is a 3x3 affine transform matrix from `rotation`,
+        Sc is a 3x3 affine transform matrix from `shear`,
+        Sh is a 3x3 affine transform matrix from `scale`,
+        Te is a 3x3 affine transform matrix from `extra_translation`.
+
+    Note that unlike `AffineTransform`s `shear` parameter, the `shear` here should
+    be a coordinate shift rather than an angle.
+
+    Args:
+        scale (tuple[float, float], optional): X and Y scaling factors.
+        shear (tuple[float, float], optional):
+            X and Y shearing factors. This is a shift in coordinates and not an angle.
+        rotation (float, optional): Clockwise rotation in degrees.
+        translation (tuple[float, float], optional): X and Y translation factors.
+        extra_translation (tuple[float, float], optional):
+            Extra translation to apply before all of the other transformations. This
+            allows translating the coordinate system before applying the affine
+            transform.
+
+    Returns:
+        AffineTransform: The 2D affine transform whose matrix is obtained from the given
+                         parameters.
+    """
+    # `AffineTransform` uses shearing angles instead of coordinate shift. We therefore
+    # compute the equivalent angles on the trigonometric circle. Since the shearing is
+    # clockwise, the angle also needs to be inverted for positive shearing.
+    x_shear_correction = -1 if shear[0] > 0 else 1
+    y_shear_correction = -1 if shear[1] > 0 else 1
+
+    shear_angles = tuple(
+        (
+            math.acos(
+                100 / math.sqrt(100**2 + (shear[0] * 100) ** 2) * x_shear_correction
+            ),
+            math.acos(
+                100 / math.sqrt(100**2 + (shear[1] * 100) ** 2) * y_shear_correction
+            ),
+        )
+    )
+
+    matrix = (
+        AffineTransform(
+            scale=scale,
+            shear=shear_angles,
+            rotation=math.radians(rotation),
+            translation=translation,
+        ).params
+        # Apply an extra translation to move the coordinate system
+        @ AffineTransform(
+            translation=(extra_translation[0], extra_translation[1])
+        ).params
+    )
+
+    return AffineTransform(matrix=matrix)

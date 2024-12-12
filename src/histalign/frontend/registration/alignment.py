@@ -7,6 +7,10 @@ from typing import Optional
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend.maths import (
+    convert_sk_transform_to_q_transform,
+    get_sk_transform_from_parameters,
+)
 from histalign.backend.models import (
     AlignmentSettings,
     HistologySettings,
@@ -150,7 +154,9 @@ class AlignmentWidget(QtWidgets.QWidget):
                 get_colour_table(self.lut, self.global_alpha, self.background_threshold)
             )
 
-        self.histology_pixmap.setPixmap(QtGui.QPixmap.fromImage(self.histology_image))
+        pixmap = QtGui.QPixmap.fromImage(self.histology_image)
+
+        self.histology_pixmap.setPixmap(pixmap)
         self.update_histology_pixmap()
 
     def handle_volume_scaling_change(self, size: Optional[QtCore.QSize] = None) -> None:
@@ -162,17 +168,23 @@ class AlignmentWidget(QtWidgets.QWidget):
                 size,
                 self.layout().contentsMargins(),
             )
-            self.alignment_settings.volume_scaling = volume_scale_ratio
-            self.volume_pixmap.setTransform(
-                QtGui.QTransform().scale(volume_scale_ratio, volume_scale_ratio)
-            )
-            self.volume_pixmap.setOffset(
-                -self.volume_pixmap.pixmap().width() / 2,
-                -self.volume_pixmap.pixmap().height() / 2,
-            )
-            self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
         except ZeroDivisionError:
             return
+
+        self.alignment_settings.volume_scaling = volume_scale_ratio
+
+        sk_transform = get_sk_transform_from_parameters(
+            scale=(volume_scale_ratio, volume_scale_ratio),
+            # Move coordinate system origin to centre of image
+            extra_translation=(
+                -self.volume_pixmap.pixmap().width() / 2,
+                -self.volume_pixmap.pixmap().height() / 2,
+            ),
+        )
+        q_transform = convert_sk_transform_to_q_transform(sk_transform)
+        self.volume_pixmap.setTransform(q_transform)
+
+        self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
 
         self.update_histology_pixmap()
 
@@ -240,58 +252,35 @@ class AlignmentWidget(QtWidgets.QWidget):
             self.layout().contentsMargins(),
         )
         self.alignment_settings.histology_scaling = scale_ratio
-        initial_transform = QtGui.QTransform().scale(scale_ratio, scale_ratio)
-        self.histology_pixmap.setTransform(initial_transform)
 
-        # Scaling variables
-        initial_width = self.histology_pixmap.pixmap().width()
-        initial_height = self.histology_pixmap.pixmap().height()
-        effective_width = self.histology_settings.scale_x * initial_width
-        effective_height = self.histology_settings.scale_y * initial_height
-
-        # Shearing variables
-        displacement_x = self.histology_settings.shear_x * effective_height
-        displacement_y = self.histology_settings.shear_y * effective_width
-
-        transform = (
-            initial_transform.translate(  # Translation to center on (0, 0)
-                -initial_width / 2,
-                -initial_height / 2,
-            )
-            .translate(  # Regular translation
-                self.histology_settings.translation_x,
-                self.histology_settings.translation_y,
-            )
-            .translate(  # Translation to apply rotation around the center of the image
-                initial_width / 2,
-                initial_height / 2,
-            )
-            .rotate(  # Regular rotation
-                self.histology_settings.rotation,
-            )
-            .translate(  # Translation to get back to position before rotation
-                -initial_width / 2,
-                -initial_height / 2,
-            )
-            .translate(  # Translation to apply scaling from the center of the image
-                -(effective_width - initial_width) / 2,
-                -(effective_height - initial_height) / 2,
-            )
-            .scale(  # Regular scaling
-                self.histology_settings.scale_x,
-                self.histology_settings.scale_y,
-            )
-            .translate(  # Translation to apply shearing from the center of the image
-                -displacement_x / 2,
-                -displacement_y / 2,
-            )
-            .shear(  # Regular shearing
+        # Construct an skimage `AffineTransform` instead of directly making a PySide
+        # `QTransform` as PySide seems to have weird interactions between shearing
+        # and translating, leading to shearing influencing the translation cells of
+        # the transformation matrix. We therefore create an skimage transform and
+        # then use its matrix to construct a `QTransform`.
+        sk_transform = get_sk_transform_from_parameters(
+            scale=(
+                scale_ratio * self.histology_settings.scale_x,
+                scale_ratio * self.histology_settings.scale_y,
+            ),
+            shear=(
                 self.histology_settings.shear_x,
                 self.histology_settings.shear_y,
-            )
+            ),
+            rotation=self.histology_settings.rotation,
+            translation=(
+                self.histology_settings.translation_x,
+                self.histology_settings.translation_y,
+            ),
+            # Move coordinate system origin to centre of image
+            extra_translation=(
+                -self.histology_pixmap.pixmap().width() / 2,
+                -self.histology_pixmap.pixmap().height() / 2,
+            ),
         )
+        q_transform = convert_sk_transform_to_q_transform(sk_transform)
 
-        self.histology_pixmap.setTransform(transform)
+        self.histology_pixmap.setTransform(q_transform)
 
     @QtCore.Slot()
     def update_lut(self, new_lut: str) -> None:

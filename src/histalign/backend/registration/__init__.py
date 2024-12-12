@@ -261,8 +261,15 @@ def get_transformation_matrix_from_q_transform(
         if not success:
             raise ValueError("Could not invert the affine matrix.")
 
-    matrix = str(q_transform).replace("PySide6.QtGui.QTransform(", "").replace(")", "")
-    return np.array([float(value) for value in matrix.split(", ")]).reshape(3, 3).T
+    # Note that the matrix indices seem to follow an XY notation instead of a classic
+    # IJ matrix notation.
+    return np.array(
+        [
+            [q_transform.m11(), q_transform.m21(), q_transform.m31()],
+            [q_transform.m12(), q_transform.m22(), q_transform.m32()],
+            [q_transform.m13(), q_transform.m23(), q_transform.m33()],
+        ]
+    )
 
 
 def get_volume_scaling_factor(settings: AlignmentSettings) -> float:
