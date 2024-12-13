@@ -20,7 +20,19 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = [
+  "allensdk",
+  "click",
+  "h5py",
+  "matplotlib",
+  "numpy",
+  "opencv-python",
+  "pyside6",
+  "pynrrd",
+  "pydantic",
+  "scikit-image",
+  "vedo",
+]
 
 [project.urls]
 Documentation = "https://github.com/olivierdelree/histalign#readme"
@@ -35,15 +47,5 @@ histalign = "histalign:histalign"
 
 [tool.hatch.envs.default]
 dependencies = [
-  "allensdk",
-  "click",
-  "h5py",
-  "matplotlib",
-  "numpy",
-  "opencv-python",
-  "pyside6",
-  "pynrrd",
-  "pydantic",
-  "scikit-image",
-  "vedo",
+  "jupyter",
 ]
