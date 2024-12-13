@@ -49,3 +49,10 @@ histalign = "histalign:histalign"
 dependencies = [
   "jupyter",
 ]
+
+[tool.hatch.envs.tests]
+dependencies = [
+  "pytest",
+]
+[tool.hatch.envs.tests.scripts]
+run = "pytest"
