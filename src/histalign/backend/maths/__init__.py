@@ -179,6 +179,7 @@ def get_sk_transform_from_parameters(
     rotation: float = 0.0,
     translation: tuple[float, float] = (0.0, 0.0),
     extra_translation: tuple[float, float] = (0.0, 0.0),
+    undo_extra: bool = False,
 ) -> AffineTransform:
     """Builds a 2D `AffineTransform` from the given parameters.
 
@@ -205,6 +206,10 @@ def get_sk_transform_from_parameters(
             Extra translation to apply before all of the other transformations. This
             allows translating the coordinate system before applying the affine
             transform.
+        undo_extra (bool, optional):
+            Whether to undo the extra translation to return the coordinate system to
+            normal.
+
 
     Returns:
         AffineTransform: The 2D affine transform whose matrix is obtained from the given
@@ -239,5 +244,17 @@ def get_sk_transform_from_parameters(
             translation=(extra_translation[0], extra_translation[1])
         ).params
     )
+
+    if undo_extra:
+        # Move the coordinate system back
+        matrix = (
+            AffineTransform(
+                translation=(
+                    -extra_translation[0],
+                    -extra_translation[1],
+                )
+            )
+            @ matrix
+        )
 
     return AffineTransform(matrix=matrix)

@@ -16,6 +16,10 @@ import vedo
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
 from histalign.backend.io import load_image
+from histalign.backend.maths import (
+    convert_sk_transform_to_q_transform,
+    get_sk_transform_from_parameters,
+)
 from histalign.backend.models import (
     AlignmentSettings,
 )
@@ -306,54 +310,35 @@ def recreate_q_transform_from_alignment(
 ) -> QtGui.QTransform:
     histology_settings = settings.histology_settings
 
-    initial_width = image_shape[1]
-    initial_height = image_shape[0]
+    translation_factor = 1
+    if not invert:
+        # When doing a reverse registration (invert is False), the translation needs to
+        # be scaled up to the coordinate space of the full-size image.
+        translation_factor = (
+            settings.volume_scaling * settings.histology_downsampling
+        ) / settings.histology_scaling
 
-    effective_width = histology_settings.scale_x * initial_width
-    effective_height = histology_settings.scale_y * initial_height
-
-    x_displacement = histology_settings.shear_x * effective_height
-    y_displacement = histology_settings.shear_y * effective_width
-
-    translation_factor = (
-        settings.histology_scaling / settings.volume_scaling
-        if invert
-        else settings.histology_downsampling
-    )
-    return (
-        QtGui.QTransform()
-        .translate(  # Regular translation
-            histology_settings.translation_x * translation_factor,
-            histology_settings.translation_y * translation_factor,
-        )
-        .translate(  # Translation to apply rotation around the center of the image
-            initial_width / 2,
-            initial_height / 2,
-        )
-        .rotate(  # Regular rotation
-            histology_settings.rotation,
-        )
-        .translate(  # Translation to get back to position before rotation
-            -initial_width / 2,
-            -initial_height / 2,
-        )
-        .translate(  # Translation to apply scaling from the center of the image
-            -(effective_width - initial_width) / 2,
-            -(effective_height - initial_height) / 2,
-        )
-        .scale(  # Regular scaling
+    sk_transform = get_sk_transform_from_parameters(
+        scale=(
             histology_settings.scale_x,
             histology_settings.scale_y,
-        )
-        .translate(  # Translation to apply shearing from the center of the image
-            -x_displacement / 2,
-            -y_displacement / 2,
-        )
-        .shear(  # Regular shearing
+        ),
+        shear=(
             histology_settings.shear_x,
             histology_settings.shear_y,
-        )
+        ),
+        rotation=histology_settings.rotation,
+        translation=(
+            histology_settings.translation_x * translation_factor,
+            histology_settings.translation_y * translation_factor,
+        ),
+        extra_translation=(
+            -image_shape[1] / 2,
+            -image_shape[0] / 2,
+        ),
+        undo_extra=True,
     )
+    return convert_sk_transform_to_q_transform(sk_transform)
 
 
 def rescale(
