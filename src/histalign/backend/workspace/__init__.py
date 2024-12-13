@@ -868,6 +868,10 @@ class Workspace(QtCore.QObject):
             )
         )
 
+        # Don't overwrite scalings as those are window-dependent
+        alignment_settings.volume_scaling = self.alignment_settings.volume_scaling
+        alignment_settings.histology_scaling = self.alignment_settings.histology_scaling
+
         self.alignment_settings = alignment_settings
 
     @QtCore.Slot()
