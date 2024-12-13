@@ -2,6 +2,20 @@
 #
 # SPDX-License-Identifier: MIT
 
+if __name__ == "__main__":
+    # Fix a typing bug when using `vedo` with python==3.10.12.
+    # Leaving `typing_extensions.Self` as-is leads to the following error message:
+    # TypeError: Plain typing.Self is not valid as type argument
+    # and happens because vedo uses the `Self` annotation in the return type of some
+    # methods, while it apparently is malformed.
+    # Avoid being invasive by only patching it when we're the main application.
+    from typing import TypeVar
+
+    import typing_extensions
+
+    Self = TypeVar("Self")
+    typing_extensions.Self = Self
+
 import logging
 import sys
 from typing import Callable
