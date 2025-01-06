@@ -32,7 +32,10 @@ from histalign.frontend.dialogs import (
     NewProjectDialog,
     SaveProjectConfirmationDialog,
 )
-from histalign.frontend.registration.alignment import AlignmentWidget
+from histalign.frontend.registration.alignment import (
+    AlignmentWidget,
+    LandmarkRegistrationWindow,
+)
 from histalign.frontend.registration.alpha import AlphaWidget
 from histalign.frontend.registration.helpers import get_dummy_title_bar
 from histalign.frontend.registration.settings import SettingsWidget
@@ -164,6 +167,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
     reset_volume_button: ShortcutAwareToolButton
     apply_auto_threshold_button: ShortcutAwareToolButton
     background_threshold_spin_box: QtWidgets.QSpinBox
+    landmark_registration_button: ShortcutAwareToolButton
 
     save_requested: QtCore.Signal = QtCore.Signal()
     load_requested: QtCore.Signal = QtCore.Signal()
@@ -172,6 +176,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
     reset_volume_requested: QtCore.Signal = QtCore.Signal()
     apply_auto_threshold_requested: QtCore.Signal = QtCore.Signal()
     background_threshold_changed: QtCore.Signal = QtCore.Signal(int)
+    landmark_registration_requested: QtCore.Signal = QtCore.Signal()
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -288,6 +293,25 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.background_threshold_spin_box = background_spin_box
 
         #
+        landmark_registration_button = ShortcutAwareToolButton()
+
+        landmark_registration_button.setToolTip(
+            "Start the landmark registration process."
+        )
+        landmark_registration_button.setStatusTip(
+            "Start the landmark registration process."
+        )
+        landmark_registration_button.setIcon(
+            DynamicThemeIcon("resources/icons/interactivity-icon.png")
+        )
+
+        landmark_registration_button.clicked.connect(
+            self.landmark_registration_requested.emit
+        )
+
+        self.landmark_registration_button = landmark_registration_button
+
+        #
         self.addWidget(save_button)
         self.addWidget(load_button)
         self.addWidget(delete_button)
@@ -299,6 +323,8 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         self.addSeparator()
         self.addWidget(background_spin_box_icon)
         self.addWidget(background_spin_box)
+        self.addSeparator()
+        self.addWidget(landmark_registration_button)
 
         #
         self.setAllowedAreas(QtCore.Qt.ToolBarArea.TopToolBarArea)
@@ -413,6 +439,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         toolbar.reset_histology_button.setEnabled(False)
         toolbar.reset_volume_button.setEnabled(False)
         toolbar.apply_auto_threshold_button.setEnabled(False)
+        toolbar.landmark_registration_button.setEnabled(False)
 
         toolbar.save_requested.connect(lambda: toolbar.load_button.setEnabled(True))
         toolbar.save_requested.connect(lambda: toolbar.delete_button.setEnabled(True))
@@ -848,6 +875,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.toolbar.reset_histology_button.setEnabled(True)
         self.settings_widget.histology_settings_widget.setEnabled(True)
         self.toolbar.apply_auto_threshold_button.setEnabled(True)
+        self.toolbar.landmark_registration_button.setEnabled(True)
 
         if old_index is not None:
             self.thumbnails_widget.content_area.toggle_activate_frame(old_index)
@@ -862,4 +890,5 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.toolbar.delete_button.setEnabled(False)
         self.toolbar.reset_histology_button.setEnabled(False)
         self.toolbar.apply_auto_threshold_button.setEnabled(False)
+        self.toolbar.landmark_registration_button.setEnabled(False)
         self.settings_widget.histology_settings_widget.setEnabled(False)
