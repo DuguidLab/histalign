@@ -173,6 +173,26 @@ def convert_volume_coordinates_to_ccf(
     return coordinates + volume_centre
 
 
+def get_transformation_matrix_from_q_transform(
+    transformation: QtGui.QTransform,
+    invert: bool = False,
+) -> np.ndarray:
+    if invert:
+        transformation, success = transformation.inverted()
+        if not success:
+            raise ValueError("Could not invert the affine matrix.")
+
+    # Note that the matrix indices seem to follow an XY notation instead of a classic
+    # IJ matrix notation.
+    return np.array(
+        [
+            [transformation.m11(), transformation.m21(), transformation.m31()],
+            [transformation.m12(), transformation.m22(), transformation.m32()],
+            [transformation.m13(), transformation.m23(), transformation.m33()],
+        ]
+    )
+
+
 def get_sk_transform_from_parameters(
     scale: tuple[float, float] = (1.0, 1.0),
     shear: tuple[float, float] = (0.0, 0.0),

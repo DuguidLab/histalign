@@ -6,11 +6,9 @@ import cv2
 import numpy as np
 import vedo
 
+from histalign.backend.maths import get_transformation_matrix_from_q_transform
 from histalign.backend.models import AlignmentSettings
-from histalign.backend.registration import (
-    get_transformation_matrix_from_q_transform,
-    recreate_q_transform_from_alignment,
-)
+from histalign.backend.registration import recreate_q_transform_from_alignment
 from histalign.backend.workspace import Volume, VolumeSlicer
 
 

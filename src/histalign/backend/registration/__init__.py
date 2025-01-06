@@ -19,6 +19,7 @@ from histalign.backend.io import load_image
 from histalign.backend.maths import (
     convert_sk_transform_to_q_transform,
     get_sk_transform_from_parameters,
+    get_transformation_matrix_from_q_transform,
 )
 from histalign.backend.models import (
     AlignmentSettings,
@@ -255,25 +256,6 @@ def get_top_left_point(
         top_left = (0, (larger_shape[1] - smaller_shape[1]) // 2)
 
     return top_left
-
-
-def get_transformation_matrix_from_q_transform(
-    q_transform: QtGui.QTransform, invert: bool = False
-) -> np.ndarray:
-    if invert:
-        q_transform, success = q_transform.inverted()
-        if not success:
-            raise ValueError("Could not invert the affine matrix.")
-
-    # Note that the matrix indices seem to follow an XY notation instead of a classic
-    # IJ matrix notation.
-    return np.array(
-        [
-            [q_transform.m11(), q_transform.m21(), q_transform.m31()],
-            [q_transform.m12(), q_transform.m22(), q_transform.m32()],
-            [q_transform.m13(), q_transform.m23(), q_transform.m33()],
-        ]
-    )
 
 
 def get_volume_scaling_factor(settings: AlignmentSettings) -> float:
