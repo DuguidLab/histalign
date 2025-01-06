@@ -165,6 +165,14 @@ def convert_sk_transform_to_q_transform(
     return QtGui.QTransform(*transformation.params.T.flatten().tolist())
 
 
+def convert_q_transform_to_sk_transform(
+    transformation: QtGui.QTransform,
+) -> AffineTransform:
+    return AffineTransform(
+        matrix=get_transformation_matrix_from_q_transform(transformation)
+    )
+
+
 def convert_volume_coordinates_to_ccf(
     coordinates: np.ndarray, settings: VolumeSettings
 ) -> np.ndarray:

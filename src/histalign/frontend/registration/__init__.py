@@ -466,6 +466,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         toolbar.apply_auto_threshold_requested.connect(
             self.alignment_widget.apply_auto_contrast
         )
+        toolbar.landmark_registration_requested.connect(
+            self.show_landmark_registration_window
+        )
 
         self.addToolBar(toolbar)
         self.toolbar = toolbar
@@ -749,6 +752,29 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.toolbar.load_button.setEnabled(False)
         self.toolbar.delete_button.setEnabled(False)
+
+    @QtCore.Slot()
+    def show_landmark_registration_window(self) -> None:
+        window = LandmarkRegistrationWindow(self)
+
+        window.update_reference_pixmap(self.alignment_widget.volume_pixmap)
+        window.update_histology_pixmap(self.alignment_widget.histology_pixmap)
+
+        window.resize(
+            QtCore.QSize(
+                round(self.width() * 0.95),
+                round(self.height() * 0.95),
+            )
+        )
+        window.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+        window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
+
+        window.applied.connect(
+            self.alignment_widget.update_alignment_from_landmark_registration
+        )
+        window.applied.connect(self.settings_widget.reload_settings)
+
+        window.show()
 
     @QtCore.Slot()
     def create_project(self, project_settings: ProjectSettings) -> None:
