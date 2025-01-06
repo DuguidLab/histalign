@@ -200,6 +200,39 @@ class AlignmentWidget(QtWidgets.QWidget):
 
         self.update_histology_image(new_array)
 
+    def compute_current_histology_transform(self) -> AffineTransform:
+        scale_ratio = self.compute_scaling(
+            self.histology_pixmap.pixmap().size(),
+            self.volume_pixmap.sceneBoundingRect().size(),
+            self.layout().contentsMargins(),
+        )
+        self.alignment_settings.histology_scaling = scale_ratio
+
+        return get_sk_transform_from_parameters(
+            scale=(
+                scale_ratio * self.histology_settings.scale_x,
+                scale_ratio * self.histology_settings.scale_y,
+            ),
+            shear=(
+                self.histology_settings.shear_x,
+                self.histology_settings.shear_y,
+            ),
+            rotation=self.histology_settings.rotation,
+            # Adjust by the volume scaling so that translation is relative and remains
+            # relatively the same with resizing.
+            translation=(
+                self.histology_settings.translation_x
+                * self.alignment_settings.volume_scaling,
+                self.histology_settings.translation_y
+                * self.alignment_settings.volume_scaling,
+            ),
+            # Move coordinate system origin to centre of image
+            extra_translation=(
+                -self.histology_pixmap.pixmap().width() / 2,
+                -self.histology_pixmap.pixmap().height() / 2,
+            ),
+        )
+
     def resizeEvent(self, event) -> None:
         self.handle_volume_scaling_change(event.size())
 
@@ -257,42 +290,12 @@ class AlignmentWidget(QtWidgets.QWidget):
         if self.histology_pixmap.pixmap().isNull():
             return
 
-        scale_ratio = self.compute_scaling(
-            self.histology_pixmap.pixmap().size(),
-            self.volume_pixmap.sceneBoundingRect().size(),
-            self.layout().contentsMargins(),
-        )
-        self.alignment_settings.histology_scaling = scale_ratio
-
         # Construct an skimage `AffineTransform` instead of directly making a PySide
         # `QTransform` as PySide seems to have weird interactions between shearing
         # and translating, leading to shearing influencing the translation cells of
         # the transformation matrix. We therefore create an skimage transform and
         # then use its matrix to construct a `QTransform`.
-        sk_transform = get_sk_transform_from_parameters(
-            scale=(
-                scale_ratio * self.histology_settings.scale_x,
-                scale_ratio * self.histology_settings.scale_y,
-            ),
-            shear=(
-                self.histology_settings.shear_x,
-                self.histology_settings.shear_y,
-            ),
-            rotation=self.histology_settings.rotation,
-            # Adjust by the volume scaling so that translation is relative and remains
-            # relatively the same with resizing.
-            translation=(
-                self.histology_settings.translation_x
-                * self.alignment_settings.volume_scaling,
-                self.histology_settings.translation_y
-                * self.alignment_settings.volume_scaling,
-            ),
-            # Move coordinate system origin to centre of image
-            extra_translation=(
-                -self.histology_pixmap.pixmap().width() / 2,
-                -self.histology_pixmap.pixmap().height() / 2,
-            ),
-        )
+        sk_transform = self.compute_current_histology_transform()
         q_transform = convert_sk_transform_to_q_transform(sk_transform)
 
         self.histology_pixmap.setTransform(q_transform)
