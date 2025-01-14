@@ -5,6 +5,7 @@
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
+from functools import partial
 import hashlib
 import json
 import logging
@@ -513,9 +514,7 @@ class VolumeLoaderThread(QtCore.QThread):
             return
 
         # Download
-        process = Process(
-            target=lambda volume: volume._ensure_downloaded(), args=(self.volume,)
-        )
+        process = Process(target=self.volume._ensure_downloaded)
         process.start()
         while process.is_alive():
             if self.isInterruptionRequested():
@@ -530,8 +529,7 @@ class VolumeLoaderThread(QtCore.QThread):
         # Load
         queue = Queue()
         process = Process(
-            target=lambda volume, queue: queue.put(volume.load()),
-            args=(self.volume, queue),
+            target=partial(self._run, self.volume, queue),
         )
 
         process.start()
@@ -546,6 +544,10 @@ class VolumeLoaderThread(QtCore.QThread):
                 self.volume.loaded.emit()
 
             time.sleep(0.1)
+
+    @staticmethod
+    def _run(volume: Volume, queue: Queue) -> None:
+        queue.put(volume.load())
 
 
 class VolumeSlicer:
