@@ -142,9 +142,11 @@ class AlignmentWidget(QtWidgets.QWidget):
 
     def update_histological_slice(self, array: Optional[np.ndarray]) -> None:
         self.histology_array = array
-        self.auto_contrast_passes = 0
-
-        self.update_histology_image(array)
+        if self.auto_contrast_passes > 0:
+            self.auto_contrast_passes -= 1
+            self.apply_auto_contrast(force=True)
+        else:
+            self.update_histology_image(array)
 
     def update_histology_image(self, array: np.ndarray) -> None:
         if array is None:
@@ -195,7 +197,16 @@ class AlignmentWidget(QtWidgets.QWidget):
 
         self.update_histology_pixmap()
 
-    def apply_auto_contrast(self) -> None:
+    def apply_auto_contrast(self, force: bool = False) -> None:
+        """Applies ImageJ's auto-threshold algorithm on the current image.
+
+        Args:
+            force (bool, optional):
+                Whether to force the image to be thresholded when the passes count is
+                too high for a successful thresholding. In that case, the smallest
+                successful passes count will be used. This can mean no thresholding is
+                applied if no passes count greater than 0 is successful.
+        """
         self.auto_contrast_passes += 1
 
         new_array, successful = simulate_auto_contrast_passes(
@@ -203,6 +214,10 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
 
         if not successful:
+            if force and self.auto_contrast_passes > 1:
+                self.auto_contrast_passes -= 2
+                self.apply_auto_contrast(force)
+                return
             self.auto_contrast_passes = 0
             new_array = self.histology_array
 
