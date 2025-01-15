@@ -9,14 +9,14 @@ from pathlib import Path
 import re
 from typing import Any, Callable, Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.model_view import StructureModel, StructureNode
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
-from histalign.frontend.pyside_helpers import FakeQtABC, connect_single_shot_slot
+from histalign.frontend.pyside_helpers import connect_single_shot_slot, FakeQtABC
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
