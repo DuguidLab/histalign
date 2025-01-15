@@ -1257,3 +1257,387 @@ class Icon(QtWidgets.QPushButton):
             return True
 
         return super().event(e)
+
+
+class PointGraphicsItem(QtWidgets.QGraphicsObject):
+    """Graphics item shown as a point and a surrounding circle."""
+
+    selected: QtCore.Signal = QtCore.Signal()
+    deselected: QtCore.Signal = QtCore.Signal()
+    clicked: QtCore.Signal = QtCore.Signal(QtCore.Qt.MouseButton)
+    moved: QtCore.Signal = QtCore.Signal(QtCore.QPointF)
+    deleted: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self,
+        position: QtCore.QPointF,
+        size: int,
+        parent: Optional[QtWidgets.QGraphicsItem] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.setPos(position)
+        self.size = size
+
+        self._user_selection = True
+
+        #
+        self.setFlags(
+            self.flags()
+            | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsFocusable
+            | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
+        )
+
+    @staticmethod
+    def generate_pixmaps() -> None:
+        """Generates and caches the relevant pixmaps for this item."""
+        pixmap_out = QtGui.QPixmap("resources/icons/circle-center-icon.png")
+        painter = QtGui.QPainter(pixmap_out)
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+        )
+        painter.setBrush(QtGui.QBrush(QtCore.Qt.GlobalColor.blue))
+        painter.drawRect(pixmap_out.rect())
+        painter.end()
+
+        pixmap_in = pixmap_out.copy()
+        painter = QtGui.QPainter(pixmap_in)
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+        )
+        painter.setBrush(QtGui.QBrush(QtCore.Qt.GlobalColor.green))
+        painter.drawRect(pixmap_in.rect())
+        painter.end()
+
+        QtGui.QPixmapCache.insert("PointGraphicsItem_focus_out", pixmap_out)
+        QtGui.QPixmapCache.insert("PointGraphicsItem_focus_in", pixmap_in)
+
+    def boundingRect(self) -> QtCore.QRectF:
+        """Returns the item's bounding rectangle.
+
+        Returns:
+            QtCore.QRectF: The bounding rectangle.
+        """
+        return QtCore.QRectF(-self.size / 2, -self.size / 2, self.size, self.size)
+
+    def shape(self) -> QtGui.QPainterPath:
+        """Returns the item's collision/interactable area.
+
+        Returns:
+            QtGui.QPainterPath: The collision/interactable area.
+        """
+        path = QtGui.QPainterPath()
+        path.addEllipse(self.boundingRect())
+
+        return path
+
+    def paint(
+        self,
+        painter: QtGui.QPainter,
+        option: QtWidgets.QStyleOptionGraphicsItem,
+        widget: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        """Paints the item in local coordinates.
+
+        Args:
+            painter (QtGui.QPainter): Painter to use for painting.
+            option (QtWidgets.QStyleOptionGraphicsItem): Options to use for painting.
+            widget (Optional[QtWidgets.QWidget], optional): Widget to paint on.
+        """
+        pixmap_key = (
+            "PointGraphicsItem_focus_in"
+            if self.isSelected()
+            else "PointGraphicsItem_focus_out"
+        )
+        pixmap = QtGui.QPixmap()
+        if not QtGui.QPixmapCache.find(pixmap_key, pixmap):
+            self.generate_pixmaps()
+            QtGui.QPixmapCache.find(pixmap_key, pixmap)
+
+        painter.drawPixmap(self.boundingRect(), pixmap, pixmap.rect().toRectF())
+
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        """Handles mouse press events."""
+        super().mousePressEvent(event)
+
+        self._button = event.button()
+        self._dragging = False
+
+    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        """Handles mouse move events."""
+        super().mouseMoveEvent(event)
+
+        self._dragging = True
+
+    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        """Handles mouse release events."""
+        super().mouseReleaseEvent(event)
+
+        if not self._dragging:
+            self.clicked.emit(self._button)
+        self._dragging = False
+
+    def itemChange(
+        self, change: QtWidgets.QGraphicsItem.GraphicsItemChange, value: Any
+    ) -> Any:
+        """Handles item changes notifications.
+
+        Args:
+            change (QtWidgets.QGraphicsItem.GraphicsItemChange): Change type.
+            value (Any): Change-relevant input value.
+
+        Returns:
+            Any: Change-relevant return value.
+        """
+        match change:
+            case QtWidgets.QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+                if self._user_selection:
+                    if value:
+                        self.selected.emit()
+                    else:
+                        self.deselected.emit()
+                self._user_selection = True
+            case QtWidgets.QGraphicsItem.GraphicsItemChange.ItemScenePositionHasChanged:
+                self.moved.emit(value)
+
+        return super().itemChange(change, value)
+
+    def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
+        """Handles focus out events."""
+        super().focusOutEvent(event)
+        self.setSelected(False)
+
+    def select(self) -> None:
+        """Selects the item without direct user input (i.e., programmatically)."""
+        self._user_selection = False
+        self.setSelected(True)
+
+    def deselect(self) -> None:
+        """Deselects the item without direct user input (i.e., programmatically)."""
+        self._user_selection = False
+        self.setSelected(False)
+
+    def delete(self) -> None:
+        """Deletes the widget while broadcasting its deletion."""
+        self.deleteLater()
+        self.deleted.emit()
+
+
+class ZoomAndPanView(QtWidgets.QGraphicsView):
+    """A view providing a zoom-ad-pan mechanism using the mouse.
+
+    The view also provides a way to give a rectangle in scene coordinates which should
+    by default be shown as zoomed-in as possible while fitting completely in view when
+    the view is first made visible.
+    Once the user interacts with the view to pan and zoom, the relative size of the
+    focus rectangle will be maintained.
+
+    Attributes:
+        general_zoom (float):
+            General level of zoom controlled through user interaction. This is limited
+            to values between 0.5 and 25 (i.e., zoom out to half the size and zoom in to
+            25 times the size).
+        focus_zoom (float):
+            Level of zoom required to fit `focus_rect` into view. This makes
+            `focus_rect` fill the view when `general_zoom` is 1.0.
+        view_centre (QtCore.QPointF):
+        focus_rect (QtCore.QRectF):
+    """
+
+    general_zoom: float = 1.0
+    focus_zoom: float = 1.0
+    view_centre: QtCore.QPointF = QtCore.QPointF(0, 0)
+    focus_rect: QtCore.QRectF
+
+    # Position is in scene coordinates
+    clicked: QtCore.Signal = QtCore.Signal(QtCore.QPointF)
+
+    def __init__(
+        self,
+        scene: QtWidgets.QGraphicsScene,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(scene, parent)
+
+        #
+        self.general_zoom = 1.0
+        self.view_centre = QtCore.QPointF(0, 0)
+        self.focus_rect = scene.sceneRect()
+
+        #
+        self.setDragMode(QtWidgets.QGraphicsView.DragMode.ScrollHandDrag)
+        self.setTransformationAnchor(
+            QtWidgets.QGraphicsView.ViewportAnchor.AnchorViewCenter
+        )
+
+        #
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.horizontalScrollBar().valueChanged.connect(self.ensure_focus_rect_visible)
+
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.verticalScrollBar().valueChanged.connect(self.ensure_focus_rect_visible)
+
+    def set_focus_rect(self, rect: QtCore.QRectF, force_visible: bool = True) -> None:
+        """Sets the focus rectangle.
+
+        Args:
+            rect (QtCore.QRectF):
+                Rectangle which should always have a single visible pixel. This should
+                be in scene coordinates.
+            force_visible (bool, optional):
+                Whether to force the rectangle to be visible after setting. If it is
+                not and this is true, the view will centre on the rectangle.
+        """
+        self.focus_rect = rect
+        self.update_focus_zoom()
+
+        if force_visible:
+            view_rect = self.viewport().rect()
+            focus_rect = self.mapFromScene(self.focus_rect).boundingRect()
+            # Offset left and top edges to ensure a pixel can be visible along them
+            view_rect.adjust(1, 1, 0, 0)
+
+            if not view_rect.intersects(focus_rect):
+                self.centerOn(focus_rect.center())
+
+    def update_focus_zoom(self) -> None:
+        """Updates the focus zoom level."""
+        if self.focus_rect.width() <= 0 or self.focus_rect.height() <= 0:
+            return
+
+        view_rect = self.mapToScene(self.viewport().geometry()).boundingRect()
+
+        zoom = min(
+            view_rect.width() / self.focus_rect.width() * self.general_zoom,
+            view_rect.height() / self.focus_rect.height() * self.general_zoom,
+        )
+
+        self.focus_zoom *= zoom
+        self.scale(zoom, zoom)
+
+    def update_view_centre(self) -> None:
+        """Updates the view centre with the current viewport centre."""
+        self.view_centre = self.mapToScene(self.viewport().rect().center())
+
+    def ensure_focus_rect_visible(self) -> None:
+        """Ensures at least a pixel of the focus rectangle is visible.
+
+        Note the visible pixel will be a view pixel, not a scene pixel.
+        """
+        view_rect = self.viewport().rect()
+        focus_rect = self.mapFromScene(self.focus_rect).boundingRect()
+        # Offset left and top edges to ensure at least a pixel can be visible along them
+        view_rect.adjust(1, 1, 0, 0)
+
+        horizontal_bar = self.horizontalScrollBar()
+        vertical_bar = self.verticalScrollBar()
+
+        # Handle case where focus is to the left of the view
+        if view_rect.left() > focus_rect.right():
+            delta = view_rect.left() - focus_rect.right()
+            horizontal_bar.setValue(horizontal_bar.value() - delta)
+        # Handle case where focus is below the view
+        if view_rect.bottom() < focus_rect.top():
+            delta = focus_rect.top() - view_rect.bottom()
+            vertical_bar.setValue(vertical_bar.value() + delta)
+        # Handle case where focus is to the right of the view
+        if view_rect.right() < focus_rect.left():
+            delta = focus_rect.left() - view_rect.right()
+            horizontal_bar.setValue(horizontal_bar.value() + delta)
+        # Handle case where focus is above the view
+        if view_rect.top() > focus_rect.bottom():
+            delta = view_rect.top() - focus_rect.bottom()
+            vertical_bar.setValue(vertical_bar.value() - delta)
+
+    def centerOn(self, position: QtCore.QPoint | QtCore.QPointF) -> None:
+        """Centres the view on the given scene coordinates.
+
+        Args:
+            position (QtCore.QPoint | QtCore.QPointF): Position to centre on.
+        """
+        if isinstance(position, QtCore.QPoint):
+            position = position.toPointF()
+        self.view_centre = position
+
+        super().centerOn(position)
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mousePressEvent(event)
+
+        self._dragging = False
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        """Handles mouse release events.
+
+        Args:
+            event (QtGui.QMouseEvent): Event to handle.
+        """
+        super().mouseReleaseEvent(event)
+
+        # Update the view centre after dragging
+        self.update_view_centre()
+
+        # Notify of single clicks (no dragging)
+        if not self._dragging and event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.mapToScene(event.pos()))
+        self._dragging = False
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseMoveEvent(event)
+
+        self._dragging = True
+
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        """Handles wheel events.
+
+        This allows zooming in and out around the cursor.
+
+        Args:
+            event (QtGui.QWheelEvent): Event to handle
+        """
+        # Zoom calculation
+        zoom_factor = 1.25 if event.angleDelta().y() > 0 else 1 / 1.25
+        new_zoom_level = self.general_zoom * zoom_factor
+        if new_zoom_level < 0 or new_zoom_level > 25:
+            # Limit the zoom range to half the original size to 25 times the original
+            # size. This is more of a UX limitation than a technical one.
+            return
+        self.general_zoom = new_zoom_level
+        self.focus_zoom *= zoom_factor
+
+        # Scaling
+        cursor = self.window().cursor()
+        original_cursor_position = self.mapToScene(self.mapFromGlobal(cursor.pos()))
+        self.scale(zoom_factor, zoom_factor)
+        new_cursor_position = self.mapToScene(self.mapFromGlobal(cursor.pos()))
+
+        # Correct so that the cursor is still above the same scene coordinates (i.e.,
+        # cursor-centric zooming)
+        viewport_centre = (
+            self.mapToScene(self.viewport().rect()).boundingRect().center()
+        )
+        self.centerOn(
+            viewport_centre + (original_cursor_position - new_cursor_position)
+        )
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        """Handles resize events.
+
+        This ensures the view will remain centred on the same coordinates and that the
+        relative size of the focus rectangle grows and shrinks with the view.
+
+        Args:
+            event (QtGui.QResizeEvent): Event to handle.
+        """
+        super().resizeEvent(event)
+
+        self.centerOn(self.view_centre)
+        self.update_focus_zoom()
+
+    # noinspection PyTypeChecker
+    def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
+        self.scene().setFocusItem(None)
+        super().focusOutEvent(event)

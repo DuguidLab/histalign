@@ -8,6 +8,7 @@ from typing import Optional
 
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
+import shiboken6
 from skimage.transform import AffineTransform, estimate_transform
 
 from histalign.backend.maths import (
@@ -22,6 +23,7 @@ from histalign.backend.models import (
 )
 from histalign.backend.preprocessing import simulate_auto_contrast_passes
 from histalign.backend.workspace import VolumeSlicer
+from histalign.frontend.common_widgets import PointGraphicsItem, ZoomAndPanView
 from histalign.frontend.pyside_helpers import get_colour_table
 
 _module_logger = logging.getLogger(__name__)
@@ -401,53 +403,61 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
 
 
-class CoordinateWidget(QtWidgets.QFrame):
-    source_coordinates: Optional[QtCore.QPointF]
-    destination_coordinates: Optional[QtCore.QPointF]
+class CoordinatesWidget(QtWidgets.QFrame):
+    """Widget displaying reference and histology coordinates.
 
-    source_label: QtWidgets.QLabel
-    destination_label: QtWidgets.QLabel
+    Attributes:
+        reference_coordinates (Optional[QtCore.QPoint]):
+            Coordinates of the reference point.
+        histology_coordinates (Optional[QtCore.QPoint]):
+            Coordinates of the histology point.
+        reference_label (QtWidgets.QLabel): Label displaying the reference coordinates.
+        histology_label (QtWidgets.QLabel): Label displaying the histology coordinates.
+    """
+
+    reference_coordinates: Optional[QtCore.QPoint]
+    histology_coordinates: Optional[QtCore.QPoint]
+
+    reference_label: QtWidgets.QLabel
+    histology_label: QtWidgets.QLabel
 
     selected: QtCore.Signal = QtCore.Signal()
+    removed: QtCore.Signal = QtCore.Signal()
     deleted: QtCore.Signal = QtCore.Signal()
 
     def __init__(
         self,
-        source_coordinates: Optional[QtCore.QPointF] = None,
-        destination_coordinates: Optional[QtCore.QPointF] = None,
+        source_coordinates: Optional[QtCore.QPoint] = None,
+        destination_coordinates: Optional[QtCore.QPoint] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
         #
-        self.source_coordinates = source_coordinates
-        self.destination_coordinates = destination_coordinates
+        self.reference_coordinates = source_coordinates
+        self.histology_coordinates = destination_coordinates
 
         #
-        if source_coordinates is None:
-            text = "Source coordinate"
-        else:
-            text = f"({source_coordinates.x():.0f}, {source_coordinates.y():.0f})"
-        source_label = QtWidgets.QLabel(text)
-
-        self.source_label = source_label
+        self.installEventFilter(self)
 
         #
-        if destination_coordinates is None:
-            text = "Destination coordinate"
-        else:
-            text = f"({destination_coordinates.x():.0f}, {destination_coordinates.y():.0f})"
-        destination_label = QtWidgets.QLabel(text)
+        source_label = QtWidgets.QLabel()
 
-        self.destination_label = destination_label
+        self.reference_label = source_label
+        self.update_reference_coordinates(source_coordinates)
+
+        #
+        destination_label = QtWidgets.QLabel()
+
+        self.histology_label = destination_label
+        self.update_histology_coordinates(destination_coordinates)
 
         #
         delete_button = QtWidgets.QPushButton("X")
 
         delete_button.setFixedWidth(delete_button.sizeHint().height())
 
-        delete_button.clicked.connect(self.deleteLater)
-        delete_button.clicked.connect(self.deleted.emit)
+        delete_button.clicked.connect(self.removed.emit)
 
         self.delete_button = delete_button
 
@@ -465,7 +475,46 @@ class CoordinateWidget(QtWidgets.QFrame):
             QtWidgets.QFrame.Shape.Panel | QtWidgets.QFrame.Shadow.Raised
         )
 
-    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent):
+    def update_reference_coordinates(
+        self, coordinates: Optional[QtCore.QPoint]
+    ) -> None:
+        """Updates reference coordinates with new coordinates.
+
+        Args:
+            coordinates (QtCore.QPoint): New coordinates.
+        """
+        if coordinates is None:
+            text = "Reference coordinates"
+        else:
+            text = f"({coordinates.x()}, {coordinates.y()})"
+        self.reference_label.setText(text)
+        self.reference_coordinates = coordinates
+
+    def update_histology_coordinates(
+        self, coordinates: Optional[QtCore.QPoint]
+    ) -> None:
+        """Updates histology coordinates with new coordinates.
+
+        Args:
+            coordinates (QtCore.QPoint): New coordinates.
+        """
+        if coordinates is None:
+            text = "Histology coordinates"
+        else:
+            text = f"({coordinates.x()}, {coordinates.y()})"
+        self.histology_label.setText(text)
+        self.histology_coordinates = coordinates
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        """Handles events received by the watched widget.
+
+        Args:
+            watched (QtCore.QObject): Watched widget.
+            event (QtCore.QEvent): Event received by the watched widget.
+
+        Returns:
+            bool: Whether the event wa handled or should be propagated.
+        """
         match event.type():
             case QtCore.QEvent.Type.MouseButtonPress:
                 if event.button() == QtCore.Qt.MouseButton.LeftButton:
@@ -474,19 +523,32 @@ class CoordinateWidget(QtWidgets.QFrame):
 
         return super().eventFilter(watched, event)
 
+    def deleteLater(self) -> None:
+        """Schedules the widget for deletion."""
+        super().deleteLater()
+        self.deleted.emit()
+
 
 class LandmarkCoordinatesWidget(QtWidgets.QScrollArea):
+    """Scroll area displaying the current coordinates widgets.
+
+    Attributes:
+        widgets_count (int): Number of coordinates widget.
+        coordinates_widgets (dict[str, CoordinatesWidget]):
+            Mapping associating a coordinates widget's ID to itself.
+    """
+
     count_changed: QtCore.Signal = QtCore.Signal(int)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         #
-        self.coordinates_count = 0
-        self.coordinate_widgets = []
+        self.widgets_count = 0
+        self.coordinate_widgets = {}
 
         #
-        headers_widget = CoordinateWidget()
+        headers_widget = CoordinatesWidget()
 
         size_policy = headers_widget.delete_button.sizePolicy()
         size_policy.setRetainSizeWhenHidden(True)
@@ -514,80 +576,77 @@ class LandmarkCoordinatesWidget(QtWidgets.QScrollArea):
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 
-    def add_entry(self, baseline: QtCore.QPointF, actual: QtCore.QPointF) -> None:
-        coordinates_widget = CoordinateWidget(baseline, actual)
+    def add_entry(
+        self, reference_coordinates: QtCore.QPoint, histology_coordinates: QtCore.QPoint
+    ) -> CoordinatesWidget:
+        """Adds a coordinates widget from the reference and histology coordinates.
+
+        Args:
+            reference_coordinates (QtCore.QPoint): Coordinates of the reference point.
+            histology_coordinates (QtCore.QPoint): Coordinates of the histology point.
+
+        Returns:
+            CoordinatesWidget: The newly-created widget.
+        """
+        coordinates_widget = CoordinatesWidget(
+            reference_coordinates, histology_coordinates
+        )
+
+        widget_id = hex(id(coordinates_widget))
+
         coordinates_widget.deleted.connect(
-            lambda: self.coordinate_widgets.remove(coordinates_widget)
+            lambda: self.coordinate_widgets.pop(widget_id)
         )
         coordinates_widget.deleted.connect(self.decrement_count)
-        self.coordinate_widgets.append(coordinates_widget)
+
+        self.coordinate_widgets[widget_id] = coordinates_widget
 
         self.widget().layout().addWidget(coordinates_widget)
 
         self.increment_count()
 
+        return coordinates_widget
+
     @QtCore.Slot()
     def increment_count(self) -> None:
-        self.coordinates_count += 1
-        self.count_changed.emit(self.coordinates_count)
+        """Increments the widgets count."""
+        self.widgets_count += 1
+        self.count_changed.emit(self.widgets_count)
 
     @QtCore.Slot()
     def decrement_count(self) -> None:
-        self.coordinates_count -= 1
-        self.count_changed.emit(self.coordinates_count)
-
-
-class LandmarkRegistrationGraphicsView(QtWidgets.QGraphicsView):
-    def __init__(
-        self,
-        scene: QtWidgets.QGraphicsScene,
-        parent: Optional[QtWidgets.QWidget] = None,
-    ) -> None:
-        super().__init__(scene, parent)
-
-        #
-        self.previous_position = None
-        self.dragging = -1  # Whether user is currently dragging
-        self.scale_delta = 0  # Individual scaling delta from user input
-        self.x_delta = 0  # Individual X translation delta from user input
-        self.y_delta = 0  # Individual Y translation delta from user input
-
-        #
-        # Receive all mouse mouse events
-        self.setMouseTracking(True)
-        # Allow translation
-        self.setTransformationAnchor(QtWidgets.QGraphicsView.ViewportAnchor.NoAnchor)
-
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-
-    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        event.ignore()
-
-    def mouseMoveEvent(self, event: QtGui.QMouseEvent):
-        event.ignore()
-
-    def mouseReleaseEvent(self, event: QtGui.QMouseEvent):
-        event.ignore()
-
-    def wheelEvent(self, event: QtGui.QScrollEvent) -> None:
-        event.ignore()
+        """Decrements the widgets count."""
+        self.widgets_count -= 1
+        self.count_changed.emit(self.widgets_count)
 
 
 class PreviewWindow(QtWidgets.QMainWindow):
+    """Landmark registration preview GUI window.
+
+    This provides a way to display the current effect of the landmark registration
+    without applying them to the main registration window directly.
+
+    Attributes:
+        scene (QtWidgets.QGraphicsScene): Scene to put the pixmaps into.
+        view (ZoomAndPanView): View on the scene.
+        reference_pixmap_item (QtWidgets.QGraphicsPixmapItem):
+            Pixmap item of the reference (typically the atlas) slice.
+        histology_pixmap_item (QtWidgets.QGraphicsPixmapItem):
+            Pixmap item of the histology image.
+    """
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         #
-        scene = QtWidgets.QGraphicsScene()
+        scene = QtWidgets.QGraphicsScene(
+            QtCore.QRectF(-100_000, -100_000, 200_000, 200_000)  # Make "infinite"
+        )
 
         self.scene = scene
 
         #
-        view = QtWidgets.QGraphicsView(scene)
-
-        view.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        view.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        view = ZoomAndPanView(scene)
 
         self.view = view
 
@@ -601,73 +660,111 @@ class PreviewWindow(QtWidgets.QMainWindow):
     def update_reference_pixmap(
         self, pixmap: QtGui.QPixmap, transform: QtGui.QTransform
     ) -> None:
+        """Updates the reference pixmap with the given pixmap and transform.
+
+        Args:
+            pixmap (QtGui.QPixmap): Pixmap to display.
+            transform (QtGui.QTransform): Transform to apply to the pixmap item.
+        """
+
         self.reference_pixmap_item.setPixmap(pixmap)
         self.reference_pixmap_item.setTransform(transform)
-        self.view.setSceneRect(self.reference_pixmap_item.sceneBoundingRect())
+
+        self.view.set_focus_rect(self.reference_pixmap_item.sceneBoundingRect())
+        self.view.centerOn(self.reference_pixmap_item.sceneBoundingRect().center())
 
     def update_histology_pixmap(
         self, pixmap: QtGui.QPixmap, transform: QtGui.QTransform
     ) -> None:
+        """Updates the histology pixmap with the given pixmap and transform.
+
+        Args:
+            pixmap (QtGui.QPixmap): Pixmap to display.
+            transform (QtGui.QTransform): Transform to apply to the pixmap item.
+        """
         self.histology_pixmap_item.setPixmap(pixmap)
         self.histology_pixmap_item.setTransform(transform)
 
 
 class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
+    """Landmark registration main GUI window.
+
+    The window consists of two views stacked on top of each other on the left and a
+    landmark tracker on the right.
+
+    The user can interact (zoom and pan) the views and click on them to place a marker.
+    Once markers exist in both views, they are paired and added to the list of
+    landmarks. The user can repeat this as many times as they want or move the already-
+    present points.
+
+    To check their progress, the user can use the "Preview" button to get an idea of
+    what the currently estimated transform looks like. If they are happy with the
+    result, they can "Apply" which applies the transform on the original alignment
+    window and closes the landmark registration. If not, the user can cancel.
+
+    Attributes:
+        reference_scene (QtWidgets.QGraphicsScene):
+            Scene for the reference (typically atlas) workspace.
+        reference_view (ZoomAndPanView):
+            View for the reference (typically atlas) workspace.
+        reference_pixmap_item (QtWidgets.QGraphicsPixmapItem):
+            Pixmap item of the reference (typically atlas) slice.
+        histology_scene (QtWidgets.QGraphicsScene):
+            Scene for the histology workspace.
+        histology_view (ZoomAndPanView):
+            View for the histology workspace.
+        histology_pixmap_item (QtWidgets.QGraphicsPixmapItem):
+            Pixmap item of the histology image to align.
+    """
+
     applied: QtCore.Signal = QtCore.Signal(AffineTransform)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
         #
-        reference_scene = QtWidgets.QGraphicsScene()
+        self._reference_point: Optional[PointGraphicsItem] = None
+        self._histology_point: Optional[PointGraphicsItem] = None
+        self._ignore_next_click: bool = False
+
+        self._point_to_widget_map: dict[tuple[str, str], CoordinatesWidget] = {}
+        self._widget_to_point_map: dict[
+            str, tuple[PointGraphicsItem, PointGraphicsItem]
+        ] = {}
+
+        #
+        reference_scene = QtWidgets.QGraphicsScene(
+            QtCore.QRectF(-100_000, -100_000, 200_000, 200_000)  # Make "infinite"
+        )
 
         self.reference_scene = reference_scene
 
         #
-        reference_view = LandmarkRegistrationGraphicsView(reference_scene)
+        reference_view = ZoomAndPanView(reference_scene)
 
-        reference_view.installEventFilter(self)
-
-        reference_view.setObjectName("reference_view")
+        reference_view.clicked.connect(self.process_click)
 
         self.reference_view = reference_view
 
         #
-        reference_pixmap_item = reference_scene.addPixmap(QtGui.QPixmap())
-
-        self.reference_pixmap_item = reference_pixmap_item
+        self.reference_pixmap_item = reference_scene.addPixmap(QtGui.QPixmap())
 
         #
-        histology_scene = QtWidgets.QGraphicsScene()
+        histology_scene = QtWidgets.QGraphicsScene(
+            QtCore.QRectF(-100_000, -100_000, 200_000, 200_000)
+        )  # Make "infinite"
 
         self.histology_scene = histology_scene
 
         #
-        histology_view = LandmarkRegistrationGraphicsView(histology_scene)
+        histology_view = ZoomAndPanView(histology_scene)
 
-        histology_view.setMouseTracking(True)
-        histology_view.installEventFilter(self)
-        histology_view.setTransformationAnchor(  # Allow dragging
-            QtWidgets.QGraphicsView.ViewportAnchor.NoAnchor
-        )
-
-        histology_view.setObjectName("histology_view")
+        histology_view.clicked.connect(self.process_click)
 
         self.histology_view = histology_view
 
         #
-        histology_pixmap_item = histology_scene.addPixmap(QtGui.QPixmap())
-
-        self.histology_pixmap_item = histology_pixmap_item
-
-        #
-        landmark_coordinates_widget = LandmarkCoordinatesWidget()
-
-        landmark_coordinates_widget.count_changed.connect(
-            lambda count: self.apply_button.setEnabled(count >= 9)
-        )
-
-        self.landmark_coordinates_widget = landmark_coordinates_widget
+        self.histology_pixmap_item = histology_scene.addPixmap(QtGui.QPixmap())
 
         #
         apply_button = QtWidgets.QPushButton("Apply")
@@ -681,21 +778,24 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
 
         apply_button.setEnabled(False)
 
-        self.apply_button = apply_button
+        #
+        landmark_coordinates_widget = LandmarkCoordinatesWidget()
+
+        landmark_coordinates_widget.count_changed.connect(
+            lambda count: apply_button.setEnabled(count >= 9)
+        )
+
+        self.landmark_coordinates_widget = landmark_coordinates_widget
 
         #
         preview_button = QtWidgets.QPushButton("Preview")
 
         preview_button.clicked.connect(self.show_preview)
 
-        self.preview_button = preview_button
-
         #
         cancel_button = QtWidgets.QPushButton("Cancel")
 
         cancel_button.clicked.connect(self.close)
-
-        self.cancel_button = cancel_button
 
         #
         control_layout = QtWidgets.QGridLayout()
@@ -730,82 +830,261 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
     def update_reference_pixmap(
         self, pixmap_item: QtWidgets.QGraphicsPixmapItem
     ) -> None:
+        """Updates the pixmap item shown in the reference (top) view.
+
+        The pixmap item is taken as-is, maintaining the transform.
+
+        Args:
+            pixmap_item (QtWidgets.QGraphicsPixmapItem): Pixmap item to update with.
+        """
         self.reference_pixmap_item.setPixmap(pixmap_item.pixmap())
         self.reference_pixmap_item.setTransform(pixmap_item.transform())
-        self.reference_view.setSceneRect(self.reference_pixmap_item.sceneBoundingRect())
+
+        self.reference_view.set_focus_rect(
+            self.reference_pixmap_item.sceneBoundingRect()
+        )
 
     def update_histology_pixmap(
         self, pixmap_item: QtWidgets.QGraphicsPixmapItem
     ) -> None:
+        """Updates the pixmap item shown in the histology (bottom) view.
+
+        The pixmap item is taken as-is, maintaining the transform.
+
+        Args:
+            pixmap_item (QtWidgets.QGraphicsPixmapItem): Pixmap item to update with.
+        """
         self.histology_pixmap_item.setPixmap(pixmap_item.pixmap())
         self.histology_pixmap_item.setTransform(pixmap_item.transform())
-        self.histology_view.setSceneRect(self.histology_pixmap_item.sceneBoundingRect())
 
-    def compute_and_apply_view_transform(self) -> None:
-        self._compute_and_apply_view_transform(
-            self.reference_view, self.reference_pixmap_item
-        )
-        self._compute_and_apply_view_transform(
-            self.histology_view, self.histology_pixmap_item
+        self.histology_view.set_focus_rect(
+            self.histology_pixmap_item.sceneBoundingRect()
         )
 
-    def _compute_and_apply_view_transform(
-        self,
-        view: LandmarkRegistrationGraphicsView,
-        pixmap_item: QtWidgets.QGraphicsPixmapItem,
-    ) -> None:
-        view_size = view.viewport().size()
-        scene_rect = pixmap_item.sceneBoundingRect()
-        scene_rect.moveTo(0, 0)
+    def process_click(self, position: QtCore.QPointF) -> None:
+        """Processes a click coming from either of the views.
 
-        view_scale = min(
-            view_size.width() / scene_rect.width(),
-            view_size.height() / scene_rect.height(),
-        )
-        view_scale += view.scale_delta
+        The view is identified through `QtCore.QObject.sender()`.
 
-        view.setTransform(
-            QtGui.QTransform()
-            .translate(view.x_delta, view.y_delta)
-            .scale(view_scale, view_scale)
-        )
+        Args:
+            position (QtCore.QPointF): Scene position of the click.
+        """
+        # Determine which view the click was on
+        sender = self.sender()
 
-    def add_landmark_coordinates(self) -> None:
-        if not hasattr(self, "_baseline") or not hasattr(self, "_actual"):
+        if sender is self.reference_view:
+            name = "reference"
+        elif sender is self.histology_view:
+            name = "histology"
+        else:
+            _module_logger.error(
+                "Cannot process click emanating from neither the reference nor "
+                "the histology view."
+            )
             return
 
-        self.landmark_coordinates_widget.add_entry(self._baseline, self._actual)
+        # Ignore click when user removes selection by clicking away from items
+        if self._ignore_next_click:
+            self._ignore_next_click = False
+            return
 
-        del self._baseline
-        del self._actual
+        # Extract relevant members
+        scene1: QtWidgets.QGraphicsScene = getattr(self, f"{name}_scene")
+        pixmap_item1: QtWidgets.QGraphicsPixmapItem = getattr(
+            self, f"{name}_pixmap_item"
+        )
+        graphics_item1: PointGraphicsItem = getattr(self, f"_{name}_point")
+
+        # Don't add a new item if clicking on an existing one
+        if isinstance(scene1.itemAt(position, QtGui.QTransform()), PointGraphicsItem):
+            return
+
+        if graphics_item1 is not None and shiboken6.isValid(graphics_item1):
+            # Move currently unpaired graphics item if clicking on same view again
+            graphics_item1.setPos(position)
+        else:
+            # Otherwise, create new graphics item
+            graphics_item1 = PointGraphicsItem(
+                position,
+                round(min(*pixmap_item1.sceneBoundingRect().size().toTuple()) / 50),
+            )
+            graphics_item1.clicked.connect(
+                lambda x: self.handle_graphics_item_click(x, graphics_item1)
+            )
+            graphics_item1.deselected.connect(self.ignore_next_click)
+
+            # Add item to the scene
+            scene1.addItem(graphics_item1)
+            setattr(self, f"_{name}_point", graphics_item1)
+
+        # Check if a matching point exists in the other scene
+        other_name = "reference" if name == "histology" else "histology"
+
+        graphics_item2: PointGraphicsItem = getattr(self, f"_{other_name}_point")
+
+        # Early return if no matching point yet
+        if graphics_item2 is None:
+            return
+
+        # Otherwise, link the points
+        graphics_item1.selected.connect(graphics_item2.select)
+        graphics_item1.deselected.connect(graphics_item2.deselect)
+        graphics_item1.deleted.connect(graphics_item2.deleteLater)
+
+        graphics_item2.selected.connect(graphics_item1.select)
+        graphics_item2.deselected.connect(graphics_item1.deselect)
+        graphics_item2.deleted.connect(graphics_item1.deleteLater)
+
+        # Create a coordinates widget
+        self.create_coordinates_widget()
+
+        # Reset caches
+        self._reference_point = None
+        self._histology_point = None
+
+    def ignore_next_click(self) -> None:
+        """Sets a flag to ignore the next click processing."""
+        # If neither has focus, the user clicked outside of both and the next click
+        # should not be ignored since no point will be selected at that point.
+        if self.reference_view.hasFocus() or self.histology_view.hasFocus():
+            self._ignore_next_click = True
+
+    def handle_graphics_item_click(
+        self, button: QtCore.Qt.MouseButton, graphics_item: PointGraphicsItem
+    ) -> None:
+        """Handles clicks other than left clicks on points.
+
+        Currently, this only provides a way to delete points and points pairs by right-
+        clicking them.
+
+        Args:
+            button (QtCore.Qt.MouseButton): Button that was clicked.
+            graphics_item (PointGraphicsItem): Item that emitted the click.
+        """
+        if button == QtCore.Qt.MouseButton.RightButton:
+            self.handle_item_deletion(graphics_item)
+
+    def handle_item_deletion(self, graphics_item: PointGraphicsItem) -> None:
+        """Handles deleting points and coordinate widgets.
+
+        If the point has a pair, that pair is also deleted and the corresponding
+        coordinates widget is also removed.
+
+        Args:
+            graphics_item (PointGraphicsItem): Item to delete.
+        """
+        graphics_item.delete()
+
+        item_id = hex(id(graphics_item))
+        full_key = None
+        for key, value in self._point_to_widget_map.items():
+            if item_id in key:
+                full_key = key
+
+                self._widget_to_point_map.pop(hex(id(value)))
+                value.deleteLater()
+        # Defer deletion until after iterating
+        if full_key is not None:
+            self._point_to_widget_map.pop(full_key)
+
+    # noinspection PyTypeChecker
+    def create_coordinates_widget(self) -> None:
+        """Creates a coordinate widget with the cached points."""
+        if self._reference_point is None or self._histology_point is None:
+            _module_logger.error(
+                "Attempted to create a coordinates widget without valid points."
+            )
+            return
+
+        # Pixels are drawn from index to index + 1, hence float portion is irrelevant
+        reference_pos = self.convert_position_to_coordinates(
+            self.reference_pixmap_item.mapFromScene(self._reference_point.pos())
+        )
+        histology_pos = self.convert_position_to_coordinates(
+            self.histology_pixmap_item.mapFromScene(self._histology_point.pos())
+        )
+
+        # Create the widget
+        widget = self.landmark_coordinates_widget.add_entry(
+            reference_pos, histology_pos
+        )
+
+        widget.removed.connect(
+            lambda x=self._reference_point: self.handle_item_deletion(x)
+        )
+        widget.selected.connect(lambda x=self._reference_point: self.select_items(x))
+
+        # Update widget when graphics items are moved
+        self._reference_point.moved.connect(
+            lambda x: widget.update_reference_coordinates(
+                self.convert_position_to_coordinates(
+                    self.reference_pixmap_item.mapFromScene(x)
+                )
+            )
+        )
+        self._histology_point.moved.connect(
+            lambda x: widget.update_histology_coordinates(
+                self.convert_position_to_coordinates(
+                    self.histology_pixmap_item.mapFromScene(x)
+                )
+            )
+        )
+
+        # Add to the maps
+        self._point_to_widget_map[
+            (hex(id(self._reference_point)), (hex(id(self._histology_point))))
+        ] = widget
+        self._widget_to_point_map[hex(id(widget))] = (
+            self._reference_point,
+            self._histology_point,
+        )
+
+    # noinspection PyTypeChecker
+    def select_items(self, item: PointGraphicsItem) -> None:
+        """Selects an item and its pair if it has one.
+
+        Note that this clear the current selection.
+
+        Args:
+            item (PointGraphicsItem): Item to select.
+        """
+        self.reference_scene.setFocusItem(None)
+        self.reference_scene.clearSelection()
+
+        self.histology_scene.setFocusItem(None)
+        self.histology_scene.clearSelection()
+
+        item.setSelected(True)
 
     def collect_transform_points(self) -> tuple[np.ndarray, np.ndarray]:
-        baseline_coordinates = np.vstack(
-            [
-                np.array([widget.source_coordinates.x(), widget.source_coordinates.y()])
-                for widget in self.landmark_coordinates_widget.coordinate_widgets
-            ]
-        )
-        actual_coordinates = np.vstack(
-            [
-                np.array(
-                    [
-                        widget.destination_coordinates.x(),
-                        widget.destination_coordinates.y(),
-                    ]
-                )
-                for widget in self.landmark_coordinates_widget.coordinate_widgets
-            ]
-        )
+        """Collects the current transformation points pairs."""
+        reference_points = []
+        histology_points = []
 
-        return baseline_coordinates, actual_coordinates
+        for widget in self.landmark_coordinates_widget.coordinate_widgets.values():
+            reference_points.append(np.array([*widget.reference_coordinates.toTuple()]))
+            histology_points.append(np.array([*widget.histology_coordinates.toTuple()]))
+
+        reference_points = np.vstack(reference_points)
+        histology_points = np.vstack(histology_points)
+
+        return reference_points, histology_points
 
     def estimate_raw_histology_transform(
         self, as_sk_transform: bool = False
     ) -> AffineTransform | QtGui.QTransform:
-        baseline, actual = self.collect_transform_points()
+        """Estimates the histology transform from the current transform points.
+
+        Args:
+            as_sk_transform (bool):
+                Whether to return the transform as a `scikit-image` transform.
+
+        Returns:
+            AffineTransform | QtGui.QTransform: The raw histology transform.
+        """
+        reference_points, histology_points = self.collect_transform_points()
         sk_transform: AffineTransform = estimate_transform(
-            "affine", baseline, actual
+            "affine", reference_points, histology_points
         ).inverse
 
         if as_sk_transform:
@@ -816,6 +1095,15 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
     def estimate_histology_transform(
         self, as_sk_transform: bool = False
     ) -> AffineTransform | QtGui.QTransform:
+        """Estimates the histology transform relative to the transformed reference.
+
+        Args:
+            as_sk_transform (bool):
+                Whether to return the transform as a `scikit-image` transform.
+
+        Returns:
+            AffineTransform | QtGui.QTransform: The histology transform.
+        """
         transform = AffineTransform(
             convert_q_transform_to_sk_transform(
                 self.reference_pixmap_item.transform()
@@ -829,7 +1117,9 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
             return convert_sk_transform_to_q_transform(transform)
 
     def show_preview(self) -> None:
+        """Shows the preview GUI given the current transform points."""
         window = PreviewWindow(self)
+        window.resize(self.size() * 0.95)
 
         window.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
         window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -843,88 +1133,22 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
 
         window.show()
 
-    def showEvent(self, event: QtGui.QShowEvent) -> None:
-        self.compute_and_apply_view_transform()
+    @staticmethod
+    def convert_position_to_coordinates(position: QtCore.QPointF) -> QtCore.QPoint:
+        """Converts a scene position into grid coordinates.
 
-        super().showEvent(event)
+        This is especially useful to convert float scene positions into pixmap item
+        coordinates.
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        self.compute_and_apply_view_transform()
+        Args:
+            position (QtCore.QPointF):
 
-        super().resizeEvent(event)
+        Returns:
+            QtCore.QPoint: The grid coordinates.
+        """
+        position = position.__copy__()
 
-    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
-        if not isinstance(watched, QtWidgets.QGraphicsView):
-            return super().eventFilter(watched, event)
+        position.setX(math.floor(position.x()))
+        position.setY(math.floor(position.y()))
 
-        match event.type():
-            # Handle zooming
-            case QtCore.QEvent.Type.Wheel:
-
-                if event.angleDelta().y() > 0:  # Scroll up
-                    watched.scale_delta += 0.05
-                elif event.angleDelta().y() < 0:  # Scroll down
-                    watched.scale_delta -= 0.05
-                else:  # Could be horizontal scrolling
-                    return super().eventFilter(watched, event)
-
-                self.compute_and_apply_view_transform()
-                return True
-            # Handle dragging
-            case QtCore.QEvent.Type.MouseButtonPress:
-                position = event.pos()
-
-                watched.dragging = 0
-                watched.previous_position = position
-
-                return True
-            case QtCore.QEvent.Type.MouseButtonRelease:
-                if watched.dragging != 1:
-                    if watched.objectName() == "reference_view":
-                        view = self.reference_view
-                    elif watched.objectName() == "histology_view":
-                        view = self.histology_view
-                    else:
-                        _module_logger.warning(
-                            "Watched object was not an expected view."
-                        )
-                        return super().eventFilter(watched, event)
-
-                    scene_position = view.mapToScene(
-                        view.mapFromGlobal(event.globalPos())
-                    )
-
-                    if watched.objectName() == "reference_view":
-                        pixmap_position = self.reference_pixmap_item.mapFromScene(
-                            scene_position
-                        )
-                        self._baseline = pixmap_position
-                    elif watched.objectName() == "histology_view":
-                        pixmap_position = self.histology_pixmap_item.mapFromScene(
-                            scene_position
-                        )
-                        self._actual = pixmap_position
-
-                    self.add_landmark_coordinates()
-
-                watched.dragging = -1
-
-                return True
-            case QtCore.QEvent.Type.MouseMove:
-                if watched.dragging == -1:
-                    return super().eventFilter(watched, event)
-
-                if watched.dragging == 0:
-                    watched.dragging = 1
-
-                new_position = event.pos()
-
-                watched.x_delta += new_position.x() - watched.previous_position.x()
-                watched.y_delta += new_position.y() - watched.previous_position.y()
-
-                watched.previous_position = new_position
-
-                self.compute_and_apply_view_transform()
-                return True
-
-        return super().eventFilter(watched, event)
+        return position.toPoint()
