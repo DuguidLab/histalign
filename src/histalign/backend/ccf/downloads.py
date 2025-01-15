@@ -73,9 +73,10 @@ def download(url: str, file_path: str | Path) -> None:
     # Allen SSL certificate is apparently not valid...
     context = get_ssl_context(check_hostname=False, check_certificate=False)
     try:
-        with urlopen(url, context=context) as response, open(
-            tmp_file_path, "wb"
-        ) as handle:
+        with (
+            urlopen(url, context=context) as response,
+            open(tmp_file_path, "wb") as handle,
+        ):
             shutil.copyfileobj(response, handle)
     except urllib.error.HTTPError:
         _module_logger.error(f"URL not found ('{url}').")
