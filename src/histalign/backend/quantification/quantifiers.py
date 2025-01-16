@@ -175,7 +175,11 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
             self.quantification_settings.alignment_directory, return_raw_array=True
         )
         self.progress_changed.emit(1)
-        interpolated_array = interpolate_sparse_3d_array(alignment_array)
+        interpolated_array = interpolate_sparse_3d_array(
+            alignment_array,
+            alignment_directory=self.quantification_settings.alignment_directory,
+            use_cache=True,
+        )
         self.progress_changed.emit(2)
 
         progress_index = 2
