@@ -40,20 +40,56 @@ INTERPOLATED_VOLUMES_CACHE_DIRECTORY = DATA_ROOT / "interpolated_volumes"
 os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
 
 Coordinates = np.ndarray  # Coordinates in NumPy form
-CoordinatesTuple = tuple[int, ...]  # Coordinates in tuple form (OK as dictionary keys)
+CoordinatesTuple = tuple[
+    float, ...
+]  # Coordinates in tuple form (OK as dictionary keys)
 Projection = np.ndarray
 
 _module_logger = logging.getLogger(__name__)
 
 
-def build_alignment_volume(
+def build_aligned_volume(
     alignment_directory: str | Path,
-    use_cache: bool = True,
+    allow_cache_load: bool = True,
+    allow_cache_save: bool = True,
     return_raw_array: bool = False,
     channel_index: Optional[int] = None,
     channel_regex: Optional[str] = None,
-    z_stack_regex: Optional[str] = None,
+    projection_regex: Optional[str] = None,
+    misc_regexes: Optional[str | list[str]] = None,
+    misc_subs: Optional[str | list[str]] = None,
 ) -> np.ndarray | vedo.Volume:
+    """Builds an aligned volume from alignment settings.
+
+    Args:
+        alignment_directory (str | Path):
+        allow_cache_load (bool, optional):
+            Whether to use the cache for loading. If `False`, the entire volume is
+            guaranteed to be build from scratch. If `True`, the cache will be queried
+            for an existing volume created with the same alignment paths. If one exists,
+            it is returned. Otherwise, the volume is built as normal.
+        allow_cache_save (bool, optional):
+            Whether to save the built volume to the cache.
+        return_raw_array (bool, optional):
+            Whether to return a numpy array (`True`) or a vedo volume (`False`).
+        channel_index (Optional[int], optional):
+            Channel index to use when retrieving the original files.
+        channel_regex (Optional[str], optional):
+            Channel regex identifying the channel part of alignment paths' names found
+            in `alignment_directory`.
+        projection_regex (Optional[str], optional):
+            Projection regex identifying the projection part of alignment paths' names
+            found in `alignment_directory`.
+        misc_regexes (Optional[list[str]], optional):
+            Miscellaneous regexes identifying extra parts of alignment paths found in
+            `alignment_directory`.
+        misc_subs (Optional[list[str]], optional):
+            Substitutions to replace `misc_regexes` with. This should have as many
+            elements as `misc_regexes`.
+
+    Returns:
+        np.ndarray | vedo.Volume: The aligned volume or 3D array.
+    """
     _module_logger.debug("Starting build of aligned volume.")
 
     if channel_regex is not None and channel_index is None:
@@ -77,7 +113,7 @@ def build_alignment_volume(
     alignment_hash = generate_hash_from_targets(alignment_paths)
 
     cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.npz"
-    if cache_path.exists() and use_cache:
+    if cache_path.exists() and allow_cache_load:
         _module_logger.debug("Found cached aligned volume. Loading from file.")
 
         array = np.load(cache_path)["array"]
@@ -92,13 +128,19 @@ def build_alignment_volume(
     aligned_array = aligned_volume.tonumpy()
 
     planes = generate_aligned_planes(
-        aligned_volume, alignment_paths, channel_index, channel_regex, z_stack_regex
+        aligned_volume,
+        alignment_paths,
+        channel_index,
+        channel_regex,
+        projection_regex,
+        misc_regexes,
+        misc_subs,
     )
 
     insert_aligned_planes_into_array(aligned_array, planes)
     aligned_volume.modified()  # Probably unnecessary but good practice
 
-    if use_cache:
+    if allow_cache_save:
         _module_logger.debug("Caching volume to file as a NumPy array.")
         os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
         np.savez_compressed(cache_path, array=aligned_array)
@@ -110,9 +152,20 @@ def build_alignment_volume(
 
 def insert_aligned_planes_into_array(
     array: np.ndarray,
-    planes: list[vedo.Plane],
+    planes: list[vedo.Mesh],
     inplace: bool = True,
 ) -> np.ndarray:
+    """Inserts aligned planes into a 3D numpy array.
+
+    Args:
+        array (np.ndarray): Array to insert into.
+        planes (list[vedo.Mesh]): Planes to insert.
+        inplace (bool, optional): Whether to modify `array` in-place.
+
+    Returns:
+        np.ndarray:
+            `array` if `inplace` is `True`, else a copy, with the planes inserted.
+    """
     _module_logger.debug(
         f"Starting insertion of {len(planes)} planes into alignment array."
     )
@@ -144,8 +197,34 @@ def generate_aligned_planes(
     alignment_paths: list[Path],
     channel_index: Optional[int] = None,
     channel_regex: Optional[str] = None,
-    z_stack_regex: Optional[str] = None,
-) -> list[vedo.Plane]:
+    projection_regex: Optional[str] = None,
+    misc_regexes: Optional[str] = None,
+    misc_subs: Optional[str] = None,
+) -> list[vedo.Mesh]:
+    """Generates aligned planes for each image (2D or 3D) from the alignment paths.
+
+    Args:
+        alignment_volume (Volume | vedo.Volume): Volume to generate planes for.
+        alignment_paths (list[Path]):
+            List of alignment settings paths to use when reconstructing the planes.
+        channel_index (Optional[int], optional):
+            Channel index to use when retrieving the original files.
+        channel_regex (Optional[str], optional):
+            Channel regex identifying the channel part of `alignment_paths`'s names.
+        projection_regex (Optional[str], optional):
+            Projection regex identifying the projection part of `alignment_paths`'s
+            names.
+        misc_regexes (Optional[list[str]], optional):
+            Miscellaneous regexes identifying extra parts of alignment paths found in
+            `alignment_directory`.
+        misc_subs (Optional[list[str]], optional):
+            Substitutions to replace `misc_regexes` with. This should have as many
+            elements as `misc_regexes`.
+
+    Returns:
+        list[vedo.Mesh]:
+            A list of all the aligned planes obtained from the alignment paths.
+    """
     _module_logger.debug(f"Starting generation of aligned planes.")
 
     planes = []
@@ -161,7 +240,9 @@ def generate_aligned_planes(
             alignment_settings.histology_path,
             channel_index,
             channel_regex,
-            z_stack_regex,
+            projection_regex,
+            misc_regexes,
+            misc_subs,
         )
         if not histology_path_with_replacement.exists():
             _module_logger.error(
@@ -179,7 +260,7 @@ def generate_aligned_planes(
         for origin, projection in projections_map.items():
             planes.append(
                 get_plane_from_2d_image(
-                    projection, alignment_settings, origin=origin, slicer=slicer
+                    projection, alignment_settings, origin=list(origin), slicer=slicer
                 )
             )
 
@@ -192,7 +273,22 @@ def get_plane_from_2d_image(
     alignment_settings: AlignmentSettings,
     slicer: VolumeSlicer,
     origin: Optional[list[float]] = None,
-) -> vedo.Plane:
+) -> vedo.Mesh:
+    """Creates a plane mesh from an image and its alignment settings.
+
+    Args:
+        image (np.ndarray): Scalar information for the plane.
+        alignment_settings (AlignmentSettings): Settings used for the alignment.
+        slicer (VolumeSlicer): Volume slicer from which to obtain the plane.
+        origin (Optional[list[float]], optional):
+            Origin to use when slicing the volume slicer. If not provided, the centre
+            of the volume along the non-orientation axes is used (e.g., centre along YZ
+            when working coronally).
+
+    Returns:
+        vedo.Mesh:
+            The plane whose scalar point data has been filled with the values of `image.`
+    """
     registrator = Registrator(True, True)
     registered_slice = registrator.get_forwarded_image(
         image, alignment_settings, origin
@@ -219,6 +315,19 @@ def get_plane_from_2d_image(
 def snap_array_to_grid(
     image_array: np.ndarray, alignment_settings: AlignmentSettings
 ) -> dict[CoordinatesTuple, Projection]:
+    """Snaps a 2D or 3D array to a grid.
+
+    Args:
+        image_array (np.ndarray): Array to snap. This can be a single image (2D) or a stack (3D).
+        alignment_settings (AlignmentSettings): Settings used for the alignment.
+
+    Returns:
+        dict[CoordinatesTuple, Projection]:
+            A dictionary mapping grid coordinates to a sub-projection. In the case of a 2D image,
+            the dictionary has one key and one value. In the case of a stack, each image of the
+            stack is snapped to the closest grid coordinate. When multiple images are snapped
+            to the same grid point, their maximum intensity projection is taken.
+    """
     dimension_count = len(image_array.shape)
     if dimension_count < 2 or dimension_count > 3:
         raise ValueError(
@@ -234,7 +343,7 @@ def snap_array_to_grid(
         tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
         alignment_settings.volume_settings,
     )
-    alignment_origin = tuple(map(int, alignment_origin))
+    alignment_origin = tuple(map(float, alignment_origin))
 
     return {alignment_origin: image_array}
 
@@ -242,6 +351,17 @@ def snap_array_to_grid(
 def _snap_stack_to_grid(
     image_stack: np.ndarray, alignment_settings: AlignmentSettings
 ) -> dict[CoordinatesTuple, Projection]:
+    """Snaps a Z stack to a grid through sub-projections.
+
+    Args:
+        image_stack (np.ndarray):
+            Image array of the stack. The first dimension should be the stack index.
+        alignment_settings (AlignmentSettings): Settings used for the alignment.
+
+    Returns:
+        dict[CoordinatesTuple, Projection]:
+            A dictionary mapping grid coordinates to a sub-projection.
+    """
     match alignment_settings.volume_settings.orientation:
         case Orientation.CORONAL:
             orientation_axis_length = alignment_settings.volume_settings.shape[0]
@@ -287,7 +407,7 @@ def _snap_stack_to_grid(
     # Mock up a plane for each snapped intersection
     snapped_planes = [
         vedo.Plane(
-            pos=point.tolist()[0], normal=alignment_normal, s=(1_000_000, 1_000_000)
+            pos=np.squeeze(point), normal=alignment_normal, s=(1_000_000, 1_000_000)
         )
         for point in snapped_intersections
     ]
@@ -307,7 +427,17 @@ def _snap_stack_to_grid(
 
     # Group Z-indices based on closest snapped intersection
     groups = compute_closest_plane(stack_planes, snapped_planes)
-    sub_projection_coordinates = np.array(snapped_intersections)[groups]
+
+    # Find the coordinates of the Z indices
+    coordinates = np.array(snapped_intersections)
+    sub_projection_coordinates = []
+    previous_group = None
+    for index, group in enumerate(groups):
+        if group == previous_group:
+            continue
+        previous_group = group
+
+        sub_projection_coordinates.append(coordinates[group])
 
     # Sub-project
     # TODO: Translate the sub-projections so that their centre is moved away from the
@@ -317,12 +447,23 @@ def _snap_stack_to_grid(
     sub_projections = sub_project_image_stack(image_stack, groups)
 
     return {
-        tuple(sub_projection_coordinates[i].tolist()[0]): sub_projections[i]
+        tuple(np.squeeze(sub_projection_coordinates[i])): sub_projections[i]
         for i in range(len(sub_projection_coordinates))
     }
 
 
 def undo_padding(image: np.ndarray, mesh: vedo.Mesh) -> np.ndarray:
+    """Undoes the padding added during registration.
+
+    Args:
+        image (np.ndarray): Registered image.
+        mesh (vedo.Mesh):
+            Mesh containing the padding information. This should be included in a
+            metadata field. See `histalign.backend.registration.Registrator`.
+
+    Returns:
+        np.ndarray: The image without padding.
+    """
     unpadded_image = image[
         mesh.metadata["i_padding"][0] : image.shape[0] - mesh.metadata["i_padding"][1],
         mesh.metadata["j_padding"][0] : image.shape[1] - mesh.metadata["j_padding"][1],
@@ -334,6 +475,15 @@ def undo_padding(image: np.ndarray, mesh: vedo.Mesh) -> np.ndarray:
 def compute_closest_plane(
     target_planes: list[vedo.Plane], fixed_planes: list[vedo.Plane]
 ) -> list[int]:
+    """Computes the index of the closest fixed plane for each target plane.
+
+    Args:
+        target_planes (list[vedo.Plane]): Planes to compute the distances for.
+        fixed_planes (list[vedo.Plane]): Planes to compute the distances with.
+
+    Returns:
+        list[int]: Indices of the closest fixed plane for each target plane.
+    """
     groups = []
     for plane in target_planes:
         distances = list(map(plane.distance_to, fixed_planes))
@@ -344,15 +494,43 @@ def compute_closest_plane(
 
 
 def snap_coordinates(coordinates: Coordinates) -> Coordinates:
+    """Snaps float coordinates to an integer grid by rounding.
+
+    Args:
+        coordinates (Coordinates): Float coordinates to snap.
+
+    Returns:
+        Coordinates: The coordinates snapped to the grid.
+    """
     return np.round(coordinates)
 
 
 def sub_project_image_stack(
     image_stack: np.ndarray, groups: list[int]
 ) -> list[np.ndarray]:
+    """Projects arrays based on their group.
+
+    Each group will have a projection of all the images than belong to that group.
+
+    Args:
+        image_stack (np.ndarray):
+            Image array to sub-project. This must be a 3D array whose first dimension is
+            the Z index.
+        groups (list[int]): Groups each index in the stack belongs to.
+
+    Returns:
+        list[np.ndarray]:
+            The list of sub-projections. Each unique group ID will have a single
+            projection. The projections are returned in the order of encountered groups.
+    """
     sub_projections = []
 
+    previous_group = None
     for group in groups:
+        if group == previous_group:
+            continue
+        previous_group = group
+
         sub_stack = image_stack[np.where(np.array(groups) == group)]
         # TODO: Get projection type from user
         sub_projection = np.max(sub_stack, axis=0)
@@ -364,22 +542,16 @@ def sub_project_image_stack(
 def get_normal_line_points(
     alignment_settings: AlignmentSettings,
 ) -> tuple[np.ndarray, np.ndarray]:
-    alignment_normal = compute_normal(alignment_settings.volume_settings)
+    """Compute points describing normal passing through volume centre.
 
-    edge_plane1 = vedo.Plane(
-        pos=(0, 0, 0),
-        normal=compute_normal_from_raw(
-            0, 0, alignment_settings.volume_settings.orientation
-        ),
-        s=(1_000_000, 1_000_000),
-    )
-    edge_plane2 = vedo.Plane(
-        pos=alignment_settings.volume_settings.shape,
-        normal=compute_normal_from_raw(
-            0, 0, alignment_settings.volume_settings.orientation
-        ),
-        s=(1_000_000, 1_000_000),
-    )
+    Args:
+        alignment_settings (AlignmentSettings):
+            Settings used for the alignment.
+
+    Returns:
+
+    """
+    alignment_normal = compute_normal(alignment_settings.volume_settings)
 
     alignment_origin = compute_origin_from_orientation(
         tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
@@ -389,11 +561,7 @@ def get_normal_line_points(
         alignment_origin - 1_000_000 * alignment_normal,
         alignment_origin + 1_000_000 * alignment_normal,
     )
-
-    return (
-        edge_plane1.intersect_with_line(*intersection_line_coordinates),
-        edge_plane2.intersect_with_line(*intersection_line_coordinates),
-    )
+    return intersection_line_coordinates
 
 
 def interpolate_sparse_3d_array(
@@ -591,19 +759,37 @@ def replace_path_parts(
     path: Path,
     channel_index: Optional[int] = None,
     channel_regex: Optional[str] = None,
-    z_stack_regex: Optional[str] = None,
+    projection_regex: Optional[str] = None,
+    misc_regexes: Optional[list[str]] = None,
+    misc_subs: Optional[list[str]] = None,
 ) -> Path:
-    # Remove part of the file name that indicates the projection
-    if z_stack_regex is not None:
-        path = path.with_name(
-            re.sub(
-                z_stack_regex,
-                "",
-                path.name,
-                count=1,
-            ),
-        )
+    """Extracts the original file name given the channel, Z indices, and optional parts.
 
+    Careful not to trust the output of this function blindly if obtained from external
+    input as `misc_regexes` and `misc_subs` can potentially replace the whole path.
+
+    Args:
+        path (Path): Path to remove parts on.
+        channel_index (Optional[int], optional):
+            Channel index to use in the returned path.
+        channel_regex (Optional[str], optional):
+            Channel regex identifying the channel part of `path`'s name.
+        projection_regex (Optional[str], optional):
+            Projection regex identifying the projection part of `path`'s name.
+        misc_regexes (Optional[list[str]], optional):
+            Miscellaneous regex identifying an extra part of alignment paths found in
+            `alignment_directory`.
+        misc_subs (Optional[list[str]], optional):
+            Substitutions to replace `misc_regexes` with. This should have as many
+            elements as `misc_regexes`.
+
+    Returns:
+        Path: The path with the parts removed.
+
+    Examples:
+        >>> replace_path_parts(Path("/data/filename_C0_max.h5"), 1, r"_C\d_", "_max")
+        Path('/data/filename_C0.h5')
+    """
     # Replace the channel index
     if channel_regex is not None:
         if channel_index is not None:
@@ -615,6 +801,25 @@ def replace_path_parts(
                     count=1,
                 )
             )
+
+    # Remove part of the file name that indicates the projection
+    if projection_regex is not None:
+        path = path.with_name(
+            re.sub(projection_regex, "", path.name, count=1),
+        )
+
+    # Replace the miscellaneous parts
+    if misc_regexes is not None and misc_subs is not None:
+        if (len1 := len(misc_regexes)) != (len2 := len(misc_subs)):
+            _module_logger.error(
+                f"Received different numbers of misc regex and subs "
+                f"({len1} vs {len2}). Skipping miscellaneous replacement."
+            )
+        else:
+            for i in range(len(misc_regexes)):
+                path = Path(
+                    re.sub(misc_regexes[i], misc_subs[i], str(path)),
+                )
 
     return path
 

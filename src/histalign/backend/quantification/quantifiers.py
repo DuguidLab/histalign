@@ -9,8 +9,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from PySide6 import QtCore
 import pydantic
+from PySide6 import QtCore
 
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
@@ -31,7 +31,7 @@ from histalign.backend.quantification.quantification_methods import (
 )
 from histalign.backend.registration import Registrator
 from histalign.backend.registration.alignment import (
-    build_alignment_volume,
+    build_aligned_volume,
     interpolate_sparse_3d_array,
 )
 from histalign.frontend.pyside_helpers import FakeQtABC
@@ -171,7 +171,7 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
         ) as handle:
             project_settings = ProjectSettings(**json.load(handle)["project_settings"])
 
-        alignment_array = build_alignment_volume(
+        alignment_array = build_aligned_volume(
             self.quantification_settings.alignment_directory, return_raw_array=True
         )
         self.progress_changed.emit(1)

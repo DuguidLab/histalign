@@ -2,14 +2,13 @@
 #
 # SPDX-License-Identifier: MIT
 
-from functools import cached_property
 import json
 import os.path
 from pathlib import Path
 from typing import Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
+from PySide6 import QtCore, QtGui, QtWidgets
 import vedo
 
 from histalign.backend.ccf.downloads import download_atlas
@@ -21,12 +20,10 @@ from histalign.backend.models import (
     Resolution,
     VolumeSettings,
 )
-from histalign.backend.registration.alignment import build_alignment_volume
+from histalign.backend.registration.alignment import build_aligned_volume
 from histalign.backend.workspace import Volume, VolumeSlicer, Workspace
-from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
-    BasicMenuBar,
     ProjectDirectoriesComboBox,
 )
 
@@ -475,7 +472,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
 
         alignment_directory = f"{self.project_directory}{os.sep}{directory_hash}"
 
-        alignment_volume = build_alignment_volume(alignment_directory)
+        alignment_volume = build_aligned_volume(alignment_directory)
         for viewer in self.fmri_viewer.volume_viewers:
             viewer.change_visualisation_volume(alignment_volume)
 
