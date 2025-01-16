@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import re
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from scipy.interpolate import RBFInterpolator
@@ -605,6 +605,9 @@ def interpolate_sparse_3d_array(
         array = np.where(reference_mask, array, 0)
 
     cache_hash = generate_hash_from_targets(gather_alignment_paths(alignment_directory))
+    cache_hash = generate_hash_from_interpolation_settings(
+        [cache_hash, kernel, neighbours, epsilon, degree, chunk_size, recursive]
+    )
     mask_name = "-".join(mask_name.split(" ")).lower()
     cache_path = (
         INTERPOLATED_VOLUMES_CACHE_DIRECTORY
@@ -826,3 +829,7 @@ def replace_path_parts(
 
 def generate_hash_from_targets(targets: list[Path]) -> str:
     return hashlib.md5("".join(map(str, targets)).encode("UTF-8")).hexdigest()
+
+
+def generate_hash_from_interpolation_settings(settings: list[Any]) -> str:
+    return hashlib.md5("".join(map(str, settings)).encode("UTF-8")).hexdigest()
