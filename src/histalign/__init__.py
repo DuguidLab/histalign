@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-if __name__ == "__main__":
+if __name__ in ["__main__", "histalign"]:
     # Fix a typing bug when using `vedo` with python==3.10.12.
     # Leaving `typing_extensions.Self` as-is leads to the following error message:
     # TypeError: Plain typing.Self is not valid as type argument
