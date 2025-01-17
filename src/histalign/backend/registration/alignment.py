@@ -52,6 +52,7 @@ def build_aligned_volume(
     alignment_directory: str | Path,
     allow_cache_load: bool = True,
     allow_cache_save: bool = True,
+    hash_return: Optional[list] = None,
     return_raw_array: bool = False,
     channel_index: Optional[int] = None,
     channel_regex: Optional[str] = None,
@@ -70,6 +71,7 @@ def build_aligned_volume(
             it is returned. Otherwise, the volume is built as normal.
         allow_cache_save (bool, optional):
             Whether to save the built volume to the cache.
+        hash_return (Optional[list], optional): List to insert the cache hash into.
         return_raw_array (bool, optional):
             Whether to return a numpy array (`True`) or a vedo volume (`False`).
         channel_index (Optional[int], optional):
@@ -111,6 +113,19 @@ def build_aligned_volume(
         raise ValueError("Cannot build aligned volume from empty alignment directory.")
 
     alignment_hash = generate_hash_from_targets(alignment_paths)
+    alignment_hash = generate_hash_from_aligned_volume_settings(
+        [
+            alignment_hash,
+            channel_index,
+            channel_regex,
+            projection_regex,
+            "".join(misc_regexes) if misc_regexes is not None else "",
+            "".join(misc_subs) if misc_subs is not None else "",
+        ]
+    )
+
+    if hash_return is not None:
+        hash_return.append(alignment_hash)
 
     cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.npz"
     if cache_path.exists() and allow_cache_load:
@@ -575,15 +590,14 @@ def interpolate_sparse_3d_array(
     chunk_size: Optional[int] = 1_000_000,
     recursive: bool = False,
     use_cache: bool = False,
+    cache_hash: Optional[str] = None,
     alignment_directory: str | Path = "",
     mask_name: str = "",
 ) -> np.ndarray:
     start_time = time.perf_counter()
 
-    if use_cache and not alignment_directory:
-        raise ValueError(
-            "Cannot use cache without 'alignment_directory' identifying information."
-        )
+    if use_cache and cache_hash is None:
+        raise ValueError("Cannot use cache without 'cache_hash'.")
     if use_cache and reference_mask is not None and not mask_name:
         raise ValueError(
             "Cannot use cache with reference mask but no 'mask_name' "
@@ -604,10 +618,6 @@ def interpolate_sparse_3d_array(
     if reference_mask is not None and not pre_masked:
         array = np.where(reference_mask, array, 0)
 
-    cache_hash = generate_hash_from_targets(gather_alignment_paths(alignment_directory))
-    cache_hash = generate_hash_from_interpolation_settings(
-        [cache_hash, kernel, neighbours, epsilon, degree, chunk_size, recursive]
-    )
     mask_name = "-".join(mask_name.split(" ")).lower()
     cache_path = (
         INTERPOLATED_VOLUMES_CACHE_DIRECTORY
@@ -831,5 +841,5 @@ def generate_hash_from_targets(targets: list[Path]) -> str:
     return hashlib.md5("".join(map(str, targets)).encode("UTF-8")).hexdigest()
 
 
-def generate_hash_from_interpolation_settings(settings: list[Any]) -> str:
+def generate_hash_from_aligned_volume_settings(settings: list[Any]) -> str:
     return hashlib.md5("".join(map(str, settings)).encode("UTF-8")).hexdigest()

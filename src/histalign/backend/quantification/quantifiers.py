@@ -171,14 +171,22 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
         ) as handle:
             project_settings = ProjectSettings(**json.load(handle)["project_settings"])
 
+        cache_hash = []
         alignment_array = build_aligned_volume(
-            self.quantification_settings.alignment_directory, return_raw_array=True
+            self.quantification_settings.alignment_directory,
+            return_raw_array=True,
+            channel_index=self.quantification_settings.channel_index,
+            channel_regex=self.quantification_settings.channel_regex,
+            projection_regex=self.quantification_settings.projection_regex,
+            hash_return=cache_hash,
         )
         self.progress_changed.emit(1)
         interpolated_array = interpolate_sparse_3d_array(
             alignment_array,
             alignment_directory=self.quantification_settings.alignment_directory,
             use_cache=True,
+            # TODO: Link general hash to interpolation parameters
+            cache_hash=cache_hash[0],
         )
         self.progress_changed.emit(2)
 
