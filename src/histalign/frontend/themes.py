@@ -467,5 +467,21 @@ def build_dark_theme() -> QPalette:
     return theme
 
 
+def is_light_colour(colour: QColor) -> bool:
+    """Computes whether a colour is light or dark.
+
+    Taken from: https://en.wikipedia.org/wiki/Rec._709#Luma_coefficients
+
+    Args:
+        colour (QColor)): Colour to evaluate.
+
+    Returns:
+        bool: Whether the colour is light or not.
+    """
+    return (
+        colour.red() * 0.2125 + colour.green() * 0.7152 + colour.blue() * 0.0722
+    ) > 128
+
+
 LIGHT_THEME: QPalette = build_light_theme()
 DARK_THEME: QPalette = build_dark_theme()
