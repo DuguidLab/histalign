@@ -4,9 +4,9 @@
 
 from typing import Any, Optional
 
-from PySide6 import QtCore, QtWidgets
 import numpy as np
 import pandas as pd
+from PySide6 import QtCore, QtWidgets
 
 from histalign.backend.models import QuantificationResults
 from histalign.frontend.common_widgets import (
@@ -61,10 +61,13 @@ class ResultsSummaryWidget(QtWidgets.QFrame):
         table_layout.setHorizontalSpacing(20)
         table_layout.setVerticalSpacing(10)
 
-        for index, (file_name, result) in enumerate(results.data.items()):
-            slice_summary = SliceResultsSummaryWidget(file_name, result)
-
-            table_layout.addWidget(slice_summary, *divmod(index, 2))
+        if results.settings.measure_settings.approach == "Whole-brain":
+            brain_summary = SliceResultsSummaryWidget("Whole-brain", results.data)
+            table_layout.addWidget(brain_summary)
+        else:
+            for index, (file_name, result) in enumerate(results.data.items()):
+                slice_summary = SliceResultsSummaryWidget(file_name, result)
+                table_layout.addWidget(slice_summary, *divmod(index, 2))
 
         main_layout.add_layout(table_layout)
 
