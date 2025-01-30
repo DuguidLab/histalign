@@ -351,6 +351,13 @@ class RegistrationMainWindow(BasicApplicationWindow):
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         #
+        super().__init__(parent)
+
+        self.logger = logging.getLogger(
+            f"{self.__module__}.{self.__class__.__qualname__}"
+        )
+
+        #
         alignment_widget = AlignmentWidget()
 
         alignment_widget.view.installEventFilter(
@@ -363,13 +370,6 @@ class RegistrationMainWindow(BasicApplicationWindow):
         )
 
         self.alignment_widget = alignment_widget
-
-        #
-        super().__init__(parent)
-
-        self.logger = logging.getLogger(
-            f"{self.__module__}.{self.__class__.__qualname__}"
-        )
 
         #
         thumbnails_widget = ThumbnailsWidget()
@@ -483,7 +483,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         menu_bar.open_directory_requested.connect(self.show_open_image_directory_dialog)
         menu_bar.exit_requested.connect(self.exit_application)
 
-        menu_bar.lut_change_requested.connect(self.alignment_widget.update_lut)
+        menu_bar.lut_change_requested.connect(
+            lambda x: self.alignment_widget.update_lut(x)
+        )
 
         self.setMenuBar(menu_bar)
 

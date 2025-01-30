@@ -23,19 +23,34 @@ class FakeQtABC:
     """
 
     def __init__(self) -> None:
+        abstract_methods = []
         for attribute_name in dir(self):
             # Supress RuntimeError since Qt throws an error when trying to getattr
             # attributes from the QObject before __init__ completely finishes. We can
             # still detect abstract methods from custom classes.
             with suppress(RuntimeError):
-                if callable((method := getattr(self, attribute_name))) and hasattr(
-                    method, "__isabstractmethod__"
-                ):
-                    raise TypeError(
-                        f"Can't instantiate abstract class "
-                        f"{self.__class__.__qualname__} with abstract method "
-                        f"{attribute_name}"
+                if (
+                    (
+                        hasattr(self.__class__, attribute_name)
+                        and isinstance(
+                            (method := getattr(self.__class__, attribute_name)),
+                            property,
+                        )
                     )
+                    or callable((method := getattr(self, attribute_name)))
+                ) and (
+                    hasattr(method, "__isabstractmethod__")
+                    and method.__isabstractmethod__
+                ):
+                    abstract_methods.append(attribute_name)
+
+        if abstract_methods:
+            raise TypeError(
+                f"Can't instantiate abstract class "
+                f"{self.__class__.__qualname__} with abstract "
+                f"method{'s' if len(abstract_methods) > 1 else ''} "
+                f"{', '.join(abstract_methods)}"
+            )
 
 
 def connect_single_shot_slot(signal: object, slot: object) -> None:
