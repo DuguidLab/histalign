@@ -2,21 +2,28 @@
 #
 # SPDX-License-Identifier: MIT
 
+from __future__ import annotations
+
 from abc import abstractmethod
 import json
 import logging
 from pathlib import Path
 import re
+import sys
 from typing import Any, Callable, Optional
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.ccf.model_view import StructureModel, StructureNode
+from histalign.backend.ccf.model_view import (
+    ABAStructureTreeModel,
+    iterate_structure_node_dfs,
+)
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.pyside_helpers import connect_single_shot_slot, FakeQtABC
+from histalign.frontend.themes import is_light_colour
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
@@ -45,348 +52,440 @@ class ProjectDirectoriesComboBox(QtWidgets.QComboBox):
                 self.addItem(json.load(handle)["directory_path"])
 
 
-class TreeView(QtWidgets.QTreeView):
+class NoFocusRectProxyStyle(QtWidgets.QProxyStyle):
+    """A proxy style removing the focus rect present in tree views in some styles.
+
+    Taken from the following StackOverflow answer:
+    https://stackoverflow.com/questions/17280056/how-to-remove-qpushbutton-focus-rectangle-using-stylesheets/17294081#17294081
+    """
+
+    def drawPrimitive(
+        self,
+        element: QtWidgets.QStyle.PrimitiveElement,
+        option: QtWidgets.QStyleOption,
+        painter: QtGui.QPainter,
+        widget: QtWidgets.QWidget | None = None,
+    ) -> None:
+        if element == QtWidgets.QStyle.PrimitiveElement.PE_FrameFocusRect:
+            return
+
+        super().drawPrimitive(element, option, painter, widget)
+
+
+class StructureTreeView(QtWidgets.QTreeView):
+    """A tree view used to display the CCF structure hierarchy."""
+
+    selection_hidden: QtCore.Signal = QtCore.Signal()
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        #
+        self.setStyle(NoFocusRectProxyStyle())
+
+        self.collapsed.connect(self.auto_resize_columns)
+        self.collapsed.connect(self.collapse_all_children)
+        self.expanded.connect(self.auto_resize_columns)
+        self.auto_resize_columns()
+
+        #
+        self.setModel(ABAStructureTreeModel())
+
+    @QtCore.Slot()
+    def auto_resize_columns(self, _=...) -> None:
+        """Resizes the columns to ensure acronyms are visible in the first column."""
+        self.resizeColumnToContents(0)
+        self.setColumnWidth(0, self.columnWidth(0) + 11)
+
+    @QtCore.Slot()
+    def collapse_all_children(
+        self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex
+    ) -> None:
+        """Collapses all the children of a node.
+
+        This also removes the selection if it has been collapsed.
+
+        Args:
+            index (QtCore.QModelIndex | QtCore.QPersistentModelIndex):
+                Root node to collapse the children of.
+        """
+        child_count = index.internalPointer().child_count()
+        self._collapse_all_children(index, child_count)
+
+        selection = self.selectionModel().selectedIndexes()
+        if selection:
+            # Take [0] as selectedIndexes() returns one per column
+            if not self.visualRect(selection[0]).isValid():
+                self.selection_hidden.emit()
+
+    def _collapse_all_children(
+        self,
+        index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
+        child_count: int,
+    ) -> None:
+        for i in range(child_count):
+            child_index = self.model().index(i, 0, index)
+
+            sub_child_count = child_index.internalPointer().child_count()
+            if sub_child_count > 0:
+                self._collapse_all_children(child_index, sub_child_count)
+
+            self.collapse(child_index)
+
+
+class StructureFinderDialog(QtWidgets.QDialog):
+    """A pop-up dialog showing a structure finder widget.
+
+    Attributes:
+        finder_widget (StructureFinderWidget): Finder widget for this dialog.
+    """
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.setHeaderHidden(True)
-        self.setStyleSheet(
-            f"""
-            QTreeView {{
-                padding-top: 15px;
-                padding-bottom: 15px;
-                background-color: {self.palette().color(QtGui.QPalette.Base).name()};
-            }}
-            """
-        )
+        #
+        finder_widget = StructureFinderWidget()
 
-    def mousePressEvent(self, event):
-        if event.button() != QtCore.Qt.MouseButton.RightButton:
-            return super().mousePressEvent(event)
+        finder_widget.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Handle right clicks on on top of check boxes, checking or unchecking all of
-        # the direct children.
-        # Thanks a lot to this answer on Qt's forums without which figuring out the
-        # position of the check box would have been impossible to figure out:
-        # https://forum.qt.io/post/206804
-        option = QtWidgets.QStyleOptionViewItem()
-        self.itemDelegate().initStyleOption(option, self.indexAt(event.pos()))
-        rectangle = self.style().subElementRect(
-            QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
-            option,
-            self,
-        )
-        rectangle.moveTopLeft(
-            QtCore.QPoint(
-                self.visualRect(self.indexAt(event.pos())).x() + rectangle.x(),
-                self.visualRect(self.indexAt(event.pos())).y(),
-            )
-        )
+        self.finder_widget = finder_widget
 
-        if rectangle.contains(event.pos()):
-            index = self.indexAt(event.pos())
+        #
+        close_button = QtWidgets.QPushButton("Close")
 
-            self.expand(index)
-            self.toggle_state_direct_children(index)
+        close_button.clicked.connect(self.close)
 
-            return True
+        #
+        layout = QtWidgets.QGridLayout()
 
-        return super().mousePressEvent(event)
-
-    def toggle_state_direct_children(self, index: QtCore.QModelIndex) -> None:
-        node = self.model().itemFromIndex(index)
-
-        tallies = {
-            QtCore.Qt.CheckState.Checked: 0,
-            QtCore.Qt.CheckState.Unchecked: 0,
-        }
-        for row in range(node.rowCount()):
-            tallies[node.child(row, 0).checkState()] += 1
-
-        # Align state to most common one unless all of them have the same state, then
-        # toggle the state of all of them.
-        new_state = max(tallies, key=tallies.get)
-        opposite_state = (
-            QtCore.Qt.CheckState.Checked
-            if new_state is QtCore.Qt.CheckState.Unchecked
-            else QtCore.Qt.CheckState.Unchecked
-        )
-        if tallies[opposite_state] == 0:
-            new_state = opposite_state
-
-        for row in range(node.rowCount()):
-            # Use `setData` instead of setting the state directly to potentially
-            # propagate uncheck to children of direct children. See
-            # `StructureModel.setData` for more details.
-            self.model().setData(
-                node.child(row, 0).index(),
-                new_state.value,  # Because of an interaction in setData, use .value
-                QtCore.Qt.ItemDataRole.CheckStateRole,
-            )
-
-
-class StructureTagFrame(QtWidgets.QFrame):
-    removal_requested: QtCore.Signal = QtCore.Signal()
-
-    def __init__(
-        self,
-        text: str,
-        font_pixel_size: int = 12,
-        parent: Optional[QtWidgets.QWidget] = None,
-    ) -> None:
-        super().__init__(parent)
-
-        button = QtWidgets.QPushButton("X")
-        button.setFixedSize(font_pixel_size, font_pixel_size)
-        font = QtGui.QFont()
-        font.setPixelSize(font_pixel_size - 3)
-        button.setFont(font)
-        button.setFlat(True)
-        button.clicked.connect(self.removal_requested)
-
-        label = QtWidgets.QLabel(text)
-        font = QtGui.QFont()
-        font.setPixelSize(font_pixel_size)
-        label.setFont(font)
-        label.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft)
-
-        layout = QtWidgets.QHBoxLayout()
-        layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
-
-        layout.addWidget(button)
-        layout.addWidget(label)
+        layout.addWidget(finder_widget, 0, 0, 1, 2)
+        layout.addWidget(close_button, 1, 1, 1, 1)
 
         self.setLayout(layout)
 
-        self.removal_requested.connect(self.deleteLater)
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        """Handles key press events.
 
-        self.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self.setFrameShadow(QtWidgets.QFrame.Shadow.Plain)
+        Args:
+            event (QtGui.QKeyEvent): Event to handle.
+        """
+        # Ignore enter and return key inputs to avoid closing the dialog instead of
+        # searching with the finder widget.
+        if (
+            event.key() == QtCore.Qt.Key.Key_Return
+            or event.key() == QtCore.Qt.Key.Key_Enter
+        ):
+            return
+
+        super().keyPressEvent(event)
 
 
 class StructureFinderWidget(QtWidgets.QWidget):
-    structure_model: StructureModel
-    line_edit: QtWidgets.QLineEdit
-    tree_view: TreeView
+    """A structure finder widget consisting of a search bar and a structure tree view.
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    The search bar allows searching for acronyms or structure names in the view. If they
+    are found, the view highlights them and scrolls to them if they're not in view.
+    The user can search forward (with Enter/Return) or backwards (Shift+Enter/Return).
+
+    Attributes:
+        tree_view (StructureTreeView): Tree view with which to show the hierarchy.
+    """
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
         #
-        structure_model = StructureModel()
-        self.structure_model = structure_model
+        self._previous_search = None
+        self._previous_index = -1
 
         #
-        line_edit = QtWidgets.QLineEdit(self)
-        line_edit.returnPressed.connect(lambda: self.select_structure(line_edit.text()))
-        self.line_edit = line_edit
+        line_edit = QtWidgets.QLineEdit()
+
+        line_edit.returnPressed.connect(
+            lambda: self.find_and_focus_structure_node(line_edit.text())
+        )
 
         #
-        tree_view = TreeView(self)
-        tree_view.setModel(structure_model)
-        tree_view.setSelectionMode(
-            QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
-        )
-        tree_view.setSelectionBehavior(
-            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        tree_view = StructureTreeView()
+
+        tree_view.selection_hidden.connect(self.clear_search_and_selection)
+
         self.tree_view = tree_view
 
         #
-        layout = QtWidgets.QVBoxLayout(self)
+        layout = QtWidgets.QVBoxLayout()
+
         layout.addWidget(line_edit)
         layout.addWidget(tree_view)
 
+        self.setLayout(layout)
+
+    def clear_search_and_selection(self) -> None:
+        """Clears the search cache and the current selection."""
+        self._previous_search = None
+        self._previous_index = -1
+
+        self.tree_view.selectionModel().clearCurrentIndex()
+        self.tree_view.selectionModel().clearSelection()
+
+    def find_and_focus_structure_node(self, text: str) -> None:
+        """Searches for and selects a structure node in the view if it exists.
+
+        Args:
+            text (str):
+                Search query. This can be the acronym or the name of the structure.
+        """
+        text = text.lower()
+
+        if len(text) < 3:
+            return
+
+        repeat = text == self._previous_search  # Is this a repeat search
+        reverse = (
+            QtWidgets.QApplication.queryKeyboardModifiers()
+            == QtCore.Qt.KeyboardModifier.ShiftModifier
+        )  # Is this a reverse search
+
+        first_match = None
+        last_match = None
+        match_index = -1
+        self._previous_search = text
+
+        for node in iterate_structure_node_dfs(self.tree_view.model().root):
+            if text in node.acronym.lower() or text in node.name.lower():
+                match_index += 1
+
+                # Keep track of the first match as a default if searching forward
+                if first_match is None and not reverse:
+                    first_match = node
+                # Keep track of the last match as a default for when searching backward
+                last_match = node
+
+                # When doing a reverse search for the first time or when cycling to the
+                # end, search until the last match.
+                if self._previous_index <= 0 and reverse:
+                    continue
+
+                # Allow cycling matches by calling this function multiple times
+                if repeat and (
+                    (match_index <= self._previous_index and not reverse)
+                    or (match_index < self._previous_index - 1 and reverse)
+                ):
+                    continue
+
+                self._previous_index = match_index
+
+                index = self.tree_view.model().get_item_index(node)
+                self.tree_view.selectionModel().select(
+                    index,
+                    QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect
+                    | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+                )
+                self.tree_view.scrollTo(index)
+
+                return
+
+        if not reverse and first_match is not None:
+            # Forward search cycling, select the first match if it exists
+            self._previous_index = 0
+            index = self.tree_view.model().get_item_index(first_match)
+        elif reverse and last_match is not None:
+            # Reverse search cycling, select the last match if it exists
+            self._previous_index = match_index
+            index = self.tree_view.model().get_item_index(last_match)
+        else:
+            # No match
+            return
+
+        self.tree_view.selectionModel().select(
+            index,
+            QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect
+            | QItemSelectionModel.Current
+            | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+        )
+        self.tree_view.scrollTo(index)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        """Handles key press events.
+
+        Args:
+            event (QtGui.QKeyEvent): Event to handle.
+        """
+        # Clear selection if there is one, otherwise ignore event
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            if self.tree_view.selectionModel().selectedIndexes():
+                self.clear_search_and_selection()
+                return
+
+        super().keyPressEvent(event)
+
+
+class StructureTagWidget(QtWidgets.QFrame):
+    """A structure tag widget for displaying structure names and a close icon.
+
+    Attributes:
+        name (str): Name of the structure this tag is for.
+        separator (HorizontalSeparator): Separator between the name and close button.
+    """
+
+    removal_requested: QtCore.Signal = QtCore.Signal()
+
+    def __init__(self, name: str, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self.name = name
+
+        #
+        name_label = QtWidgets.QLabel(name)
+
+        name_label.setContentsMargins(3, 3, 3, 3)
+        name_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
+
+        #
+        pixmap_label = ResizablePixmapLabel("resources/icons/close-line-icon.png")
+
+        pixmap_height = name_label.fontMetrics().boundingRect(name).height()
+        pixmap_label.setFixedSize(pixmap_height, pixmap_height)
+        pixmap_label.setContentsMargins(3, 0, 3, 0)
+        pixmap_label.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed
+        )
+
+        #
+        separator = HorizontalSeparator()
+
+        self.separator = separator
+
+        #
+        layout = QtWidgets.QHBoxLayout()
+
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        layout.addWidget(name_label)
+        layout.addWidget(separator)
+        layout.addWidget(pixmap_label, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
         self.setLayout(layout)
 
         #
         self.installEventFilter(self)
 
-    def select_structure(self, text: str) -> None:
-        # Skip looking up the whole tree with searches smaller than 3 characters
-        if len(text) < 3:
-            return
+        palette = self.palette()
+        if is_light_colour(palette.window().color()):  # Light theme
+            colour = QtGui.QColor("#F5F5DC")
+        else:  # Dark theme
+            colour = QtGui.QColor("#224867")
 
-        matching_model_indices = []
-        selected_index = -2
-        for node in self.structure_model.iterate_nodes():
-            if (
-                node.text().lower().startswith(text.lower())
-                or text.lower() in node.text().lower()
-            ):
-                model_index = self.structure_model.indexFromItem(node)
-                matching_model_indices.append(model_index)
+        palette.setColor(QtGui.QPalette.ColorRole.Window, colour)
+        self.setPalette(palette)
+        # TODO: Fix background outside rounded frame on Windows
+        self.setAutoFillBackground(True)
 
-                if self.tree_view.selectionModel().isSelected(model_index):
-                    selected_index = len(matching_model_indices) - 1
-
-                # Break early if current model_index is the one we want. This is the
-                # case when the previous model_index was selected.
-                if len(matching_model_indices) - 2 == selected_index:
-                    break
-
-        if selected_index == -2:
-            try:
-                model_index = matching_model_indices[0]
-            except IndexError:
-                # Not found
-                return
-        else:
-            model_index = matching_model_indices[
-                (selected_index + 1) % len(matching_model_indices)
-            ]
-
-        self.tree_view.scrollTo(model_index)
-        self.tree_view.selectionModel().select(
-            model_index,
-            QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect,
+        self.setFrameStyle(QtWidgets.QFrame.Shape.Box | QtWidgets.QFrame.Shadow.Plain)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed
         )
 
-    def eventFilter(self, watched: QtWidgets.QWidget, event: QtCore.QEvent) -> bool:
-        match event.type():
-            case QtCore.QEvent.Type.KeyPress:
-                if event.key() == QtCore.Qt.Key.Key_Escape:
-                    self.tree_view.selectionModel().clearCurrentIndex()
-                    self.tree_view.selectionModel().clearSelection()
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        """Handles events for watched objects.
+
+        Args:
+            watched (QtCore.QObject): Watched object for which to handle the event.
+            event (QtCore.QEvent): Event to handle.
+
+        Returns:
+            bool: Whether the event was handled.
+        """
+        # Handle mouse events here rather than override signal handlers as QFrame does
+        # not normally receive mouse events.
+        if event.type() == QtCore.QEvent.Type.MouseButtonRelease:
+            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                close_rectangle = QtCore.QRect(
+                    self.separator.mapToParent(self.separator.rect().topRight()),
+                    self.frameRect().bottomRight(),
+                )
+                if close_rectangle.contains(event.position().toPoint()):
+                    self.removal_requested.emit()
                     return True
-            case _:
-                pass
+            elif event.button() == QtCore.Qt.MouseButton.RightButton:
+                self.removal_requested.emit()
+                return True
 
         return super().eventFilter(watched, event)
 
 
-class SelectedStructuresWidget(QtWidgets.QWidget):
-    structure_tags_mapping: dict[str, StructureTagFrame]
+class StructureTagHolderWidget(QtWidgets.QScrollArea):
+    """A tag holder area for displaying a list of structure tag widgets.
 
-    add_tag_button: QtWidgets.QPushButton
-    structure_finder_widget: StructureFinderWidget
-    scroll_area: QtWidgets.QScrollArea
-    tag_layout: QtWidgets.QHBoxLayout
-
-    structure_added: QtCore.Signal = QtCore.Signal(str)
-    structure_removed: QtCore.Signal = QtCore.Signal(str)
+    The layout of the scroll area handles putting tags on a new row if the current row
+    would overflow.
+    """
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.logger = logging.getLogger(
-            f"{self.__module__}.{self.__class__.__qualname__}"
-        )
+        #
+        self._tags = {}
 
-        self.structure_tags_mapping = {}
+        #
+        layout = FlowLayout()
 
-        self.structure_finder_widget = StructureFinderWidget()
-        self.structure_finder_widget.structure_model.itemChanged.connect(
-            self.handle_structure_change
-        )
-        self.structure_finder_widget.layout().setSpacing(0)
-        self.structure_finder_widget.hide()
+        #
+        widget = QtWidgets.QWidget()
 
-        layout = QtWidgets.QHBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignLeft)
+        widget.setContentsMargins(11, 11, 11, 11)
+        widget.setLayout(layout)
 
-        self.add_tag_button = QtWidgets.QPushButton("+")
+        self.setWidget(widget)
 
-        self.add_tag_button.clicked.connect(self.show_popup_structure_finder_widget)
-
-        self.structure_finder_widget.setFocusProxy(self.add_tag_button)
-
-        scroll_layout = QtWidgets.QHBoxLayout()
-        scroll_layout.setAlignment(QtCore.Qt.AlignLeft)
-
-        self.scroll_area = QtWidgets.QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        scroll_area_widget = QtWidgets.QWidget()
-        self.tag_layout = QtWidgets.QHBoxLayout()
-        self.tag_layout.setAlignment(QtCore.Qt.AlignLeft)
-        scroll_area_widget.setLayout(self.tag_layout)
-        self.scroll_area.setWidget(scroll_area_widget)
-        self.scroll_area.setFixedHeight(self.tag_layout.sizeHint().height() + 10)
-        self.tag_layout.setContentsMargins(5, 0, 5, 0)
-
-        scroll_layout.addWidget(self.scroll_area)
-
-        layout.addLayout(scroll_layout, 1)
-        layout.addWidget(self.add_tag_button)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self.setLayout(layout)
-
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed
-        )
-
-        self.add_tag_button.setFixedSize(
-            scroll_layout.sizeHint().height(), scroll_layout.sizeHint().height()
-        )
-
-    def add_structure(self, node: StructureNode) -> None:
-        structure_tag_frame = StructureTagFrame(node.name)
-        structure_tag_frame.removal_requested.connect(node.uncheck)
-
-        self.structure_tags_mapping[node.name] = structure_tag_frame
-
-        self.tag_layout.addWidget(structure_tag_frame)
-
-        self.structure_added.emit(node.name)
-
-    def remove_structure(self, structure_name: str) -> None:
-        try:
-            self.structure_tags_mapping.pop(structure_name, None).deleteLater()
-            self.structure_removed.emit(structure_name)
-        except AttributeError:
-            self.logger.error("Tried removing a structure tag that was not present.")
+        #
+        self.setWidgetResizable(True)
 
     @QtCore.Slot()
-    def handle_structure_change(self, node: StructureNode) -> None:
-        match node.checkState():
-            case QtCore.Qt.CheckState.Unchecked:
-                self.remove_structure(node.name)
-            case QtCore.Qt.CheckState.Checked:
-                self.add_structure(node)
-            case _:
-                raise NotImplementedError
+    def add_tag_from_index(self, index: QtCore.QModelIndex) -> None:
+        """Adds a structure tag from an index into an ABAStructureTreeModel.
 
-    @QtCore.Slot()
-    def show_popup_structure_finder_widget(self) -> None:
-        if self.structure_finder_widget.isVisible():
-            return
+        Args:
+            index (QtCore.QModelIndex): Index into the model.
+        """
+        tag = StructureTagWidget(index.internalPointer().name)
+        self._tags[tag] = index
 
-        if self.structure_finder_widget.parent() is None:
-            self.structure_finder_widget.setParent(self.window())
-
-            position = self.mapTo(
-                self.window(), self.scroll_area.geometry().bottomLeft()
+        # Uncheck its item to trigger its own removal from self._tags
+        tag.removal_requested.connect(
+            lambda: index.model().setData(
+                index,
+                QtCore.Qt.CheckState.Unchecked,
+                QtCore.Qt.ItemDataRole.CheckStateRole,
             )
-
-            self.structure_finder_widget.setWindowFlags(QtCore.Qt.WindowType.Popup)
-
-            self.structure_finder_widget.setGeometry(
-                position.x(),
-                position.y(),
-                self.width(),
-                500,
-            )
-
-        # For some reason, turning the popup into a `WindowType.Popup` shifts the
-        # geometry one pixel to the right for its X coordinates every time it is shown
-        # so we correct that here. The `WindowType.Popup` flag is still useful to
-        # provide an easy way to get the popup to close when the user clicks anywhere
-        # else in the window.
-        self.structure_finder_widget.setGeometry(
-            self.structure_finder_widget.geometry().x() - 1,
-            self.structure_finder_widget.geometry().y(),
-            self.structure_finder_widget.width(),
-            self.structure_finder_widget.height(),
         )
 
-        self.structure_finder_widget.show()
-        self.structure_finder_widget.line_edit.setFocus()
+        layout = self.widget().layout()
+        layout.addWidget(tag)
+
+    @QtCore.Slot()
+    def remove_tag_from_index(self, index: QtCore.QModelIndex) -> None:
+        """Removes a structure tag based on an index into an ABAStructureTreeModel.
+
+        Args:
+            index (QtCore.QModelIndex): Index into the model.
+        """
+        name = index.internalPointer().name
+        tag = None
+        for tag in self._tags.keys():
+            if tag.name == name:
+                break
+        else:
+            _module_logger.warning(
+                f"Attempted to remove a structure tag that was not present in the "
+                f"holder (name: {tag.name}."
+            )
+
+        if tag is not None:
+            self._tags.pop(tag)
+            tag.deleteLater()
 
 
 class BoldLabel(QtWidgets.QLabel):
@@ -405,22 +504,26 @@ class BoldLabel(QtWidgets.QLabel):
 
 
 class VerticalSeparator(QtWidgets.QFrame):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(
+        self, line_width: int = 1, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
         super().__init__(parent)
 
         self.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-        self.setLineWidth(2)
+        self.setLineWidth(line_width)
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum
         )
 
 
 class HorizontalSeparator(QtWidgets.QFrame):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(
+        self, line_width: int = 1, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
         super().__init__(parent)
 
         self.setFrameShape(QtWidgets.QFrame.Shape.VLine)
-        self.setLineWidth(2)
+        self.setLineWidth(line_width)
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Expanding
         )
@@ -1641,3 +1744,510 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
     def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
         self.scene().setFocusItem(None)
         super().focusOutEvent(event)
+
+
+class AnimatedCheckBox(QtWidgets.QCheckBox):
+    """Animated toggle checkbox widget.
+
+    This is slightly adapted from the following tutorial:
+    https://www.pythonguis.com/tutorials/pyside-animated-widgets/
+    """
+
+    _transparent_pen = QtGui.QPen(QtCore.Qt.GlobalColor.transparent)
+    _light_grey_pen = QtGui.QPen(QtCore.Qt.GlobalColor.lightGray)
+
+    def __init__(
+        self,
+        bar_colour: QtCore.Qt.GlobalColor = QtCore.Qt.GlobalColor.gray,
+        checked_colour: str = "#0099ff",
+        handle_colour: QtCore.Qt.GlobalColor = QtCore.Qt.GlobalColor.white,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self._bar_brush = QtGui.QBrush(bar_colour)
+        self._bar_checked_brush = QtGui.QBrush(checked_colour)
+
+        self._handle_brush = QtGui.QBrush(handle_colour)
+        self._handle_checked_brush = QtGui.QBrush(
+            QtGui.QColor(checked_colour).lighter()
+        )
+
+        #
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed
+        )
+        self._handle_position = 0
+
+        #
+        self.animation = QtCore.QPropertyAnimation(self, b"handle_position", self)
+        self.animation.setEasingCurve(QtCore.QEasingCurve.Type.InOutCubic)
+        self.animation.setDuration(200)
+
+        self.checkStateChanged.connect(self.set_up_animation)
+
+    @QtCore.Property(float)
+    def handle_position(self) -> int:
+        return self._handle_position
+
+    @handle_position.setter
+    def handle_position(self, pos: float) -> None:
+        self._handle_position = pos
+        self.update()
+
+    def hitButton(self, pos: QtCore.QPoint) -> bool:
+        return self.contentsRect().contains(pos)
+
+    def sizeHint(self) -> QtCore.QSize:
+        # TODO: Figure out how to compute a line edit height without creating an object
+        line_edit = QtWidgets.QLineEdit()
+        line_edit.setFont(self.font())
+
+        return QtCore.QSize(
+            line_edit.sizeHint().height() * 2, line_edit.sizeHint().height()
+        )
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        contents_rect = self.contentsRect()
+        # -2 to fit inside potential borders
+        handle_radius = 0.5 * (contents_rect.height() - 2)
+
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        bar_rect = QtCore.QRectF(
+            0,
+            0,
+            contents_rect.width() - handle_radius,
+            0.5 * contents_rect.height(),
+        )
+        bar_rect.moveCenter(contents_rect.center())
+        # Adjust bar_rect so that it fits evenly around handle centre
+        if handle_radius % 1 == 0:
+            bar_rect.translate(0, 1)
+        else:
+            bar_rect.adjust(0, 0, 0, 1)
+        rounding = bar_rect.height() / 2
+
+        trail_length = contents_rect.width() - 2 * handle_radius
+        x_pos = contents_rect.x() + handle_radius + trail_length * self._handle_position
+
+        # Draw the trail
+        painter.setPen(self._transparent_pen)
+        if self.isChecked():
+            painter.setBrush(self._bar_checked_brush)
+            painter.drawRoundedRect(bar_rect, rounding, rounding)
+            painter.setBrush(self._handle_checked_brush)
+        else:
+            painter.setBrush(self._bar_brush)
+            painter.drawRoundedRect(bar_rect, rounding, rounding)
+            painter.setPen(self._light_grey_pen)
+            painter.setBrush(self._handle_brush)
+
+        # Draw the handle
+        painter.drawEllipse(
+            QtCore.QPointF(x_pos, contents_rect.top() + contents_rect.height() / 2),
+            handle_radius,
+            handle_radius,
+        )
+
+        painter.end()
+
+    @QtCore.Slot(QtCore.Qt.CheckState)
+    def set_up_animation(self, value: QtCore.Qt.CheckState) -> None:
+        self.animation.stop()
+        if value == QtCore.Qt.CheckState.Checked:
+            self.animation.setEndValue(1)
+        else:
+            self.animation.setEndValue(0)
+        self.animation.start()
+
+
+class TitleFrame(QtWidgets.QFrame):
+    """A frame which holds its title on the frame.
+
+    A rough representation looks like so:
+     -- Title -----------
+    |                    |
+    |                    |
+     -- -----------------
+
+    Attributes:
+        title (str): Title of the frame
+        bold (bool): Whether to render the title bold.
+        italic (bool): Whether to render the title in italics.
+    """
+
+    def __init__(
+        self,
+        title: str = "",
+        bold: bool = False,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        # Add space padding to avoid clipping on Windows
+        if title:
+            title = " " + title + " "
+        self.title = title
+        self.bold = bold
+        self.italic = italic
+
+        #
+        self.adjust_margins()
+        self.setFrameStyle(QtWidgets.QFrame.Shape.Box | QtWidgets.QFrame.Shadow.Plain)
+
+    def adjust_font(self, font: QtGui.QFont) -> None:
+        """Adjusts the provided font with own settings.
+
+        The font is modified in-place to use the `bold` and `italic` settings of the
+        current object.
+
+        Args:
+            font (QtGui.QFont): Font to adjust.
+        """
+        font.setBold(self.bold)
+        font.setItalic(self.italic)
+
+    def adjust_margins(self) -> None:
+        """Adjusts the margins to fit the title on the frame."""
+        current_font = self.font()
+
+        margin_font = QtGui.QFont(current_font)
+        self.adjust_font(margin_font)
+        margin_font.setBold(True)
+
+        metrics = QtGui.QFontMetrics(margin_font)
+        margin = metrics.boundingRect(self.title).height() - metrics.xHeight()
+        # Janky adjustment, seems to work with most "normal" fonts. See `paintEvent`.
+        if "win" in sys.platform:
+            margin -= self.fontMetrics().xHeight()
+        self.setContentsMargins(margin, margin, margin, margin)
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        """Handles paint events.
+
+        The event is handled by painting the frame, erasing the title rect, then drawing
+        the title text.
+
+        Args:
+            event (QtGui.QPaintEvent): Event to handle.
+        """
+        super().paintEvent(event)
+
+        painter = QtGui.QPainter(self)
+
+        font = painter.font()
+        self.adjust_font(font)
+        painter.setFont(font)
+
+        text_option = QtGui.QTextOption(QtCore.Qt.AlignmentFlag.AlignCenter)
+        text_option.setWrapMode(QtGui.QTextOption.NoWrap)
+
+        text_rect = (
+            painter.fontMetrics().boundingRect(self.title, text_option).toRectF()
+        )
+        text_rect.moveBottomLeft(self.frameRect().topLeft())
+        text_rect.translate(20, painter.fontMetrics().xHeight())
+        # Janky adjustment, seems to work with most "normal" fonts I've tested to ensure
+        # the text aligns with the frame vertically.
+        if "win" in sys.platform:
+            text_rect.translate(0, painter.fontMetrics().xHeight())
+
+        erase_rect = QtCore.QRectF(text_rect)
+        erase_rect.adjust(-5, 0, 5, 0)
+        painter.eraseRect(erase_rect)
+
+        painter.drawText(text_rect, self.title, text_option)
+
+
+class ToggleWidget(QtWidgets.QFrame):
+    def __init__(
+        self,
+        header_text: str = "",
+        sub_item: QtWidgets.QWidget | QtWidgets.QLayout | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        border_colour = self.palette().window().color()
+        if is_light_colour(border_colour):  # Light theme
+            border_colour = border_colour.darker()
+        else:
+            border_colour = border_colour.lighter()
+
+        #
+        header_label = QtWidgets.QLabel(header_text)
+
+        self.header_label = header_label
+
+        #
+        check_box = AnimatedCheckBox()
+
+        check_box.checkStateChanged.connect(self.toggle_sub_item)
+
+        self.check_box = check_box
+
+        #
+        header_layout = QtWidgets.QHBoxLayout()
+
+        header_layout.setContentsMargins(11, 0, 11, 0)
+
+        header_layout.addWidget(
+            header_label, alignment=QtCore.Qt.AlignmentFlag.AlignLeft
+        )
+        header_layout.addWidget(check_box, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+
+        #
+        header_widget = QtWidgets.QWidget()
+
+        palette = header_widget.palette()
+        palette.setColor(
+            QtGui.QPalette.ColorRole.Window, palette.window().color().lighter()
+        )
+        header_widget.setPalette(palette)
+        header_widget.setAutoFillBackground(True)
+
+        header_widget.setLayout(header_layout)
+
+        self.header_widget = header_widget
+
+        #
+        sub_layout = QtWidgets.QHBoxLayout()
+
+        sub_layout.setContentsMargins(11, 11, 11, 11)
+
+        self.sub_layout = sub_layout
+
+        #
+        sub_frame = QtWidgets.QFrame()
+
+        sub_frame.setContentsMargins(0, 0, 0, 0)
+        sub_frame.setObjectName("SubFrame")
+        sub_frame.setStyleSheet(
+            f"""
+            #SubFrame {{ 
+              border: {sub_frame.lineWidth()}px solid {border_colour.name()};
+              border-left: none;
+              border-right: none;
+              border-bottom: none;
+            }}
+            """
+        )
+
+        sub_frame.setLayout(sub_layout)
+
+        self.sub_frame = sub_frame
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        layout.addWidget(header_widget)
+        layout.addWidget(sub_frame)
+
+        self.setLayout(layout)
+
+        #
+        self.setObjectName("MainFrame")
+        self.setStyleSheet(
+            f"""
+            #MainFrame {{
+                border: {self.lineWidth()}px solid {border_colour.name()};
+            }}
+            """
+        )
+
+        #
+        self._sub_item = None
+        self.update_sub_item(sub_item)
+
+    def update_sub_item(
+        self, item: QtWidgets.QWidget | QtWidgets.QLayout | None
+    ) -> None:
+        current_item = self._sub_item
+        self._sub_item = item
+
+        if current_item is not None:
+            index = self.sub_layout.indexOf(current_item)
+            layout_item = self.sub_layout.itemAt(index)
+            layout_item.widget().deleteLater()
+        if item is not None:
+            if isinstance(item, QtWidgets.QWidget):
+                self.sub_layout.addWidget(item)
+            elif isinstance(item, QtWidgets.QLayout):
+                self.sub_layout.addLayout(item)
+
+        self.toggle_sub_item(self.check_box.checkState())
+
+    @QtCore.Slot(QtCore.Qt.CheckState)
+    def toggle_sub_item(self, state: QtCore.Qt.CheckState) -> None:
+        if self._sub_item is None:
+            return
+
+        if state == QtCore.Qt.CheckState.Checked:
+            self.sub_frame.setVisible(True)
+        else:
+            self.sub_frame.setVisible(False)
+
+
+class FlowLayout(QtWidgets.QLayout):
+    """A flow layout that rearranges children in rows if they would overflow.
+
+    Taken directly from the official PySide documentation:
+    https://doc.qt.io/qtforpython-6/examples/example_widgets_layouts_flowlayout.html
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        if parent is not None:
+            self.setContentsMargins(QtCore.QMargins(0, 0, 0, 0))
+
+        self._item_list = []
+
+    def __del__(self):
+        item = self.takeAt(0)
+        while item:
+            item = self.takeAt(0)
+
+    def addItem(self, item):
+        self._item_list.append(item)
+
+    def count(self):
+        return len(self._item_list)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._item_list):
+            return self._item_list[index]
+
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._item_list):
+            return self._item_list.pop(index)
+
+        return None
+
+    def expandingDirections(self):
+        return QtCore.Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        height = self._do_layout(QtCore.QRect(0, 0, width, 0), True)
+        return height
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QtCore.QSize()
+
+        for item in self._item_list:
+            size = size.expandedTo(item.minimumSize())
+
+        size += QtCore.QSize(
+            2 * self.contentsMargins().top(), 2 * self.contentsMargins().top()
+        )
+        return size
+
+    def _do_layout(self, rect, test_only):
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        spacing = self.spacing()
+
+        for item in self._item_list:
+            style = item.widget().style()
+            layout_spacing_x = style.layoutSpacing(
+                QtWidgets.QSizePolicy.Frame,
+                QtWidgets.QSizePolicy.Frame,
+                QtCore.Qt.Orientation.Horizontal,
+            )
+            layout_spacing_y = style.layoutSpacing(
+                QtWidgets.QSizePolicy.Frame,
+                QtWidgets.QSizePolicy.Frame,
+                QtCore.Qt.Vertical,
+            )
+            space_x = spacing + layout_spacing_x
+            space_y = spacing + layout_spacing_y
+            next_x = x + item.sizeHint().width() + space_x
+            if next_x - space_x > rect.right() and line_height > 0:
+                x = rect.x()
+                y = y + line_height + space_y
+                next_x = x + item.sizeHint().width() + space_x
+                line_height = 0
+
+            if not test_only:
+                item.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), item.sizeHint()))
+
+            x = next_x
+            line_height = max(line_height, item.sizeHint().height())
+
+        return y + line_height - rect.y()
+
+
+class ResizablePixmapLabel(QtWidgets.QLabel):
+    def __init__(
+        self, pixmap_path: str | None = None, parent: QtWidgets.QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+
+        self._pixmap = None
+        if pixmap_path is not None:
+            self.setPixmap(QtGui.QPixmap(pixmap_path))
+
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Fixed,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        if self._pixmap is not None:
+            scaled_pixmap = self._pixmap.scaled(
+                self.contentsRect().width(),
+                self.contentsRect().height(),
+                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                QtCore.Qt.TransformationMode.SmoothTransformation,
+            )
+            self.setPixmap(scaled_pixmap, rescaling=True)
+
+    def setPixmap(self, pixmap: QtGui.QPixmap, rescaling: bool = False) -> None:
+        if not rescaling:
+            pixmap = pixmap.copy()
+
+            painter = QtGui.QPainter(pixmap)
+            painter.setCompositionMode(
+                QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+            )
+
+            painter.setBrush(
+                QtGui.QBrush(QtWidgets.QApplication.instance().palette().text())
+            )
+
+            rect = pixmap.rect()
+            painter.drawRect(rect)
+
+            painter.end()
+
+        super().setPixmap(pixmap)
+
+        if not rescaling:
+            # Cache original pixmap to avoid shrinking then growing having bad AA
+            self._pixmap = pixmap

@@ -84,8 +84,8 @@ class HistogramViewerWidget(QtWidgets.QScrollArea):
         self.canvases_layout.addWidget(canvas)
 
     @QtCore.Slot()
-    def remove_histogram(self, structure_name: str) -> None:
-        canvas = self.canvases.pop(structure_name, None)
+    def remove_histogram(self, index: QtCore.QModelIndex) -> None:
+        canvas = self.canvases.pop(index.internalPointer().name, None)
         if canvas is not None:
             # Prevent Matplotlib from trying to use canvas._draw_idle() on deleted canvas
             canvas.hide()

@@ -1,84 +1,239 @@
 # SPDX-FileCopyrightText: 2024-present Olivier Delrée <olivierdelree@protonmail.com>
 #
 # SPDX-License-Identifier: MIT
+from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import logging
-import os
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from PySide6 import QtCore, QtGui
 
 from histalign.backend.ccf.paths import get_structures_hierarchy_path
-from histalign.backend.io import DATA_ROOT
 
 _module_logger = logging.getLogger(__name__)
 
 
-@dataclass
 class StructureNode(QtGui.QStandardItem):
-    acronym: str
-    rgb_triplet: list[int]
-    graph_id: int
-    graph_order: int
-    id: int
     name: str
-    structure_id_path: list[int]
-    structure_set_ids: list[int]
+    id: int
+    acronym: str
+    parent_node: StructureNode | None
+    parent_id: int
+    children_nodes: list[StructureNode]
+    checked: bool = False
 
-    def __post_init__(self) -> None:
-        super().__init__()
+    @classmethod
+    def from_dictionary(cls, dictionary: dict) -> StructureNode:
+        parent_id = dictionary.get("structure_id_path", -1)
+        if isinstance(parent_id, list):
+            if len(parent_id) == 1:
+                parent_id = parent_id[0]
+            else:
+                parent_id = parent_id[-2]
 
-    def data(
-        self, role: QtCore.Qt.ItemDataRole = QtCore.Qt.ItemDataRole.DisplayRole
-    ) -> Any:
-        match role:
-            case QtCore.Qt.ItemDataRole.DisplayRole:
-                return self.name
-            case _:
-                return super().data(role)
+        instance = cls()
+        instance.name = dictionary.get("name", "None")
+        instance.id = dictionary.get("id", -1)
+        instance.acronym = dictionary.get("acronym", "None")
+        instance.parent_node = None
+        instance.parent_id = parent_id
+        instance.children_nodes = dictionary.get("children_nodes", [])
 
-    def uncheck(self) -> None:
-        if self.checkState() == QtCore.Qt.CheckState.Checked:
-            self.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        instance.setCheckable(True)
+        instance.setCheckState(QtCore.Qt.CheckState.Unchecked)
 
-    def toJson(self) -> dict:
-        return {
-            "acronym": self.acronym,
-            "rgb_triplet": self.rgb_triplet,
-            "graph_id": self.graph_id,
-            "graph_order": self.graph_order,
-            "id": self.id,
-            "name": self.name,
-            "structure_id_path": self.structure_id_path,
-            "structure_set_ids": self.structure_set_ids,
-        }
+        return instance
+
+    def add_child(self, child: StructureNode) -> None:
+        self.children_nodes.append(child)
+
+    def child(self, row: int, column: int | None = None) -> StructureNode:
+        return self.children_nodes[row]
+
+    def child_count(self) -> int:
+        return len(self.children_nodes)
+
+    def column_count(self) -> int:
+        return 2
+
+    # noinspection PyMethodOverriding
+    def data(self, column: int) -> Any:
+        if column == 0:
+            return self.acronym
+        elif column == 1:
+            return self.name
+        else:
+            return None
+
+    def is_checked(self) -> bool:
+        return self.checked
+
+    def parent(self) -> StructureNode:
+        return self.parent_node
+
+    def row(self) -> int:
+        if self.parent_node is not None:
+            return self.parent_node.children_nodes.index(self)
+        return 0
+
+    def set_checked(self, checked: bool) -> None:
+        self.checked = checked
 
 
-class StructureModel(QtGui.QStandardItemModel):
+class ABAStructureTreeModel(QtCore.QAbstractItemModel):
+    item_checked: QtCore.Signal = QtCore.Signal(QtCore.QModelIndex)
+    item_unchecked: QtCore.Signal = QtCore.Signal(QtCore.QModelIndex)
+
     def __init__(
         self,
-        structures_hierarchy_path: Optional[str] = None,
-        root_text: str = "Basic cell groups and regions",
-        parent: Optional[QtCore.QObject] = None,
+        json_path: str | Path | None = None,
+        root_name: str | None = "Basic cell groups and regions",
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
-        structures_hierarchy_path = (
-            structures_hierarchy_path or get_structures_hierarchy_path()
-        )
+        # Use the provided or default JSON file path and build the hierarchy tree
+        json_path = json_path or get_structures_hierarchy_path()
+        self.build_tree(json_path)
 
-        self.build_tree(structures_hierarchy_path, root_text)
+        # "Zoom in" on a node and replace the root with it
+        if root_name is not None:
+            self.replace_root(root_name)
+
+    def build_tree(self, json_path: str | Path) -> None:
+        with open(json_path, "rb") as handle:
+            contents = json.load(handle)
+        self.root = parse_structures(contents)
+
+    def columnCount(
+        self, parent: QModelIndex | QPersistentModelIndex | None = None
+    ) -> int:
+        if parent is not None and parent.isValid():
+            return parent.internalPointer().column_count()
+        else:
+            return self.root.column_count()
 
     def data(
         self,
         index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
         role: QtCore.Qt.ItemDataRole = QtCore.Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        match role:
-            case _:
-                return super().data(index, role)
+        if not index.isValid():
+            return None
+
+        item = index.internalPointer()
+        if role == QtCore.Qt.ItemDataRole.DisplayRole:
+            return item.data(index.column())
+        elif role == QtCore.Qt.ItemDataRole.ToolTipRole and index.column() == 1:
+            return item.data(index.column())
+        elif role == QtCore.Qt.ItemDataRole.CheckStateRole and index.column() == 0:
+            return (
+                QtCore.Qt.CheckState.Checked
+                if item.is_checked()
+                else QtCore.Qt.CheckState.Unchecked
+            )
+
+    def flags(
+        self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex
+    ) -> QtCore.Qt.ItemFlag:
+        if not index.isValid():
+            return QtCore.Qt.ItemFlag.NoItemFlags
+
+        flags = QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
+        if index.column() == 0:
+            flags |= QtCore.Qt.ItemFlag.ItemIsUserCheckable
+
+        return flags
+
+    def get_checked_items(self) -> list[StructureNode]:
+        checked_items = []
+        for node in iterate_structure_node_right_biased_dfs(self.root):
+            if node.is_checked():
+                checked_items.append(node)
+
+        return checked_items
+
+    def get_item_index(self, item: StructureNode) -> QtCore.QModelIndex:
+        if item == self.root:
+            return self.index(0, 0)
+
+        nodes_to_root = [item]
+        current_item = item
+        while current_item.parent_node != self.root:
+            nodes_to_root.append(current_item.parent_node)
+            current_item = current_item.parent_node
+
+        index = QtCore.QModelIndex()
+        for node in nodes_to_root[::-1]:
+            index = self.index(node.row(), 0, index)
+
+        return index
+
+    def headerData(
+        self,
+        column_index: int,
+        orientation: QtCore.Qt.Orientation,
+        role: int | None = None,
+    ) -> str | None:
+        if (
+            orientation == QtCore.Qt.Orientation.Horizontal
+            and role == QtCore.Qt.ItemDataRole.DisplayRole
+        ):
+            return ["Acronym", "Structure Name"][column_index]
+        return None
+
+    def index(
+        self,
+        row: int,
+        column: int,
+        parent: (
+            QtCore.QModelIndex | Qtcore.QPersistentModelIndex
+        ) = QtCore.QModelIndex(),
+    ) -> QtCore.QModelIndex:
+        if not self.hasIndex(row, column, parent) or parent is None:
+            return QtCore.QModelIndex()
+
+        if not parent.isValid():
+            parent_item = self.root
+        else:
+            parent_item = parent.internalPointer()
+        child_item = parent_item.children_nodes[row]
+
+        return self.createIndex(row, column, child_item)
+
+    # noinspection PyMethodOverriding
+    def parent(
+        self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex
+    ) -> QtCore.QModelIndex:
+        if not index.isValid():
+            return QtCore.QModelIndex()
+
+        child_item = index.internalPointer()
+        parent_item = child_item.parent()
+        if parent_item == self.root:
+            return QtCore.QModelIndex()
+        return self.createIndex(parent_item.row(), 0, parent_item)
+
+    def replace_root(self, node_name: str) -> None:
+        node = find_structure_node_by_name(self.root, node_name)
+        if node is not None:
+            self.modelAboutToBeReset.emit()
+            self.root = node
+            self.modelReset.emit()
+
+    def rowCount(
+        self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex | None = None
+    ) -> int:
+        if parent is None:
+            return self.root.child_count()
+        if parent.column() > 0:
+            return 0
+        if not parent.isValid():
+            parent_item = self.root
+        else:
+            parent_item = parent.internalPointer()
+        return parent_item.child_count()
 
     def setData(
         self,
@@ -86,206 +241,119 @@ class StructureModel(QtGui.QStandardItemModel):
         value: Any,
         role: QtCore.Qt.ItemDataRole = QtCore.Qt.ItemDataRole.DisplayRole,
     ) -> bool:
-        match role:
-            case QtCore.Qt.ItemDataRole.CheckStateRole:
-                if value == QtCore.Qt.CheckState.Checked.value:
-                    # Replicate the Allen 3D viewer behaviour of unchecking structures
-                    # that are children of structure that was just checked.
-                    self.propagate_uncheck(self.itemFromIndex(index), skip_root=True)
+        if not index.isValid():
+            return False
 
-                return super().setData(index, value, role)
-            case _:
-                return super().setData(index, value, role)
+        if role == QtCore.Qt.ItemDataRole.CheckStateRole:
+            item = index.internalPointer()
+            item.set_checked(not item.is_checked())
 
-    def propagate_uncheck(
-        self, root: QtGui.QStandardItem, skip_root: bool = False
-    ) -> None:
-        if root.checkState() == QtCore.Qt.CheckState.Checked and not skip_root:
-            root.setCheckState(QtCore.Qt.CheckState.Unchecked)
-        for row in range(root.rowCount()):
-            self.propagate_uncheck(root.child(row, 0))
-
-    def build_tree(self, structures_hierarchy_path: str, root_text: str) -> None:
-        """Builds a `StructureNode` tree from a hierarchy file.
-
-        This method is overly careful about the state of the hierarchy. It does not
-        assume the hierarchy can be completely parsed in a single pass and makes sure
-        there aren't any orphaned nodes (i.e., nodes without a parent). These checks
-        are most likely unnecessary but I'm not aware of any guarantees the Allen SDK
-        makes about the hierarchy and these checks don't impact the performance of the
-        tree building.
-
-        Args:
-            structures_hierarchy_path (str): Path to the hierarchy file on disk. This
-                                             should be a JSON file as obtained from the
-                                             Allen SDK.
-            root_text (str): Text of the root node. If a node with that text exists, it
-                             will be used as the root of the model (note the root will
-                             not be a visible node, instead its children will be
-                             re-parented to the invisibleRootItem. If left empty, the
-                             root will be the invisibleRootItem and all nodes will be
-                             visible.
-        """
-
-        cache_path = DATA_ROOT / "parsed_structures.json"
-        if cache_path.exists():
-            _module_logger.info("Found cached structure model.")
-            with open(cache_path) as handle:
-                data = json.load(handle)
-
-            if data[0] == list(os.stat(structures_hierarchy_path)):
-                hierarchy = data[1]
-                deserialise_hierarchy(hierarchy, self.invisibleRootItem())
-                if root_text:
-                    self.zoom_on(root_text)
-                return
+            if item.is_checked():
+                self.item_checked.emit(index)
             else:
-                _module_logger.info(
-                    "Invalidating cache as cached stat is different from original file."
-                )
+                self.item_unchecked.emit(index)
 
-        def find_node(nodes: list[StructureNode], id_: int) -> int:
-            for index, node in enumerate(nodes):
-                if node.id == id_:
-                    return index
+            return True
 
-            raise ValueError(f"Cannot find node with id {id_}")
-
-        nodes_to_insert = self.parse_hierarchy(structures_hierarchy_path)
-        nodes_inserted = []
-
-        while nodes_to_insert:
-            processed_a_node = False
-            i = 0
-            while i < len(nodes_to_insert):
-                current_node = nodes_to_insert[i]
-                if current_node.name == "root":
-                    self.invisibleRootItem().appendRow(current_node)
-                    nodes_inserted.append(nodes_to_insert.pop(i))
-                    processed_a_node = True
-                    continue
-
-                parent_id = current_node.structure_id_path[-2]
-
-                try:
-                    items = self.findItems(
-                        nodes_inserted[find_node(nodes_inserted, parent_id)].name,
-                        QtCore.Qt.MatchFlag.MatchRecursive,
-                    )
-                except ValueError:
-                    i += 1
-                    continue
-
-                if not items:
-                    # Could not find its parent
-                    i += 1
-                    continue
-                elif len(items) > 1:
-                    raise ValueError(
-                        f"Tried to add node ({current_node.name} - {current_node.id}) "
-                        f"already present in the model."
-                    )
-
-                items[0].appendRow(current_node)
-                nodes_inserted.append(nodes_to_insert.pop(i))
-                processed_a_node = True
-
-            if not processed_a_node:
-                raise ValueError(f"Found orphaned nodes: \n{nodes_to_insert}")
-
-        with open(cache_path, "w") as handle:
-            _module_logger.info("Caching parsed structure model.")
-
-            data = [
-                os.stat(structures_hierarchy_path),
-                serialise_hierarchy(self.invisibleRootItem()),
-            ]
-
-            json.dump(data, handle)
-
-        if root_text:
-            self.zoom_on(root_text)
-
-    def zoom_on(self, text: str, zoom_in: bool = True) -> None:
-        for node in self.iterate_nodes():
-            for i in range(node.rowCount()):
-                if node.child(i).text() == text:
-                    child = node.takeChild(i)
-                    self.clear()
-                    self.invisibleRootItem().appendRow(child)
-
-                    if zoom_in:
-                        self.zoom_in()
-
-                    return
-
-    def zoom_in(self) -> None:
-        initial_row_count = self.invisibleRootItem().rowCount()
-        for i in range(initial_row_count):
-            for j in range(self.invisibleRootItem().child(i).rowCount()):
-                self.invisibleRootItem().appendRow(
-                    self.invisibleRootItem().child(i).takeChild(j)
-                )
-        self.removeRows(0, initial_row_count)
-
-    def iterate_nodes(
-        self, root: Optional[QtGui.QStandardItem] = None
-    ) -> Iterator[QtGui.QStandardItem]:
-        """Yields nodes in a depth-first manner."""
-        if root is None:
-            root = self.invisibleRootItem()
-
-        for i in range(root.rowCount()):
-            child = root.child(i)
-            yield child
-            yield from self.iterate_nodes(child)
-
-    @staticmethod
-    def parse_hierarchy(structures_hierarchy_path: str) -> list[StructureNode]:
-        with open(structures_hierarchy_path) as handle:
-            contents = json.load(handle)
-
-        nodes = []
-        for node_dict in contents:
-            node = StructureNode(**node_dict)
-
-            node.setEditable(False)
-            node.setCheckable(True)
-            node.setCheckState(QtCore.Qt.CheckState.Unchecked)
-
-            nodes.append(node)
-
-        return nodes
+        return super().setData(index, value, role)
 
 
-def serialise_hierarchy(
-    root: QtGui.QStandardItem,
-) -> list:
-    hierarchy = []
-    for i in range(root.rowCount()):
-        child = root.child(i, 0)
-        child_dictionary = child.toJson()
-        if child.hasChildren():
-            child_dictionary["children"] = serialise_hierarchy(child)
-        else:
-            child_dictionary["children"] = None
+def find_structure_node_by_id(root: StructureNode, id: int) -> StructureNode | None:
+    """Searches structure tree using right-biased DFS.
 
-        hierarchy.append(child_dictionary)
+    Args:
+        root (StructureNode): Root node to start the search from.
+        id (int): ID of the node to search for.
 
-    return hierarchy
+    Returns:
+        StructureNode | None: The node with id `id` or `None` if it was not found.
+    """
+    for node in iterate_structure_node_right_biased_dfs(root):
+        if node.id == id:
+            return node
+
+    return None
 
 
-def deserialise_hierarchy(hierarchy: list, root: QtGui.QStandardItem) -> None:
-    if hierarchy is None:
-        return
+def find_structure_node_by_name(root: StructureNode, name: str) -> StructureNode | None:
+    """Searches structure tree using right-biased DFS.
 
-    for node in hierarchy:
-        children = node.pop("children")
-        node = StructureNode(**node)
-        node.setEditable(False)
-        node.setCheckable(True)
-        node.setCheckState(QtCore.Qt.CheckState.Unchecked)
+    Args:
+        root (StructureNode): Root node to start the search from.
+        name (str): Name of the node to search for.
 
-        deserialise_hierarchy(children, node)
+    Returns:
+        StructureNode | None: The node with name `name` or `None` if it was not found.
+    """
+    for node in iterate_structure_node_right_biased_dfs(root):
+        if node.name == name:
+            return node
 
-        root.appendRow(node)
+    return None
+
+
+def iterate_structure_node_dfs(root: StructureNode) -> Iterator[StructureNode]:
+    """Iterates structure tree using depth-first search.
+
+    Args:
+        root (StructureNode): Root node to start the iteration form.
+
+    Returns:
+        Iterator[StructureNode]: An iterator over the structure tree.
+    """
+    queue = [root]
+    while len(queue) > 0:
+        node = queue.pop()
+        yield node
+        queue.extend(node.children_nodes[::-1])
+
+
+def iterate_structure_node_right_biased_dfs(
+    root: StructureNode,
+) -> Iterator[StructureNode]:
+    """Iterates structure tree using right-biased depth-first search.
+
+    Given the context, this can be much slower than a regular DFS. However, when used
+    to parse the Allen structures tree, the nodes are added from left to right, hence
+    looking from right to left means searching fewer nodes.
+
+    Args:
+        root (StructureNode): Root node to start the iteration form.
+
+    Returns:
+        Iterator[StructureNode]: An iterator over the structure tree.
+    """
+    queue = [root]
+    while len(queue) > 0:
+        node = queue.pop()
+        yield node
+        queue.extend(node.children_nodes)
+
+
+def parse_structures(structure_list: StructureList) -> StructureNode:
+    """Parses a structure list made up of node dictionaries.
+
+    Args:
+        structure_list (StructureList): List of structure dictionaries.
+
+    Returns:
+        StructureNode: The root node containing all the other nodes.
+
+    Raises:
+        ValueError:
+            When attempting to parse a child before its parent has been added to the
+            tree.
+    """
+    root = StructureNode.from_dictionary(structure_list.pop(0))
+
+    parent = None  # Cache parent to optimise leaf nodes
+    while len(structure_list) > 0:
+        node = StructureNode.from_dictionary(structure_list.pop(0))
+        if parent is None or parent is not node.parent_node:
+            parent = find_structure_node_by_id(root, node.parent_id)
+            if parent is None:
+                raise ValueError(f"Parent node with ID {node.parent_id} not found.")
+        node.parent_node = parent
+        parent.children_nodes.append(node)
+
+    return root

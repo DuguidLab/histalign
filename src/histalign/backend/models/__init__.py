@@ -11,13 +11,13 @@ from typing import Any, Optional
 
 from pydantic import (
     BaseModel,
+    computed_field,
     DirectoryPath,
     Field,
-    FilePath,
-    ValidationInfo,
-    computed_field,
     field_serializer,
     field_validator,
+    FilePath,
+    ValidationInfo,
 )
 
 
@@ -174,7 +174,7 @@ class AverageFluorescenceMeasureSettings(MeasureSettings, validate_assignment=Tr
 
 class CorticalDepthMeasureSettings(MeasureSettings, validate_assignment=True):
     cortex_structure: str
-    sub_cortical_structures: list[str]
+    structures: list[str]
 
 
 class QuantificationSettings(BaseModel, validate_assignment=True):
@@ -184,6 +184,9 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
     fast_rescale: bool = True
     fast_transform: bool = True
     measure_settings: MeasureSettings
+    channel_index: Optional[int] = None
+    channel_regex: Optional[str] = None
+    projection_regex: Optional[str] = None
 
     @field_serializer("alignment_directory", "original_directory")
     def serialise_path(self, value: DirectoryPath) -> str:

@@ -6,8 +6,8 @@ from functools import partial
 import json
 from typing import Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
 import numpy as np
+from PySide6 import QtCore, QtGui, QtWidgets
 
 import histalign.backend.io as io
 from histalign.backend.models import AlignmentSettings
@@ -114,9 +114,11 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.update_merged_pixmap()
 
     @QtCore.Slot()
-    def add_contour(self, structure_name: str) -> None:
+    def add_contour(self, index: QtCore.QModelIndex) -> None:
         if not self.is_registered:
             return
+
+        structure_name = index.internalPointer().name
 
         new_thread = ContourGeneratorThread(structure_name, self.registration_result)
         new_thread.mask_ready.connect(
@@ -146,10 +148,12 @@ class QAViewerWidget(QtWidgets.QLabel):
         self.update_merged_pixmap()
 
     @QtCore.Slot()
-    def remove_contour(self, structure_name: str) -> None:
+    def remove_contour(self, index: QtCore.QModelIndex) -> None:
         # Since there's no easy way to stop the thread in the middle of working, instead
         # ask it not to return its result when it's done if the contour is removed
         # before the work is done.
+        structure_name = index.internalPointer().name
+
         thread = self._contour_generator_threads.get(structure_name)
         if thread is not None:
             thread.should_emit = False

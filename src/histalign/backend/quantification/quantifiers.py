@@ -220,7 +220,7 @@ class CorticalDepthQuantifier(Quantifier):
         )
 
         self.progress_count_computed.emit(
-            len(self.measure_settings.sub_cortical_structures) * len(targets)
+            len(self.measure_settings.structures) * len(targets)
         )
         self.progress_changed.emit(0)
 
@@ -231,7 +231,7 @@ class CorticalDepthQuantifier(Quantifier):
         cortex_volume = None
 
         progress_index = 0
-        for structure_name in self.measure_settings.sub_cortical_structures:
+        for structure_name in self.measure_settings.structures:
             structure_volume = None
 
             for i, target in enumerate(targets):

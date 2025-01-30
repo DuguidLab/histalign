@@ -9,37 +9,143 @@ from PySide6 import QtCore, QtWidgets
 
 from histalign.backend.models import (
     MeasureSettings,
+    QuantificationMeasure,
     QuantificationSettings,
 )
 from histalign.backend.quantification import QuantificationThread
 from histalign.backend.workspace import Workspace
 from histalign.frontend.common_widgets import (
+    AnimatedCheckBox,
     ProjectDirectoriesComboBox,
+    StructureFinderDialog,
+    StructureTagHolderWidget,
+    TitleFrame,
 )
-from histalign.frontend.quantification.measure_widgets import (
-    AverageFluorescenceWidget,
-    CorticalDepthWidget,
+from histalign.frontend.quantification.analysis_parameters_widgets import (
+    AnalysisParametersWidget,
+    AverageFluorescenceAnalysisParametersWidget,
+    CorticalDepthAnalysisParametersWidget,
 )
 
 
-class PrepareWidget(QtWidgets.QWidget):
-    project_directory: Path
-
-    form_layout: QtWidgets.QFormLayout
-    directory_widget: ProjectDirectoriesComboBox
-    measure_widget: QtWidgets.QComboBox
-    measure_settings_widgets: list[QtWidgets.QWidget]
-    progress_layout: QtWidgets.QHBoxLayout
-    run_button: QtWidgets.QPushButton
-    progress_bar: QtWidgets.QProgressBar
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
+class ZStackFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "Z stacks",
+        bold: bool = False,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
 
         #
-        measure_settings_widgets = []
+        check_box = AnimatedCheckBox()
 
-        self.measure_settings_widgets = measure_settings_widgets
+        check_box.checkStateChanged.connect(
+            lambda x: self.regex_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
+        )
+
+        self.check_box = check_box
+
+        #
+        # setFormAlignment doesn't work for right-aligned so make sub-layout
+        check_box_layout = QtWidgets.QHBoxLayout()
+
+        check_box_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+
+        check_box_layout.addWidget(check_box)
+
+        #
+        regex_line_edit = QtWidgets.QLineEdit()
+
+        regex_line_edit.setEnabled(False)
+
+        self.regex_line_edit = regex_line_edit
+
+        #
+        layout = QtWidgets.QFormLayout()
+
+        layout.addRow("Are images Z stacks?", check_box_layout)
+        layout.addRow("Z stack regex", regex_line_edit)
+
+        self.setLayout(layout)
+
+        #
+        self.setContentsMargins(
+            1, self.contentsMargins().top(), 1, self.contentsMargins().bottom()
+        )
+
+
+class ChannelFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "Multichannel images",
+        bold: bool = False,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
+
+        #
+        check_box = AnimatedCheckBox()
+
+        check_box.checkStateChanged.connect(
+            lambda x: self.regex_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
+        )
+        check_box.checkStateChanged.connect(
+            lambda x: self.quantification_channel_line_edit.setEnabled(
+                x == QtCore.Qt.CheckState.Checked
+            )
+        )
+
+        self.check_box = check_box
+
+        #
+        # setFormAlignment doesn't work for right-aligned so make sub-layout
+        check_box_layout = QtWidgets.QHBoxLayout()
+
+        check_box_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+
+        check_box_layout.addWidget(check_box)
+
+        #
+        regex_line_edit = QtWidgets.QLineEdit()
+
+        regex_line_edit.setEnabled(False)
+
+        self.regex_line_edit = regex_line_edit
+
+        #
+        quantification_channel_line_edit = QtWidgets.QLineEdit()
+
+        quantification_channel_line_edit.setEnabled(False)
+
+        self.quantification_channel_line_edit = quantification_channel_line_edit
+
+        #
+        layout = QtWidgets.QFormLayout()
+
+        layout.addRow("Are images multichannel?", check_box_layout)
+        layout.addRow("Channel regex", regex_line_edit)
+        layout.addRow("Quantification channel", quantification_channel_line_edit)
+
+        self.setLayout(layout)
+
+        #
+        self.setContentsMargins(
+            1, self.contentsMargins().top(), 1, self.contentsMargins().bottom()
+        )
+
+
+class QuantificationParametersFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "Quantification parameters",
+        bold: bool = True,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
 
         #
         directory_widget = ProjectDirectoriesComboBox()
@@ -47,50 +153,215 @@ class PrepareWidget(QtWidgets.QWidget):
         self.directory_widget = directory_widget
 
         #
+        z_stack_frame = ZStackFrame()
+
+        self.z_stack_frame = z_stack_frame
+
+        #
+        multichannel_frame = ChannelFrame()
+
+        self.multichannel_frame = multichannel_frame
+
+        #
+        layout = QtWidgets.QGridLayout()
+
+        layout.setContentsMargins(15, 15, 15, 15)
+
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.setColumnStretch(1, 1)
+        layout.setHorizontalSpacing(20)
+
+        layout.addWidget(QtWidgets.QLabel("Alignment directory"), 0, 0)
+        layout.addWidget(directory_widget, 0, 1)
+
+        layout.addWidget(z_stack_frame, 1, 0, 1, -1)
+
+        layout.addWidget(multichannel_frame, 2, 0, 1, -1)
+
+        self.setLayout(layout)
+
+
+class AnalysisParametersFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "Analysis parameters",
+        bold: bool = True,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
+
+        #
+        self.current_analysis_widget = None
+        self._analysis_widgets = []
+
+        #
+        measure_label = QtWidgets.QLabel("Measure")
+
+        self.measure_label = measure_label
+
+        #
         measure_widget = QtWidgets.QComboBox()
 
         measure_widget.addItems(["Average fluorescence", "Cortical depth"])
 
-        measure_widget.currentTextChanged.connect(self.update_layout)
+        measure_widget.currentTextChanged.connect(self.update_analysis_widget)
 
         self.measure_widget = measure_widget
 
         #
-        average_fluorescence_widget = AverageFluorescenceWidget(animated=False)
+        layout = QtWidgets.QGridLayout()
 
-        # Skip the first animation as this is the default visible widget
-        average_fluorescence_widget.show()
-        average_fluorescence_widget.animated = True
+        layout.setContentsMargins(15, 15, 15, 15)
 
-        average_fluorescence_widget.setMinimumHeight(0)
-        average_fluorescence_widget.setMaximumHeight(0)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.setColumnStretch(1, 1)
+        layout.setHorizontalSpacing(20)
 
-        measure_settings_widgets.append(average_fluorescence_widget)
+        layout.addWidget(measure_label, 0, 0)
+        layout.addWidget(measure_widget, 0, 1)
 
-        self.average_fluorescence_widget = average_fluorescence_widget
-
-        #
-        cortical_depth_widget = CorticalDepthWidget()
-
-        cortical_depth_widget.setMinimumHeight(0)
-        cortical_depth_widget.setMaximumHeight(0)
-        cortical_depth_widget.setHidden(True)
-
-        measure_settings_widgets.append(cortical_depth_widget)
-
-        self.cortical_depth_widget = cortical_depth_widget
+        self.setLayout(layout)
 
         #
-        form_layout = QtWidgets.QFormLayout()
-        form_layout.addRow("Directory", directory_widget)
-        form_layout.addRow("Measure", measure_widget)
-        form_layout.addRow(average_fluorescence_widget)
-        form_layout.addRow(cortical_depth_widget)
+        measure_widget.currentTextChanged.emit(measure_widget.currentText())
 
-        self.form_layout = form_layout
+    def get_analysis_widget(
+        self, widget_type: type[AnalysisParametersWidget]
+    ) -> AnalysisParametersWidget:
+        for analysis_widget in self._analysis_widgets:
+            if isinstance(analysis_widget, widget_type):
+                return analysis_widget
+
+        analysis_widget = widget_type()
+        analysis_widget.layout().setContentsMargins(0, 0, 0, 0)
+        analysis_widget.layout().setHorizontalSpacing(20)
+        analysis_widget.layout().setColumnStretch(1, 1)
+        self._analysis_widgets.append(analysis_widget)
+        return analysis_widget
+
+    def replace_analysis_widget(self, widget: AnalysisParametersWidget) -> None:
+        if self.current_analysis_widget is not None:
+            current_widget_index = self.layout().indexOf(self.current_analysis_widget)
+            self.layout().takeAt(current_widget_index).widget().hide()
+
+        self.layout().addWidget(widget, 1, 0, -1, -1)
+        self.current_analysis_widget = widget
+        widget.show()
+
+    def update_label_column_width(self) -> None:
+        column_width = max(
+            self.measure_label.sizeHint().width(),
+            self.current_analysis_widget.get_column_width(),
+        )
+        self.layout().setColumnMinimumWidth(0, column_width)
+        self.current_analysis_widget.layout().setColumnMinimumWidth(0, column_width)
+
+    @QtCore.Slot()
+    def update_analysis_widget(self, name: str) -> None:
+        if name == "Average fluorescence":
+            widget_type = AverageFluorescenceAnalysisParametersWidget
+        elif name == "Cortical depth":
+            widget_type = CorticalDepthAnalysisParametersWidget
+        else:
+            raise Exception("ASSERT NOT REACHED")
+
+        widget = self.get_analysis_widget(widget_type)
+        self.replace_analysis_widget(widget)
+
+        self.update_label_column_width()
+
+
+class StructureFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "Structures",
+        bold: bool = True,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
 
         #
-        run_button = QtWidgets.QPushButton("Run quantification")
+        pop_up = StructureFinderDialog(self)
+
+        self.pop_up = pop_up
+
+        #
+        structures_button = QtWidgets.QPushButton("Add/remove structures")
+
+        structures_button.clicked.connect(lambda: self.pop_up.resize(self.size()))
+        structures_button.clicked.connect(self.pop_up.exec)
+
+        self.structures_button = structures_button
+
+        #
+        structure_tag_holder = StructureTagHolderWidget()
+
+        model = pop_up.finder_widget.tree_view.model()
+        model.item_checked.connect(structure_tag_holder.add_tag_from_index)
+        model.item_unchecked.connect(structure_tag_holder.remove_tag_from_index)
+
+        self.structure_tag_holder = structure_tag_holder
+
+        #
+        layout = QtWidgets.QGridLayout()
+
+        layout.addWidget(structures_button, 0, 0, 1, -1)
+        layout.addWidget(structure_tag_holder, 1, 0, 1, -1)
+
+        self.setLayout(layout)
+
+
+class PrepareWidget(QtWidgets.QWidget):
+    project_directory: Path
+
+    analysis_parameters_frame: AnalysisParametersFrame
+    quantification_parameters_frame: QuantificationParametersFrame
+    parameters_layout: QtWidgets.QHBoxLayout()
+    progress_bar: QtWidgets.QProgressBar
+    run_button: QtWidgets.QPushButton
+    structures_frame: StructureFrame
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        quantification_parameters_frame = QuantificationParametersFrame()
+
+        self.quantification_parameters_frame = quantification_parameters_frame
+
+        #
+        analysis_parameters_frame = AnalysisParametersFrame()
+
+        self.analysis_parameters_frame = analysis_parameters_frame
+
+        #
+        structures_frame = StructureFrame()
+
+        self.structures_frame = structures_frame
+
+        #
+        left_column_layout = QtWidgets.QVBoxLayout()
+
+        left_column_layout.setContentsMargins(0, 0, 0, 0)
+
+        left_column_layout.addWidget(quantification_parameters_frame)
+        left_column_layout.addWidget(analysis_parameters_frame)
+
+        #
+        parameters_layout = QtWidgets.QHBoxLayout()
+
+        parameters_layout.setContentsMargins(0, 0, 0, 0)
+
+        parameters_layout.addLayout(left_column_layout)
+        parameters_layout.addWidget(structures_frame)
+
+        self.parameters_layout = parameters_layout
+
+        #
+        run_button = QtWidgets.QPushButton("Run")
+
         run_button.clicked.connect(self.run_quantification)
 
         self.run_button = run_button
@@ -102,43 +373,44 @@ class PrepareWidget(QtWidgets.QWidget):
 
         #
         progress_layout = QtWidgets.QHBoxLayout()
+
+        progress_layout.setContentsMargins(
+            quantification_parameters_frame.contentsMargins().left() - 1,
+            0,
+            quantification_parameters_frame.contentsMargins().right() - 1,
+            0,
+        )
+
         progress_layout.addWidget(run_button)
         progress_layout.addWidget(progress_bar, stretch=1)
 
-        self.progress_layout = progress_layout
-
         #
         layout = QtWidgets.QVBoxLayout()
-        layout.addLayout(form_layout)
+
+        layout.addLayout(parameters_layout)
         layout.addLayout(progress_layout)
+
         self.setLayout(layout)
 
     def parse_project(self, project_directory: Path) -> None:
         self.project_directory = project_directory
-        self.directory_widget.parse_project(project_directory)
+        self.quantification_parameters_frame.directory_widget.parse_project(
+            project_directory
+        )
 
     def set_quantification_running_state(self, enabled: bool) -> None:
-        self.form_layout.setEnabled(not enabled)
+        self.parameters_layout.setEnabled(not enabled)
         self.run_button.setEnabled(not enabled)
 
-    def toggle_measure_widget(self, widget: QtWidgets.QWidget) -> None:
-        if widget not in self.measure_settings_widgets:
-            raise ValueError(f"Received unknown widget to toggle ('{widget}').")
+    def collect_quantification_settings(self) -> MeasureSettings:
+        settings = self.analysis_parameters_frame.current_analysis_widget.settings
 
-        for measure_widget in self.measure_settings_widgets:
-            if measure_widget is not widget:
-                measure_widget.hide()
+        if self.analysis_parameters_frame.current_analysis_widget.includes_structures:
+            model = self.structures_frame.pop_up.finder_widget.tree_view.model()
+            structures = [node.name for node in model.get_checked_items()]
+            settings.structures = structures
 
-        widget.show()
-
-    def collect_measure_settings(self) -> MeasureSettings:
-        for widget in self.measure_settings_widgets:
-            if widget.isVisible():
-                return widget.settings
-
-        raise ValueError(
-            "Failed to retrieve measure settings as no widget was visible."
-        )
+        return settings
 
     @QtCore.Slot()
     def run_quantification(self) -> None:
@@ -147,18 +419,22 @@ class PrepareWidget(QtWidgets.QWidget):
         self.progress_bar.resetFormat()
 
         directory_hash = Workspace.generate_directory_hash(
-            self.directory_widget.currentText()
+            self.quantification_parameters_frame.directory_widget.currentText()
         )
 
         quantification_settings = QuantificationSettings(
             alignment_directory=str(self.project_directory / directory_hash),
-            original_directory=self.directory_widget.currentText(),
-            quantification_measure="_".join(
-                self.measure_widget.currentText().lower().split(" ")
+            original_directory=self.quantification_parameters_frame.directory_widget.currentText(),
+            quantification_measure=QuantificationMeasure(
+                "_".join(
+                    self.analysis_parameters_frame.measure_widget.currentText()
+                    .lower()
+                    .split(" ")
+                )
             ),
             fast_rescale=True,
             fast_transform=True,
-            measure_settings=self.collect_measure_settings(),
+            measure_settings=self.collect_quantification_settings(),
         )
 
         quantification_thread = QuantificationThread(quantification_settings, self)
@@ -177,16 +453,6 @@ class PrepareWidget(QtWidgets.QWidget):
         )
 
         quantification_thread.start()
-
-    @QtCore.Slot()
-    def update_layout(self, value: str) -> None:
-        match value:
-            case "Average fluorescence":
-                self.toggle_measure_widget(self.average_fluorescence_widget)
-            case "Cortical depth":
-                self.toggle_measure_widget(self.cortical_depth_widget)
-            case _:
-                raise ValueError("Invalid measure.")
 
     @QtCore.Slot()
     def display_finished_progress_bar(self) -> None:

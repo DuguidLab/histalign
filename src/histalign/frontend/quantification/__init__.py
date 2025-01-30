@@ -3,13 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 from pathlib import Path
-import sys
 from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from histalign.frontend.common_widgets import BasicMenuBar, BasicApplicationWindow
-from histalign.frontend.dialogs import OpenProjectDialog
+from histalign.frontend.common_widgets import BasicApplicationWindow
 from histalign.frontend.quantification.prepare import PrepareWidget
 from histalign.frontend.quantification.results import ResultsWidget
 from histalign.frontend.quantification.view import ViewWidget
@@ -49,9 +47,14 @@ class QuantificationMainWindow(BasicApplicationWindow):
 
         #
         tab_widget = QtWidgets.QTabWidget()
+
         tab_widget.addTab(prepare_tab, "Prepare")
+        prepare_tab.setAutoFillBackground(True)
         tab_widget.addTab(results_tab, "Results")
+        results_tab.setAutoFillBackground(True)
         tab_widget.addTab(view_tab, "View")
+        view_tab.setAutoFillBackground(True)
+
         tab_widget.setEnabled(False)
 
         #

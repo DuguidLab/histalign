@@ -13,8 +13,8 @@ from histalign.backend.workspace import HistologySlice, Workspace
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     ProjectDirectoriesComboBox,
-    SelectedStructuresWidget,
     SliceNamesComboBox,
+    StructureFinderWidget,
 )
 from histalign.frontend.qa.measures import HistogramViewerWidget
 from histalign.frontend.qa.viewer import QAViewerWidget
@@ -31,7 +31,7 @@ class QAMainWindow(BasicApplicationWindow):
 
     project_directories_combo_box: ProjectDirectoriesComboBox
     slice_names_combo_box: SliceNamesComboBox
-    selected_structures_widget: SelectedStructuresWidget
+    structure_finder_widget: StructureFinderWidget
     qa_viewer: QAViewerWidget
     histogram_viewer: HistogramViewerWidget
 
@@ -60,17 +60,18 @@ class QAMainWindow(BasicApplicationWindow):
         self.project_directories_combo_box = project_directories_combo_box
 
         #
-        selected_structures_widget = SelectedStructuresWidget()
+        structure_finder_widget = StructureFinderWidget()
 
-        self.selected_structures_widget = selected_structures_widget
+        self.structure_finder_widget = structure_finder_widget
 
         #
         qa_viewer = QAViewerWidget()
         qa_viewer.contour_processed.connect(self.remove_structure_from_status)
 
-        selected_structures_widget.structure_added.connect(qa_viewer.add_contour)
-        selected_structures_widget.structure_removed.connect(qa_viewer.remove_contour)
-        selected_structures_widget.structure_added.connect(self.add_structure_to_status)
+        model = structure_finder_widget.tree_view.model()
+        model.item_checked.connect(qa_viewer.add_contour)
+        model.item_checked.connect(self.add_structure_to_status)
+        model.item_unchecked.connect(qa_viewer.remove_contour)
 
         self.qa_viewer = qa_viewer
 
@@ -78,9 +79,7 @@ class QAMainWindow(BasicApplicationWindow):
         histogram_viewer = HistogramViewerWidget(qa_viewer)
 
         qa_viewer.contour_mask_generated.connect(histogram_viewer.add_histogram)
-        selected_structures_widget.structure_removed.connect(
-            histogram_viewer.remove_histogram
-        )
+        model.item_unchecked.connect(histogram_viewer.remove_histogram)
 
         self.histogram_viewer = histogram_viewer
 
@@ -89,7 +88,7 @@ class QAMainWindow(BasicApplicationWindow):
 
         layout.addWidget(project_directories_combo_box, 0, 0, 1, -1)
         layout.addWidget(self.slice_names_combo_box, 1, 0)
-        layout.addWidget(selected_structures_widget, 1, 1, 1, 2)
+        layout.addWidget(structure_finder_widget, 1, 1, 1, 2)
         layout.addWidget(self.qa_viewer, 2, 0, 1, 2)
         layout.addWidget(histogram_viewer, 2, 2, 1, 1)
 
@@ -155,8 +154,8 @@ class QAMainWindow(BasicApplicationWindow):
         self.qa_viewer.load_histology(file_path, result_path)
 
     @QtCore.Slot()
-    def add_structure_to_status(self, structure_name: str) -> None:
-        self.structures_processing.append(structure_name)
+    def add_structure_to_status(self, index: QtCore.QModelIndex) -> None:
+        self.structures_processing.append(index.internalPointer().name)
         self.update_status()
 
     @QtCore.Slot()
