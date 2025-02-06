@@ -155,6 +155,10 @@ def start_app(
         app.setPalette(LIGHT_THEME)
     app.dark = dark
 
+    font = app.font()
+    font.setFamily("Sans Serif")
+    app.setFont(font)
+
     if debug_ui:
         app.setStyleSheet("* { border: 1px solid blue; }")
 
