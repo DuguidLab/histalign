@@ -343,7 +343,9 @@ class StructureTagWidget(QtWidgets.QFrame):
         name_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
 
         #
-        pixmap_label = ResizablePixmapLabel("resources/icons/close-line-icon.png")
+        pixmap_label = ResizablePixmapLabel(
+            "resources/icons/close-line-icon.png", icon_mode=True
+        )
 
         pixmap_height = name_label.fontMetrics().boundingRect(name).height()
         pixmap_label.setFixedSize(pixmap_height, pixmap_height)
@@ -2192,52 +2194,58 @@ class FlowLayout(QtWidgets.QLayout):
 
 class ResizablePixmapLabel(QtWidgets.QLabel):
     def __init__(
-        self, pixmap_path: str | None = None, parent: QtWidgets.QWidget | None = None
+        self,
+        file_path: str | Path,
+        icon_mode: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
+        #
+        self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        #
         self._pixmap = None
-        if pixmap_path is not None:
-            self.setPixmap(QtGui.QPixmap(pixmap_path))
+        self._aspect_ratio = 1
 
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Fixed,
-            QtWidgets.QSizePolicy.Policy.Fixed,
-        )
-        self.setContentsMargins(0, 0, 0, 0)
+        pixmap = QtGui.QPixmap(file_path)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-
-        if self._pixmap is not None:
-            scaled_pixmap = self._pixmap.scaled(
-                self.contentsRect().width(),
-                self.contentsRect().height(),
-                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
-                QtCore.Qt.TransformationMode.SmoothTransformation,
-            )
-            self.setPixmap(scaled_pixmap, rescaling=True)
-
-    def setPixmap(self, pixmap: QtGui.QPixmap, rescaling: bool = False) -> None:
-        if not rescaling:
-            pixmap = pixmap.copy()
-
+        if icon_mode:  # Make icon dynamic based on theme
             painter = QtGui.QPainter(pixmap)
             painter.setCompositionMode(
                 QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
             )
 
-            painter.setBrush(
-                QtGui.QBrush(QtWidgets.QApplication.instance().palette().text())
-            )
+            painter.setBrush(QtGui.QBrush(self.palette().text()))
 
             rect = pixmap.rect()
             painter.drawRect(rect)
 
             painter.end()
 
+        self.setPixmap(pixmap)
+
+    def setPixmap(self, pixmap: QtGui.QPixmap, overwrite: bool = False) -> None:
+        if self._pixmap is None or overwrite:
+            self._pixmap = pixmap
+            self._aspect_ratio = pixmap.width() / pixmap.height()
+
         super().setPixmap(pixmap)
 
-        if not rescaling:
-            # Cache original pixmap to avoid shrinking then growing having bad AA
-            self._pixmap = pixmap
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int | float) -> float:
+        return width / self._aspect_ratio
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        width = event.size().height() * self._aspect_ratio
+        height = event.size().width() / self._aspect_ratio
+        if width > event.size().width():
+            width = height * self._aspect_ratio
+        elif height > event.size().height():
+            height = width / self._aspect_ratio
+
+        self.setPixmap(self._pixmap.scaled(int(width), int(height)))
