@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+import itertools
 import json
 import logging
+import math
 from pathlib import Path
 import re
 import sys
@@ -2228,7 +2230,8 @@ class ResizablePixmapLabel(QtWidgets.QLabel):
     def setPixmap(self, pixmap: QtGui.QPixmap, overwrite: bool = False) -> None:
         if self._pixmap is None or overwrite:
             self._pixmap = pixmap
-            self._aspect_ratio = pixmap.width() / pixmap.height()
+            if pixmap.height() > 0:
+                self._aspect_ratio = pixmap.width() / pixmap.height()
 
         super().setPixmap(pixmap)
 
@@ -2238,14 +2241,228 @@ class ResizablePixmapLabel(QtWidgets.QLabel):
     def heightForWidth(self, width: int | float) -> float:
         return width / self._aspect_ratio
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-
-        width = event.size().height() * self._aspect_ratio
-        height = event.size().width() / self._aspect_ratio
-        if width > event.size().width():
+    def resize_pixmap(self) -> None:
+        width = self.height() * self._aspect_ratio
+        height = self.width() / self._aspect_ratio
+        if width > self.width():
             width = height * self._aspect_ratio
-        elif height > event.size().height():
+        elif height > self.height():
             height = width / self._aspect_ratio
 
         self.setPixmap(self._pixmap.scaled(int(width), int(height)))
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.resize_pixmap()
+
+
+class PixmapFlowLayout(QtWidgets.QLayout):
+    """A layout that rearranges and resizes pixmaps in a grid if they would overflow.
+
+    In comparison to a normal FlowLayout, this has a grid-like layout which leaves
+    space for missing widgets. Additionally, it has helpers for replacing widgets or
+    swapping two widgets based on indices.
+
+    Adapted from the official PySide documentation:
+    https://doc.qt.io/qtforpython-6/examples/example_widgets_layouts_flowlayout.html
+    """
+
+    def __init__(
+        self,
+        pixmap_minimum_width: int = 100,
+        pixmap_maximum_width: int = 200,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ):
+        super().__init__(parent)
+
+        if pixmap_maximum_width / pixmap_minimum_width < 2:
+            raise ValueError(
+                "Thumbnail maximum width should be at least twice the minimum width."
+            )
+        self.pixmap_minimum_width = pixmap_minimum_width
+        self.pixmap_maximum_width = pixmap_maximum_width
+
+        self._item_dict = {}
+
+    def addItem(self, item: QtWidgets.QLayoutItem) -> None:
+        index = self.maximumIndex() + 1
+        self._item_dict[index] = item
+
+    def count(self) -> int:
+        return len(self._item_dict)
+
+    def expandingDirections(self) -> QtCore.Qt.Orientation:
+        return QtCore.Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._do_layout(QtCore.QRect(0, 0, width, 0), True)
+
+    def indexOf(self, widget: QtWidgets.QWidget) -> Optional[int]:
+        for index, item in self._item_dict.items():
+            if widget is item.widget():
+                return index
+
+        return None
+
+    def itemAt(self, index: int) -> Optional[QtWidgets.QLayoutItem]:
+        try:
+            item = self._item_dict[index]
+        except KeyError:
+            item = None
+
+        return item
+
+    def maximumIndex(self) -> int:
+        index = 0
+        if self._item_dict:
+            index = max(self._item_dict.keys())
+
+        return index
+
+    def minimumSize(self) -> QtCore.QSize:
+        return QtCore.QSize(self.pixmap_minimum_width, self.pixmap_minimum_width)
+
+    def replaceAt(
+        self,
+        index: int,
+        widget: QtWidgets.QWidget,
+        allow_missing: bool = True,
+        auto_delete: bool = True,
+    ) -> None:
+        current_item = self.takeAt(index)
+        if current_item is None and not allow_missing:
+            raise ValueError(
+                f"Attempted to replace widget at index {index} when none was present."
+            )
+        elif current_item is not None and auto_delete:
+            current_item.widget().deleteLater()
+
+        self.addChildWidget(widget)
+        new_item = QtWidgets.QWidgetItem(widget)
+        self._item_dict[index] = new_item
+
+    def setGeometry(self, rect: QtCore.QRect) -> None:
+        super().setGeometry(rect)
+        self._do_layout(rect, False)
+
+    def sizeHint(self) -> QtCore.QSize:
+        return self.minimumSize()
+
+    def swapItems(self, index1: int, index2: int) -> None:
+        if index1 not in self._item_dict.keys():
+            raise ValueError("Swap index 1 is not valid.")
+        if index2 not in self._item_dict.keys():
+            raise ValueError("Swap index 2 is not valid.")
+
+        self._item_dict[index2], self._item_dict[index1] = (
+            self._item_dict[index1],
+            self._item_dict[index2],
+        )
+
+        self.update()
+
+    def takeAt(self, index: int) -> Optional[QtWidgets.QLayoutItem]:
+        try:
+            item = self._item_dict.pop(index)
+        except KeyError:
+            item = None
+
+        return item
+
+    def _compute_column_count(
+        self, width: int, column_count: Optional[int] = None
+    ) -> int:
+        if column_count is None:
+            column_count = 1
+
+        if column_count == 0:
+            return 1
+
+        if width / column_count <= self.pixmap_minimum_width:
+            return self._compute_column_count(width, column_count - 1)
+        elif width / column_count <= self.pixmap_maximum_width:
+            return column_count
+        else:
+            return self._compute_column_count(width, column_count + 1)
+
+    def _do_layout(self, rect: QtCore.QRect, dry_run: bool = False) -> int:
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        spacing = self.spacing()
+
+        column_count = min(
+            self.maximumIndex() + 1, self._compute_column_count(rect.width())
+        )
+        column_count = max(1, column_count)
+        row_count = math.ceil(self.maximumIndex() + 1 / column_count)
+        item_width = round((rect.width() - (column_count - 1) * spacing) / column_count)
+
+        current_row_index = 0
+        for row_index, column_index in itertools.product(
+            range(row_count), range(column_count)
+        ):
+            if current_row_index != row_index:
+                y += line_height + spacing
+                line_height = 0
+                current_row_index = row_index
+
+            item_index = row_index * column_count + column_index
+            item = self.itemAt(item_index)
+            if item is None:
+                if item_index > self.maximumIndex():
+                    break
+                continue
+
+            current_x = x + column_index * item_width + spacing * column_index
+
+            if not dry_run:
+                item_height = item_width
+                if item.widget().hasHeightForWidth():
+                    item_height = item.widget().heightForWidth(item_width)
+                item.setGeometry(
+                    QtCore.QRectF(
+                        QtCore.QPointF(current_x, y),
+                        QtCore.QSizeF(item_width, item_height),
+                    ).toRect()
+                )
+
+            line_height = max(line_height, item.widget().height())
+
+        return y + line_height - rect.y()
+
+
+class CutOffLabel(QtWidgets.QLabel):
+    def __init__(self, text: str, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(text, parent)
+
+        self._text = text
+        self.setToolTip(text)
+
+    def setText(self, text: str, overwrite: bool = True) -> None:
+        if overwrite:
+            self._text = text
+
+        super().setText(text)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        rect = self.contentsRect()
+        text = self._text
+
+        if rect.width() > QtGui.QFontMetrics(self.font()).boundingRect(text).width():
+            self.setText(text, overwrite=False)
+            return
+
+        text += "..."
+        while not (
+            rect.width() > QtGui.QFontMetrics(self.font()).boundingRect(text).width()
+        ):
+            text = text[:-4] + "..."
+
+        self.setText(text, overwrite=False)

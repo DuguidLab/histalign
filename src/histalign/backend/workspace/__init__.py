@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
@@ -108,8 +110,7 @@ class HistologySlice:
 
         self.generate_thumbnail(working_directory)
 
-    # noinspection PyUnboundLocalVariable
-    def generate_thumbnail(self, working_directory: Optional[str] = None) -> None:
+    def generate_thumbnail(self, working_directory: str) -> str:
         """Generates thumbnail for self.
 
         In order to avoid loading the wrapped image into memory unnecessarily, the
@@ -121,22 +122,20 @@ class HistologySlice:
         thumbnail will be loaded instead, meaning the image is not loaded into memory.
 
         Args:
-            working_directory (str, optional): Working directory to use to find the
-                                               cache location. If set to `None`, the
-                                               thumbnail is not cached.
+            working_directory (str):
+                Working directory to use to find the cache location.
         """
         self.logger.debug(f"Generating thumbnail for {self.hash[:10]}.")
 
-        if working_directory is not None:
-            cache_root = Path(working_directory) / ".cache" / "thumbnails"
-            os.makedirs(cache_root, exist_ok=True)
+        cache_root = Path(working_directory) / ".cache" / "thumbnails"
+        os.makedirs(cache_root, exist_ok=True)
 
-            # Try loading cached file
-            cache_path = str(cache_root / f"{self.hash[:10]}.png")
-            with contextlib.suppress(FileNotFoundError):
-                self.thumbnail_array = np.array(Image.open(cache_path))
-                self.logger.debug(f"Loaded thumbnail from cache ('{cache_path}').")
-                return
+        # Try loading cached file
+        cache_path = str(cache_root / f"{self.hash[:10]}.png")
+        with contextlib.suppress(FileNotFoundError):
+            Image.open(cache_path)
+            self.logger.debug(f"Found cached thumbnail ('{cache_path}').")
+            return cache_path
 
         image_array = self.image_array
         if image_array is None:
@@ -181,14 +180,15 @@ class HistologySlice:
 
         thumbnail_array = self.normalise_to_8_bit(thumbnail_array)
 
-        if working_directory is not None:
-            # Cache thumbnail
-            Image.fromarray(thumbnail_array).save(cache_path)
-            self.logger.debug(
-                f"Finished generating thumbnail and cached it to '{cache_path}'."
-            )
+        # Cache thumbnail
+        Image.fromarray(thumbnail_array).save(cache_path)
+        self.logger.debug(
+            f"Finished generating thumbnail and cached it to '{cache_path}'."
+        )
 
         self.thumbnail_array = thumbnail_array
+
+        return cache_path
 
     @staticmethod
     def downsample(array: np.ndarray, downsampling_factor: int) -> np.ndarray:
@@ -280,8 +280,10 @@ class HistologySlice:
 class ThumbnailGeneratorThread(QtCore.QThread):
     stop_event: Event
 
-    def __init__(self, parent: "Workspace") -> None:
+    def __init__(self, parent: Workspace) -> None:
         super().__init__(parent)
+
+        self._parent = parent
 
         self.stop_event = Event()
 
@@ -307,12 +309,15 @@ class ThumbnailGeneratorThread(QtCore.QThread):
         parent = self.parent()
         histology_slice = parent._histology_slices[index]
 
-        histology_slice.generate_thumbnail(parent.working_directory)
+        cache_path = histology_slice.generate_thumbnail(parent.working_directory)
         parent.thumbnail_generated.emit(
             index,
-            Path(histology_slice.file_path).stem,
-            histology_slice.thumbnail_array.copy(),
+            cache_path,
+            Path(histology_slice.file_path).name,
         )
+
+    def parent(self) -> Workspace:
+        return self._parent
 
 
 class Volume(QtCore.QObject):

@@ -2,460 +2,418 @@
 #
 # SPDX-License-Identifier: MIT
 
-from typing import Literal, Optional
+from __future__ import annotations, annotations, annotations
+
+from pathlib import Path
+from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
-import numpy as np
 
-from histalign.backend.workspace import THUMBNAIL_DIMENSIONS, Workspace
+from histalign.backend.workspace import Workspace
+from histalign.frontend.common_widgets import (
+    CutOffLabel,
+    PixmapFlowLayout,
+    ResizablePixmapLabel,
+)
+from histalign.frontend.pyside_helpers import find_parent
 
-COLUMN_COUNT: int = 2
 SCROLL_THRESHOLD: int = 50
 
 
-class ThumbnailLabel(QtWidgets.QLabel):
-    index: int
-    file_name: str
-    thumbnail: Optional[QtGui.QPixmap]
-    complete: bool = False
-
+class ThumbnailWidget(QtWidgets.QFrame):
     def __init__(
-        self, index: int, file_name: str, parent: Optional[QtWidgets.QWidget] = None
+        self,
+        file_path: str | Path,
+        text: str = "",
+        index: int = -1,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
+        #
+        self.file_path = file_path
         self.index = index
-        self.file_name = file_name
-        self.thumbnail = None
 
-    def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
-        if self.thumbnail is None:
-            self.thumbnail = pixmap
-            pixmap = pixmap.scaled(pixmap.width() // 2, pixmap.height() // 2)
-        if pixmap is None:
-            pixmap = self.thumbnail.scaled(
-                self.pixmap().width(), self.pixmap().height()
-            )
-
-        complete_icon_pixmap = QtGui.QPixmap(
-            "resources/icons/check-mark-square-icon.svg"
-        )
-        if not complete_icon_pixmap.isNull() and self.complete:
-            icon_dimension = pixmap.width() // 7
-            complete_icon_pixmap = complete_icon_pixmap.scaled(
-                icon_dimension, icon_dimension
-            )
-
-            icon_painter = QtGui.QPainter(complete_icon_pixmap)
-
-            icon_painter.setCompositionMode(
-                QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
-            )
-            icon_painter.setBrush(QtGui.QBrush("#66CC00"))
-            icon_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-
-            icon_painter.drawRect(complete_icon_pixmap.rect())
-
-            icon_painter.end()
-
-            main_painter = QtGui.QPainter(pixmap)
-
-            main_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-
-            main_painter.drawPixmap(
-                QtCore.QPoint(pixmap.width() - icon_dimension - 5, 5),
-                complete_icon_pixmap,
-            )
-
-            main_painter.end()
-
-        super().setPixmap(pixmap)
-
-    def heightForWidth(self, width: int) -> int:
-        if self.thumbnail is None:
-            return -1
-
-        return round(width * (self.thumbnail.height() / self.thumbnail.width()))
-
-    def resize(self, width: int) -> None:
-        height = self.heightForWidth(width)
-        if self.thumbnail is not None:
-            self.setPixmap(
-                self.thumbnail.scaled(
-                    width - self.lineWidth() * 2, height - self.lineWidth() * 2
-                )
-            )
-
-        self.setFixedSize(width, height)
-
-
-class ThumbnailScrollArea(QtWidgets.QScrollArea):
-    open_image: QtCore.Signal = QtCore.Signal(int)
-    swapped_thumbnails: QtCore.Signal = QtCore.Signal(int, int)
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.setWidgetResizable(True)
-
-        self._start_drag_position = None
-        self._scroll_timer = QtCore.QTimer()
-
-        # Used when activation is requested but thumbnail has not loaded yet
-        self._queued_activate_frame_index = None
-        self._queued_activate_frame_colour = None
-
-        self._complete_thumbnails_indices = []
-
-        self._initialise_widget()
-
-    def flush_thumbnails(self) -> None:
-        self.widget().deleteLater()
-        self._queued_activate_frame_index = None
-        self._queued_activate_frame_colour = None
-        self._complete_thumbnails_indices = []
-        self._initialise_widget()
-
-    def toggle_activate_frame(self, index: int, colour: str = "#0099FF") -> None:
-        try:
-            thumbnail = self.get_thumbnail_item_from_index(index).widget()
-        except AttributeError:
-            thumbnail = None
-
-        if thumbnail is None or hex(id(thumbnail)) == self._placeholder_thumbnail_hex:
-            self._queued_activate_frame_index = index
-            self._queued_activate_frame_colour = colour
-            return
-
-        palette = thumbnail.palette()
-        default_colour = (
-            QtWidgets.QApplication.instance()
-            .palette()
-            .color(QtGui.QPalette.ColorRole.Window)
-        )
-
-        if palette.color(QtGui.QPalette.ColorRole.WindowText) == default_colour:
-            palette.setColor(QtGui.QPalette.ColorRole.WindowText, colour)
-        else:
-            palette.setColor(
-                QtGui.QPalette.ColorRole.WindowText,
-                default_colour,
-            )
-
-        thumbnail.setPalette(palette)
-
-    def set_thumbnail_complete_state(self, index: int, state: bool) -> None:
-        thumbnail_item = self.get_thumbnail_item_from_index(index)
-        if thumbnail_item is not None:
-            thumbnail = thumbnail_item.widget()
-            thumbnail.complete = state
-            thumbnail.setPixmap(None)
-
-        if index in self._complete_thumbnails_indices and state == False:
-            self._complete_thumbnails_indices.remove(index)
-        elif index not in self._complete_thumbnails_indices and state == True:
-            self._complete_thumbnails_indices.append(index)
-
-    def _initialise_widget(self) -> None:
-        layout = QtWidgets.QGridLayout()
-        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
-
-        placeholder_pixmap = QtGui.QPixmap.fromImage(
-            QtGui.QImage(
-                np.zeros(THUMBNAIL_DIMENSIONS[::-1], dtype=np.uint8).tobytes(),
-                THUMBNAIL_DIMENSIONS[0],
-                THUMBNAIL_DIMENSIONS[1],
-                QtGui.QImage.Format.Format_Alpha8,
-            )
-        )
-        placeholder_thumbnail_label = self._build_thumbnail_label(0, "")
-        placeholder_thumbnail_label.setPixmap(placeholder_pixmap)
-        for i in range(COLUMN_COUNT):
-            layout.addWidget(placeholder_thumbnail_label, 0, i)
-
-        self._placeholder_thumbnail_hex = hex(id(placeholder_thumbnail_label))
-
-        container_widget = QtWidgets.QWidget()
-        container_widget.setLayout(layout)
-        container_widget.setAcceptDrops(True)
-
-        self.setWidget(container_widget)
-
-    @QtCore.Slot()
-    def update_thumbnail(
-        self, index: int, file_name: str, thumbnail: np.ndarray
-    ) -> None:
-        thumbnail_pixmap = QtGui.QPixmap.fromImage(
-            QtGui.QImage(
-                thumbnail.tobytes(),
-                thumbnail.shape[1],
-                thumbnail.shape[0],
-                QtGui.QImage.Format.Format_Grayscale8,
-            )
-        )
-        thumbnail_label = self._build_thumbnail_label(index, file_name, self.widget())
-
-        thumbnail_label.complete = index in self._complete_thumbnails_indices
-        thumbnail_label.setPixmap(thumbnail_pixmap)
-        thumbnail_label.resize(self.get_available_column_width())
-
-        self.replace_grid_cell(index, thumbnail_label)
-
-    def replace_grid_cell(
-        self, index: int, replacement_widget: QtWidgets.QWidget
-    ) -> None:
-        layout = self.widget().layout()
-        old_widget_item = self.get_thumbnail_item_from_index(index)
-        if old_widget_item is not None:
-            layout.takeAt(
-                layout.indexOf(old_widget_item.widget())
-            ).widget().deleteLater()
-
-        layout.addWidget(
-            replacement_widget, index // COLUMN_COUNT, index % COLUMN_COUNT
-        )
-
-        if index == self._queued_activate_frame_index:
-            self.toggle_activate_frame(
-                self._queued_activate_frame_index, self._queued_activate_frame_colour
-            )
-            self._queued_activate_frame_index = None
-            self._queued_activate_frame_colour = None
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        available_column_width = self.get_available_column_width()
-
-        for thumbnail_label in self.widget().children():
-            if not isinstance(thumbnail_label, ThumbnailLabel):
-                continue
-            thumbnail_label.resize(available_column_width)
-
-    def get_available_column_width(self) -> int:
-        return (
-            self.width()
-            - self.contentsMargins().left()
-            - self.contentsMargins().right()
-            - self.widget().layout().contentsMargins().left()
-            - self.widget().layout().contentsMargins().right()
-            - (self.widget().layout().spacing() * (COLUMN_COUNT - 1))
-            - self.verticalScrollBar().width()
-        ) // COLUMN_COUNT
-
-    def get_thumbnail_item_from_index(
-        self, index: int
-    ) -> Optional[QtWidgets.QWidgetItem]:
-        return (
-            self.widget()
-            .layout()
-            .itemAtPosition(index // COLUMN_COUNT, index % COLUMN_COUNT)
-        )
-
-    def drag_scroll(self, up_or_down: Literal["up", "down"], distance: int) -> None:
-        speed = (SCROLL_THRESHOLD - distance) // 4
-        if up_or_down == "up":
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - speed)
-        elif up_or_down == "down":
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + speed)
-
-    # noinspection PyTypeChecker
-    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
-        match event.type():
-            case QtCore.QEvent.Type.MouseButtonDblClick:
-                widget = watched.childAt(event.position().toPoint())
-                if not isinstance(widget, ThumbnailLabel):
-                    return super().eventFilter(watched, event)
-                self.open_image.emit(widget.index)
-            case QtCore.QEvent.Type.MouseButtonPress:
-                if isinstance(watched, QtWidgets.QScrollBar):
-                    return super().eventFilter(watched, event)
-                self._start_drag_position = event.position().toPoint()
-            case QtCore.QEvent.Type.MouseMove:
-                if isinstance(watched, QtWidgets.QScrollBar):
-                    return super().eventFilter(watched, event)
-                if (
-                    event.buttons() == QtCore.Qt.MouseButton.LeftButton
-                    and self._start_drag_position is not None
-                ):
-                    drag = QtGui.QDrag(watched.childAt(self._start_drag_position))
-                    drag.setMimeData(QtCore.QMimeData())
-                    drag.exec(QtCore.Qt.DropAction.MoveAction)
-            case QtCore.QEvent.Type.Drop:
-                self._scroll_timer.stop()
-
-                source = event.source()
-                target = watched.childAt(event.position().toPoint())
-
-                if isinstance(source, ThumbnailLabel) and isinstance(
-                    target, ThumbnailLabel
-                ):
-                    layout = watched.layout()
-
-                    index1 = source.index
-                    index2 = target.index
-
-                    widget1 = layout.itemAt(layout.indexOf(source)).widget()
-                    widget2 = layout.itemAt(layout.indexOf(target)).widget()
-
-                    widget1.index = index2
-                    widget2.index = index1
-
-                    layout.removeWidget(widget1)
-                    layout.removeWidget(widget2)
-
-                    layout.addWidget(
-                        widget2, index1 // COLUMN_COUNT, index1 % COLUMN_COUNT
-                    )
-                    layout.addWidget(
-                        widget1, index2 // COLUMN_COUNT, index2 % COLUMN_COUNT
-                    )
-
-                    self.swapped_thumbnails.emit(index1, index2)
-            case QtCore.QEvent.Type.DragMove:
-                widget = watched.parent()
-
-                distance_to_top = event.pos().y() - (widget.y() - watched.y())
-                distance_to_bottom = (
-                    widget.y() + widget.height() - watched.y() - event.pos().y()
-                )
-
-                if distance_to_top < SCROLL_THRESHOLD:
-                    QtCore.QObject.disconnect(self._scroll_timer, None, None, None)
-                    self._scroll_timer.timeout.connect(
-                        lambda: self.drag_scroll("up", distance_to_top)
-                    )
-                    if not self._scroll_timer.isActive():
-                        self._scroll_timer.start(25)
-                elif distance_to_bottom < SCROLL_THRESHOLD:
-                    QtCore.QObject.disconnect(self._scroll_timer, None, None, None)
-                    self._scroll_timer.timeout.connect(
-                        lambda: self.drag_scroll("down", distance_to_bottom)
-                    )
-                    if not self._scroll_timer.isActive():
-                        self._scroll_timer.start(25)
-                elif self._scroll_timer.isActive():
-                    self._scroll_timer.stop()
-            case QtCore.QEvent.Type.DragEnter:
-                event.accept()
-            case _:
-                return super().eventFilter(watched, event)
-
-        return True
-
-    @staticmethod
-    def _build_thumbnail_label(
-        index: int, file_name: str, parent: Optional[QtWidgets.QWidget] = None
-    ) -> ThumbnailLabel:
-        thumbnail_label = ThumbnailLabel(index, file_name, parent)
-
-        thumbnail_label.setLineWidth(3)
-        thumbnail_label.setFrameShape(QtWidgets.QFrame.Shape.Box)
-
-        # Hide the border by default
-        palette = thumbnail_label.palette()
-        palette.setColor(
-            QtGui.QPalette.ColorRole.WindowText,
-            QtWidgets.QApplication.instance()
-            .palette()
-            .color(QtGui.QPalette.ColorRole.Window),
-        )
-        thumbnail_label.setPalette(palette)
-
-        return thumbnail_label
-
-
-class ThumbnailsWidget(QtWidgets.QWidget):
-    content_area: ThumbnailScrollArea
-    status_bar: QtWidgets.QStatusBar
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
+        self._active = False
 
         #
-        status_bar = QtWidgets.QStatusBar()
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
 
-        self.status_bar = status_bar
+        self.setObjectName("ThumbnailWidget")
+        self._palette = self.palette()
+        self.set_highlighted(False, False)
 
         #
-        content_area = ThumbnailScrollArea()
+        pixmap_label = ResizablePixmapLabel(file_path)
 
-        content_area.installEventFilter(ThumbnailFileNameWatcher(status_bar, self))
+        self.pixmap_label = pixmap_label
 
-        content_area.resize(1_000, 100_000)  # Avoid thumbnails bunching up
+        #
+        text_label = CutOffLabel(text)
 
-        self.content_area = content_area
+        text_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        self.text_label = text_label
 
         #
         layout = QtWidgets.QVBoxLayout()
 
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, layout.spacing())
 
-        layout.addWidget(content_area)
-        layout.addWidget(status_bar)
+        layout.addWidget(pixmap_label)
+        layout.addWidget(text_label)
 
         self.setLayout(layout)
 
-    def widget(self):
-        return self._widget.findChild(ThumbnailScrollArea)
+    def enterEvent(self, event: QtGui.QEnterEvent) -> None:
+        super().enterEvent(event)
+        self.set_highlighted(True, self.hasFocus() or self._active)
 
-    def connect_workspace(self, workspace: Workspace) -> None:
-        self.content_area.flush_thumbnails()
+    def focusInEvent(self, event: QtGui.QFocusEvent) -> None:
+        super().focusInEvent(event)
+        self.set_highlighted(True, True)
 
-        workspace.thumbnail_generated.connect(self.content_area.update_thumbnail)
-        self.content_area.swapped_thumbnails.connect(workspace.swap_slices)
+    def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
+        super().focusOutEvent(event)
+        self.set_highlighted(False, self._active)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            self.clearFocus()
+
+        super().keyPressEvent(event)
+
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        super().leaveEvent(event)
+        self.set_highlighted(self.hasFocus(), self.hasFocus() or self._active)
+
+    def set_active(self, active: bool) -> None:
+        self._active = active
+
+        # Avoid highlighting when activating programmatically
+        highlight = self.rect().contains(
+            self.mapFromGlobal(self.window().cursor().pos())
+        )
+        self.set_highlighted(highlight, active)
+
+    def set_completed(self, completed: bool) -> None:
+        if not completed:
+            self.pixmap_label.setPixmap(QtGui.QPixmap(self.file_path), overwrite=True)
+            self.pixmap_label.resize_pixmap()
+            return
+
+        pixmap = self.pixmap_label._pixmap
+        complete_icon_pixmap = QtGui.QPixmap()
+        if not QtGui.QPixmapCache.find(
+            "ThumbnailWidget_complete", complete_icon_pixmap
+        ):
+            complete_icon_pixmap = QtGui.QPixmap(
+                "resources/icons/check-mark-square-icon.svg"
+            )
+            QtGui.QPixmapCache.insert("ThumbnailWidget_complete", complete_icon_pixmap)
+
+        icon_dimension = pixmap.width() // 7
+        complete_icon_pixmap = complete_icon_pixmap.scaled(
+            icon_dimension, icon_dimension
+        )
+
+        icon_painter = QtGui.QPainter(complete_icon_pixmap)
+
+        icon_painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+        )
+        icon_painter.setBrush(QtGui.QBrush("#66CC00"))
+        icon_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        icon_painter.drawRect(complete_icon_pixmap.rect())
+
+        icon_painter.end()
+
+        main_painter = QtGui.QPainter(pixmap)
+
+        main_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        main_painter.drawPixmap(
+            QtCore.QPoint(pixmap.width() - icon_dimension - 5, 5),
+            complete_icon_pixmap,
+        )
+
+        main_painter.end()
+
+        self.pixmap_label.setPixmap(pixmap)
+        self.pixmap_label.resize_pixmap()
+
+    def set_highlighted(self, highlighted: bool, selected: bool) -> None:
+        colour = (
+            self._palette.highlight().color()
+            if highlighted
+            else self._palette.window().color()
+        )
+
+        if selected:
+            border_colour = "black"
+            if self._active:
+                border_colour = "blue"
+        else:
+            border_colour = "rgba(0, 0, 0, 0)"
+        border = f"2px solid {border_colour};"
+
+        self.setStyleSheet(
+            f"""
+            #ThumbnailWidget {{
+                background: {colour.name()};
+                border: {border};
+            }}
+            """
+        )
+
+    def setPalette(self, palette: QtGui.QPalette) -> None:
+        super().setPalette(palette)
+        self._palette = palette
+
+    def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
+        self.pixmap_label.setPixmap(pixmap)
 
 
-class ThumbnailFileNameWatcher(QtCore.QObject):
-    previous_position: QtCore.QPoint = QtCore.QPoint(-1, -1)
-    cached_widget: Optional[QtWidgets.QWidget] = None
-
-    status_bar: QtWidgets.QStatusBar
-    watcher_timer: QtCore.QTimer
-
-    def __init__(
-        self, status_bar: QtWidgets.QStatusBar, parent: Optional[QtCore.QObject] = None
-    ) -> None:
+class _ThumbnailsContainerWidget(QtWidgets.QWidget):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self.status_bar = status_bar
+        #
+        layout = PixmapFlowLayout()
 
-        watcher_timer = QtCore.QTimer()
-        watcher_timer.timeout.connect(self.watch)
+        self.setLayout(layout)
 
-        self.watcher_timer = watcher_timer
+    def layout(self) -> PixmapFlowLayout:
+        return self._layout
 
-    def start_watching(self, interval: int = 100) -> None:
-        self.watcher_timer.start(interval)
+    def setLayout(self, layout: PixmapFlowLayout) -> None:
+        if not isinstance(layout, PixmapFlowLayout):
+            raise ValueError(
+                "_ThumbnailsContainerWidget only accepts PixmapFlowLayout as a layout."
+            )
 
-    def stop_watching(self) -> None:
-        self.watcher_timer.stop()
-        self.status_bar.clearMessage()
+        self._layout = layout
+        super().setLayout(layout)
 
-    def eventFilter(self, watched: QtWidgets.QWidget, event: QtCore.QEvent) -> bool:
-        match event.type():
-            case QtCore.QEvent.Type.Enter:
-                self.start_watching()
-                return True
-            case QtCore.QEvent.Type.Leave:
-                self.stop_watching()
-                return True
-            case _:
-                return super().eventFilter(watched, event)
+
+class ThumbnailsWidget(QtWidgets.QScrollArea):
+    thumbnail_activated: QtCore.Signal = QtCore.Signal(int)
+    thumbnails_swapped: QtCore.Signal = QtCore.Signal(int, int)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self._active_thumbnail = None
+        self._complete_indices = []
+
+        self._start_drag_position = None
+        self._scroll_distance = 0
+        self._scroll_timer = QtCore.QTimer()
+        self._scroll_timer.timeout.connect(self.drag_scroll)
+
+        #
+        self.setAcceptDrops(True)
+        self.setWidgetResizable(True)
+
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.setViewportMargins(5, 5, 5, 5)
+
+        #
+        self._initialise_container_widget()
+
+    def connect_workspace(self, workspace: Workspace) -> None:
+        self.flush_thumbnails()
+
+        workspace.thumbnail_generated.connect(self.update_thumbnail)
+        self.thumbnails_swapped.connect(workspace.swap_slices)
+
+    def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
+        event.accept()
+
+    def dragMoveEvent(self, event: QtGui.QDragMoveEvent) -> None:
+        position = event.position().toPoint()
+
+        if (
+            distance := min(-1, -(position.y() - self.viewport().rect().y()))
+        ) > -SCROLL_THRESHOLD or (
+            distance := max(1, self.viewport().height() - position.y())
+        ) < SCROLL_THRESHOLD:
+            self._scroll_distance = distance
+            if not self._scroll_timer.isActive():
+                self._scroll_timer.start(25)
+        else:
+            self._scroll_timer.stop()
+
+    def dropEvent(self, event: QtGui.QDropEvent) -> None:
+        self._scroll_timer.stop()
+
+        # According to the docs, the source is a QWidget, not just a QObject
+        source = event.source()
+        if not isinstance(source, ThumbnailWidget):
+            # noinspection PyTypeChecker
+            source = find_parent(source, ThumbnailWidget)
+        target = self.childAt(event.position().toPoint())
+        if target is not None and not isinstance(target, ThumbnailWidget):
+            target = find_parent(target, ThumbnailWidget)
+
+        # Only allow drag & drop from thumbnail A to thumbnail B
+        if source is None or target is None or source is target:
+            super().dropEvent(event)
+            return
+
+        target.index, source.index = source.index, target.index
+
+        self.widget().layout().swapItems(source.index, target.index)
+
+        self.thumbnails_swapped.emit(target.index, source.index)
+
+        # Force a hover event on the source to highlight it.
+        # Required to process events to "eat up" an enter event that otherwise gets
+        # processed after our custom leave event.
+        QtWidgets.QApplication.instance().processEvents()
+        target.leaveEvent(QtCore.QEvent(QtCore.QEvent.Type.Leave))
+        source.enterEvent(
+            event=QtGui.QEnterEvent(
+                event.position(),
+                self.mapToGlobal(event.position()),
+                self.mapToGlobal(event.position()),
+            )
+        )
+        source.clearFocus()
+
+    def flush_thumbnails(self) -> None:
+        self.widget().deleteLater()
+        self._active_thumbnail = None
+        self._initialise_container_widget()
+        self._complete_indices = []
+
+    def focus_thumbnail(self, index: int) -> None:
+        item = self.widget().layout().itemAt(index)
+        if item is not None:
+            widget = item.widget()
+            if not isinstance(widget, ThumbnailWidget):
+                raise Exception(
+                    "Received a widget from PixmapFlowLayout that was not a "
+                    "ThumbnailWidget."
+                )
+
+            widget.setFocus()
+            self.make_thumbnail_active(widget)
+
+    def make_thumbnail_active(self, widget: ThumbnailWidget) -> None:
+        if self._active_thumbnail is not None:
+            self._active_thumbnail.set_active(False)
+        widget.set_active(True)
+        self._active_thumbnail = widget
+
+    def make_thumbnail_at_active(self, index: int) -> None:
+        item = self.widget().layout().itemAt(index)
+        if item is None:
+            return
+        widget = item.widget()
+
+        if self._active_thumbnail is not None:
+            self._active_thumbnail.set_active(False)
+        widget.set_active(True)
+        self._active_thumbnail = widget
+
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
+        widget = self.childAt(event.position().toPoint())
+        if widget is not None:
+            widget = find_parent(widget, ThumbnailWidget)
+
+        if isinstance(widget, ThumbnailWidget):
+            self.make_thumbnail_active(widget)
+
+            self.thumbnail_activated.emit(widget.index)
+            return
+
+        super().mouseDoubleClickEvent(event)
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        if (
+            event.buttons() == QtCore.Qt.MouseButton.LeftButton
+            and self._start_drag_position is not None
+        ):
+            dragged_widget = find_parent(
+                self.childAt(self._start_drag_position), ThumbnailWidget
+            )
+            if dragged_widget is None:
+                super().mouseMoveEvent(event)
+                return
+
+            dragged_widget.set_highlighted(False, False)
+
+            drag = QtGui.QDrag(dragged_widget)
+            drag.setPixmap(dragged_widget.grab())
+            drag.setMimeData(QtCore.QMimeData())
+            drag.exec(QtCore.Qt.DropAction.MoveAction)
+            return
+
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self._start_drag_position = event.position().toPoint()
+            return
+
+        super().mousePressEvent(event)
+
+    def replace_thumbnail(self, index: int, thumbnail: ThumbnailWidget) -> None:
+        self.widget().layout().replaceAt(index, thumbnail)
+
+    def set_thumbnail_completed(self, index: int, completed: bool) -> None:
+        if index in self._complete_indices and not completed:
+            self._complete_indices.remove(index)
+        elif index not in self._complete_indices and completed:
+            self._complete_indices.append(index)
+
+        thumbnail_item = self.widget().layout().itemAt(index)
+        if thumbnail_item is not None:
+            thumbnail_item.widget().set_completed(completed)
+
+    def setWidget(self, widget: _ThumbnailsContainerWidget) -> None:
+        if not isinstance(widget, _ThumbnailsContainerWidget):
+            raise ValueError(
+                "ThumbnailsWidget only accepts _ThumbnailsContainerWidget as a widget."
+            )
+
+        self._widget = widget
+        super().setWidget(widget)
+
+    def widget(self) -> _ThumbnailsContainerWidget:
+        return self._widget
+
+    def _initialise_container_widget(self) -> None:
+        widget = _ThumbnailsContainerWidget()
+
+        self.setMinimumSize(
+            widget.layout().minimumSize()
+            + QtCore.QSize(20, 20)
+            + QtCore.QSize(
+                self.verticalScrollBar().sizeHint().width(),
+                0,
+            )
+        )
+
+        self.setWidget(widget)
 
     @QtCore.Slot()
-    def watch(self) -> None:
-        mouse_position = QtGui.QCursor.pos()
+    def drag_scroll(self) -> None:
+        distance = self._scroll_distance
+        speed = round(((SCROLL_THRESHOLD - abs(distance)) // 4)) * (
+            distance // abs(distance)
+        )
+        self.verticalScrollBar().setValue(self.verticalScrollBar().value() + speed)
 
-        if mouse_position == self.previous_position:
-            widget = self.cached_widget
-        else:
-            widget = self.parent().window().childAt(mouse_position)
-            self.cached_widget = widget
-            self.previous_position = mouse_position
+    @QtCore.Slot()
+    def update_thumbnail(self, index: int, file_path: str, file_name: str) -> None:
+        thumbnail_widget = ThumbnailWidget(
+            file_path, file_name, index, parent=self.widget()
+        )
+        if index in self._complete_indices:
+            thumbnail_widget.set_completed(True)
 
-        if isinstance(widget, ThumbnailLabel):
-            self.status_bar.showMessage(widget.file_name)
-        else:
-            self.status_bar.clearMessage()
+        self.replace_thumbnail(index, thumbnail_widget)

@@ -374,7 +374,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         #
         thumbnails_widget = ThumbnailsWidget()
 
-        thumbnails_widget.content_area.open_image.connect(self.open_image_in_aligner)
+        thumbnails_widget.thumbnail_activated.connect(self.open_image_in_aligner)
 
         self.thumbnails_widget = thumbnails_widget
 
@@ -447,7 +447,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
             lambda: toolbar.apply_auto_threshold_button.setEnabled(True)
         )
         toolbar.save_requested.connect(
-            lambda: self.thumbnails_widget.content_area.set_thumbnail_complete_state(
+            lambda: self.thumbnails_widget.set_thumbnail_completed(
                 self.workspace.current_aligner_image_index, True
             )
         )
@@ -509,9 +509,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
             ):
                 continue
 
-            self.thumbnails_widget.content_area.set_thumbnail_complete_state(
-                index, True
-            )
+            self.thumbnails_widget.set_thumbnail_completed(index, True)
 
     def connect_workspace(self) -> None:
         self.thumbnails_widget.connect_workspace(self.workspace)
@@ -669,8 +667,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.annotation_volume = None
 
         # Clear thumbnails
-        self.thumbnails_widget.content_area.flush_thumbnails()
-        self.thumbnails_widget.content_area._initialise_widget()
+        self.thumbnails_widget.flush_thumbnails()
 
         # Reset settings
         self.settings_widget.reset_to_defaults(silent=True)
@@ -735,7 +732,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         if image_directory != "":
             self.dirty_workspace()
             self.alignment_widget.update_histological_slice(None)
-            self.thumbnails_widget.content_area.flush_thumbnails()
+            self.thumbnails_widget.flush_thumbnails()
             self.workspace.parse_image_directory(image_directory)
             self.workspace.start_thumbnail_generation()
 
@@ -748,7 +745,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.workspace.delete_alignment()
         self.statusBar().showMessage("Deleted alignment", 2000)
-        self.thumbnails_widget.content_area.set_thumbnail_complete_state(
+        self.thumbnails_widget.set_thumbnail_completed(
             self.workspace.current_aligner_image_index, False
         )
 
@@ -906,9 +903,9 @@ class RegistrationMainWindow(BasicApplicationWindow):
         self.toolbar.landmark_registration_button.setEnabled(True)
 
         if old_index is not None:
-            self.thumbnails_widget.content_area.toggle_activate_frame(old_index)
+            self.thumbnails_widget.make_thumbnail_at_active(old_index)
         if old_index != index:
-            self.thumbnails_widget.content_area.toggle_activate_frame(index)
+            self.thumbnails_widget.make_thumbnail_at_active(index)
 
     @QtCore.Slot()
     def close_image_in_aligner(self) -> None:
