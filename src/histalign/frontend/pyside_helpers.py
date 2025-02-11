@@ -3,8 +3,12 @@
 # SPDX-License-Identifier: MIT
 
 from contextlib import suppress
+from typing import Optional, TypeVar
 
 import numpy as np
+from PySide6 import QtWidgets
+
+_T = TypeVar("_T")
 
 _available_colour_tables = ("grey", "red", "green", "blue", "cyan", "magenta", "yellow")
 
@@ -75,6 +79,16 @@ def connect_single_shot_slot(signal: object, slot: object) -> None:
 
     signal.connect(slot)
     signal.connect(sever_connection)
+
+
+def find_parent(widget: QtWidgets.QWidget, parent_type: type[_T]) -> Optional[_T]:
+    parent = None
+    while (parent_ := widget.parent()) is not None:
+        if isinstance(parent_, parent_type):
+            parent = parent_
+        widget = parent_
+
+    return parent
 
 
 def get_colour_table(colour: str, alpha: int = 255, threshold: int = 1) -> np.ndarray:
