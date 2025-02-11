@@ -140,6 +140,9 @@ class NewProjectDialog(QtWidgets.QDialog):
         resolution_layout.setAlignment(QtCore.Qt.AlignRight)
         resolution_layout.setSpacing(20)
 
+        resolution_label = QtWidgets.QLabel("Atlas resolution")
+        self.resolution_label = resolution_label
+
         resolution_widget = QtWidgets.QComboBox()
         resolution_widget.setFixedSize(60, 22)
         resolution_widget.setEditable(True)
@@ -148,10 +151,11 @@ class NewProjectDialog(QtWidgets.QDialog):
         resolution_widget.lineEdit().selectionChanged.connect(
             lambda: resolution_widget.lineEdit().deselect()
         )
-        resolution_widget.addItem("10")
-        resolution_widget.addItem("25")
-        resolution_widget.addItem("50")
+        resolution_widget.lineEdit().textChanged.connect(self.validate_resolution)
         resolution_widget.addItem("100")
+        resolution_widget.addItem("50")
+        resolution_widget.addItem("25")
+        resolution_widget.addItem("10")
 
         resolution_layout.addWidget(resolution_widget)
         self.resolution_widget = resolution_widget
@@ -191,12 +195,12 @@ class NewProjectDialog(QtWidgets.QDialog):
         )
 
         layout.addRow("Orientation", orientation_layout)
-        layout.addRow("Atlas resolution", resolution_layout)
+        layout.addRow(resolution_label, resolution_layout)
         layout.addRow(project_picker_layout)
         layout.addRow(button_box)
 
         self.setLayout(layout)
-        self.setFixedSize(350, layout.sizeHint().height())
+        self.setFixedSize(400, layout.sizeHint().height())
 
     def show_directory_picker(self) -> None:
         choice = QtWidgets.QFileDialog.getExistingDirectory(
@@ -258,6 +262,29 @@ class NewProjectDialog(QtWidgets.QDialog):
             )
         )
         self.accept()
+
+    @QtCore.Slot()
+    def validate_resolution(self, resolution: str) -> None:
+        if resolution == "10":
+            text = r"Atlas resolution (very high RAM budget)"
+            colour = QtCore.Qt.GlobalColor.red
+        elif resolution == "25":
+            text = r"Atlas resolution (medium RAM budget)"
+            colour = "#FF4F00"  # Orange
+        elif resolution == "50":
+            text = r"Atlas resolution (low RAM budget)"
+            colour = QtWidgets.QApplication.palette().windowText().color()
+        elif resolution == "100":
+            text = r"Atlas resolution (very low RAM budget)"
+            colour = QtWidgets.QApplication.palette().windowText().color()
+        else:
+            text = "Atlas resolution"
+            colour = QtWidgets.QApplication.palette().windowText().color()
+
+        self.resolution_label.setText(text)
+        pallete = self.resolution_label.palette()
+        pallete.setColor(QtGui.QPalette.ColorRole.WindowText, colour)
+        self.resolution_label.setPalette(pallete)
 
 
 class OpenProjectDialog(QtWidgets.QWidget):
