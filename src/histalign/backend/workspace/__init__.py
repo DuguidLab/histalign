@@ -87,6 +87,8 @@ class HistologySlice:
 
         self.logger = logging.getLogger(__name__)
 
+        self._h5_handle = None
+
     def load_image(self, working_directory: str, downsampling_factor: int = 0) -> None:
         """Loads wrapped image into memory.
 
@@ -139,7 +141,31 @@ class HistologySlice:
 
         image_array = self.image_array
         if image_array is None:
-            image_array = self._load_image(4)
+            # TODO: Include `histoflow` for IO
+            if self.file_path.endswith(".h5"):
+                h5_handle = h5py.File(self.file_path, "r")
+                self._h5_handle = h5_handle
+
+                dataset_name = list(h5_handle.keys())
+
+                if len(dataset_name) != 1:
+                    raise ValueError(
+                        f"Unexpected number of datasets found. "
+                        f"Expected 1, found {len(dataset_name)}. "
+                        f"Make sure the file only contains a single image."
+                    )
+
+                image_array = h5_handle[dataset_name[0]][::4, ::4]
+
+                if len(image_array.shape) != 2:
+                    raise ValueError(
+                        f"Unexpected number of dataset dimensions. "
+                        f"Expected 2, found {len(image_array.shape)}. "
+                        f"Make sure the image has been project to only contain "
+                        f"XY data."
+                    )
+            else:
+                image_array = self._load_image(4)
 
         # Generate thumbnail from `self.image_array`
         aspect_ratio = image_array.shape[1] / image_array.shape[0]
@@ -187,6 +213,10 @@ class HistologySlice:
         )
 
         self.thumbnail_array = thumbnail_array
+
+        if self._h5_handle is not None:
+            self._h5_handle.close()
+            self._h5_handle = None
 
         return cache_path
 
