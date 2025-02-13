@@ -6,17 +6,13 @@ import logging
 import os
 from typing import Optional
 
+import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.paths import get_annotation_path
 from histalign.backend.io import clear_directory
-from histalign.backend.maths import (
-    apply_offset,
-    apply_rotation,
-    convert_pixmap_position_to_coordinates,
-    convert_volume_coordinates_to_ccf,
-)
-from histalign.backend.models import ProjectSettings
+from histalign.backend.maths import apply_rotation, compute_origin
+from histalign.backend.models import Orientation, ProjectSettings
 from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
@@ -594,64 +590,80 @@ class RegistrationMainWindow(BasicApplicationWindow):
         if self.annotation_volume is None:
             return
 
-        # Get the position of the cursor relative to the application window
-        cursor_global_position = QtGui.QCursor.pos()
-        # Convert it to the coordinate system of the alignment scene
-        cursor_scene_position = self.alignment_widget.view.mapToScene(
-            self.alignment_widget.view.mapFromGlobal(cursor_global_position)
-        )
+        widget = self.alignment_widget
+        orientation = widget.volume_settings.orientation
+        pitch = widget.volume_settings.pitch
+        yaw = widget.volume_settings.yaw
 
-        # Abort and clear status if the cursor is not hovering the volume
-        if not isinstance(
-            self.alignment_widget.scene.itemAt(
-                cursor_scene_position, QtGui.QTransform()
-            ),
-            QtWidgets.QGraphicsPixmapItem,
-        ):
-            self.clear_status()
-            return
+        # Get global cursor position
+        global_position = QtGui.QCursor.pos()
 
-        # Convert the scene position to a volume position in the alignment volume.
-        # Note that this is still a position as it is still 2D at this point.
-        cursor_volume_position = self.alignment_widget.volume_pixmap.mapFromScene(
-            cursor_scene_position
-        )
-        # Convert the 2D position to 3D by appending an axis with value 0 depending
-        # on the orientation.
-        cursor_volume_coordinates = convert_pixmap_position_to_coordinates(
-            cursor_volume_position,
-            self.alignment_widget.volume_settings,
-        )
+        # Convert it to a view position
+        view_position = widget.view.mapFromGlobal(global_position)
 
-        # Apply rotation to the naive coordinates
-        cursor_volume_rotated_coordinates = apply_rotation(
-            cursor_volume_coordinates,
-            self.alignment_widget.volume_settings,
-        )
-        # Apply the offset to get the true coordinates of the cursor relative to the
-        # volume centre.
-        cursor_volume_rotated_coordinates = apply_offset(
-            cursor_volume_rotated_coordinates, self.alignment_widget.volume_settings
-        )
+        # Convert it to a scene position
+        scene_position = widget.view.mapToScene(view_position)
 
-        # Convert to the CCF coordinate system
-        ccf_aligned_coordinates = convert_volume_coordinates_to_ccf(
-            cursor_volume_rotated_coordinates,
-            self.alignment_widget.volume_settings,
-        )
+        # Convert it to a pixmap position
+        pixmap_position = widget.volume_pixmap.mapFromScene(scene_position).toTuple()
+        # NOTE: there is no need to flip the X coordinate of the pixmap position even
+        #       though the image undergoes `np.fliplr` when slicing. That is because
+        #       pixmap coordinates increase from left to right which is correct for
+        #       volume coordinates.
 
-        # Get the name of the structure at those coordinates
-        structure_name = self.annotation_volume.get_name_from_voxel(
-            ccf_aligned_coordinates
-        )
+        # Compute position of pixmap centre
+        pixmap_centre_position = widget.volume_pixmap.pixmap().size().toTuple()
+        pixmap_centre_position = np.array(pixmap_centre_position) // 2
+
+        # Compute relative cursor pixmap position from centre
+        relative_pixmap_position = pixmap_position - pixmap_centre_position
+        relative_pixmap_position = relative_pixmap_position  # X x Y not I x J
+
+        # Convert to non-rotated coordinates
+        match orientation:
+            case Orientation.CORONAL:
+                pixmap_coordinates = [
+                    0,
+                    relative_pixmap_position[1],
+                    relative_pixmap_position[0],
+                ]
+            case Orientation.HORIZONTAL:
+                pixmap_coordinates = [
+                    relative_pixmap_position[1],
+                    0,
+                    relative_pixmap_position[0],
+                ]
+            case Orientation.SAGITTAL:
+                pixmap_coordinates = [
+                    relative_pixmap_position[0],
+                    relative_pixmap_position[1],
+                    0,
+                ]
+            case other:
+                raise Exception(f"ASSERT NOT REACHED: {other}")
+        pixmap_coordinates = np.array(pixmap_coordinates)
+
+        # Apply rotation
+        rotated_coordinates = apply_rotation(pixmap_coordinates, widget.volume_settings)
+
+        # Add to slicing plane origin
+        volume_centre = (np.array(widget.volume_settings.shape) - 1) // 2
+        volume_origin = compute_origin(volume_centre, widget.volume_settings)
+
+        volume_coordinates = volume_origin + rotated_coordinates
+        volume_coordinates = np.array(list(map(int, volume_coordinates)))
+
+        # Get the name of the structure at coordinates
+        structure_name = self.annotation_volume.get_name_from_voxel(volume_coordinates)
         structure_string = f" ({structure_name})" if structure_name else ""
 
-        # Correct coordinates for resolution
-        ccf_aligned_coordinates *= self.workspace.resolution.value
+        # Convert volume coordinates to CCF coordinates
+        ccf_coordinates = volume_coordinates * widget.volume_settings.resolution.value
 
+        # Display output in status bar
         self.statusBar().showMessage(
             f"CCF coordinates of cursor: "
-            f"{', '.join(map(str, map(round, map(int, ccf_aligned_coordinates))))}"
+            f"{', '.join(map(str, map(round, map(int, ccf_coordinates))))}"
             f"{structure_string}"
         )
 

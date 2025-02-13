@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
+from collections.abc import Sequence
 import math
 
 import numpy as np
-from PySide6 import QtCore, QtGui
+from PySide6 import QtGui
 from scipy.spatial.transform import Rotation
 from skimage.transform import AffineTransform
+import vedo
 
 from histalign.backend.models import (
     Orientation,
@@ -16,15 +18,18 @@ from histalign.backend.models import (
 from histalign.backend.models.errors import InvalidOrientationError
 
 
-def apply_rotation(
-    vector: np.ndarray,
-    settings: VolumeSettings,
-) -> np.ndarray:
-    vector = vector.copy()
+def apply_rotation(vector: np.ndarray, settings: VolumeSettings) -> np.ndarray:
     pitch = settings.pitch
     yaw = settings.yaw
+    orientation = settings.orientation
 
-    match settings.orientation:
+    return apply_rotation_from_raw(vector, pitch, yaw, orientation)
+
+
+def apply_rotation_from_raw(
+    vector: np.ndarray, pitch: int, yaw: int, orientation: Orientation
+) -> np.ndarray:
+    match orientation:
         case Orientation.CORONAL:
             rotation = Rotation.from_euler("ZY", [pitch, yaw], degrees=True)
         case Orientation.HORIZONTAL:
@@ -32,45 +37,19 @@ def apply_rotation(
         case Orientation.SAGITTAL:
             rotation = Rotation.from_euler("XY", [pitch, yaw], degrees=True)
         case other:
-            # Should be impossible thanks to pydantic
             raise InvalidOrientationError(other)
 
-    rotated_vector = rotation.apply(vector)
-
-    return np.floor(rotated_vector)
+    return rotation.apply(vector)
 
 
-def apply_offset(vector: np.ndarray, settings: VolumeSettings) -> np.ndarray:
-    vector = vector.copy()
-
-    match settings.orientation:
-        case Orientation.CORONAL:
-            vector[0] += (settings.shape[0] % 2 == 0) - settings.offset
-        case Orientation.HORIZONTAL:
-            vector[1] += settings.offset
-        case Orientation.SAGITTAL:
-            vector[2] += settings.offset
-        case other:
-            # Should be impossible thanks to pydantic
-            raise InvalidOrientationError(other)
-
-    return vector
-
-
-def compute_mesh_centre(mesh_bounds: list | np.ndarray) -> np.ndarray:
-    if (isinstance(mesh_bounds, list) and len(list) != 6) or (
-        isinstance(mesh_bounds, np.ndarray) and mesh_bounds.shape != (6,)
-    ):
-        raise ValueError(
-            "Expected mesh bounds with 6 values in the form "
-            "(xmin, xmax, ymin, ymax, zmin, zmax)."
-        )
+def compute_mesh_centre(mesh: vedo.Mesh) -> np.ndarray:
+    bounds = mesh.metadata["original_bounds"]
 
     return np.array(
         [
-            (mesh_bounds[1] + mesh_bounds[0]) / 2,
-            (mesh_bounds[3] + mesh_bounds[2]) / 2,
-            (mesh_bounds[5] + mesh_bounds[4]) / 2,
+            (bounds[1] + bounds[0]) / 2,
+            (bounds[3] + bounds[2]) / 2,
+            (bounds[5] + bounds[4]) / 2,
         ]
     )
 
@@ -88,75 +67,35 @@ def compute_normal_from_raw(
 ) -> np.ndarray:
     match orientation:
         case Orientation.CORONAL:
-            normal = [-1, 0, 0]
-            rotation = Rotation.from_euler("ZY", [pitch, yaw], degrees=True)
+            normal = [1, 0, 0]
         case Orientation.HORIZONTAL:
             normal = [0, 1, 0]
-            rotation = Rotation.from_euler("ZX", [pitch, yaw], degrees=True)
         case Orientation.SAGITTAL:
             normal = [0, 0, 1]
-            rotation = Rotation.from_euler("XY", [pitch, yaw], degrees=True)
         case other:
-            # Should be impossible thanks to pydantic
             raise InvalidOrientationError(other)
 
-    return rotation.apply(normal)
+    return apply_rotation_from_raw(np.array(normal), pitch, yaw, orientation).reshape(3)
 
 
-def compute_origin_from_orientation(
-    center: list[float] | tuple[float, ...], settings: VolumeSettings
-) -> list[float]:
-    if len(center) != 3:
-        raise ValueError(f"Expected center with 3 coordinates, got {len(center)}.")
+def compute_origin(centre: Sequence[int], settings: VolumeSettings) -> np.ndarray:
+    if len(centre) != 3:
+        raise ValueError(f"Centre should be 3 coordinates. Got {len(centre)}.")
 
-    # vedo computes the center with float precision but offset calculations assume
-    # integer values.
-    origin = list(map(int, center))
+    orientation = settings.orientation
+    offset = settings.offset
 
-    match settings.orientation:
+    match orientation:
         case Orientation.CORONAL:
-            # Because we want the left hemisphere on the left, we look against the
-            # X-axis, so the offset has to be inverted.
-            origin[0] += (settings.shape[0] % 2 == 0) - settings.offset
+            origin = [centre[0] + offset, centre[1], centre[2]]
         case Orientation.HORIZONTAL:
-            origin[1] += settings.offset
+            origin = [centre[0], centre[1] + offset, centre[2]]
         case Orientation.SAGITTAL:
-            origin[2] += settings.offset
+            origin = [centre[0], centre[1], centre[2] + offset]
         case other:
-            # Should be impossible thanks to pydantic
             raise InvalidOrientationError(other)
 
-    return origin
-
-
-def convert_pixmap_position_to_coordinates(
-    position: QtCore.QPoint | QtCore.QPointF,
-    settings: VolumeSettings,
-) -> np.ndarray:
-    match settings.orientation:
-        case Orientation.CORONAL:
-            coordinates = [
-                0,
-                round(position.y()),
-                round(position.x()),
-            ]
-        case Orientation.HORIZONTAL:
-            coordinates = [
-                round(position.y()),
-                0,
-                round(position.x()),
-            ]
-        case Orientation.SAGITTAL:
-            coordinates = [
-                round(position.x()),
-                round(position.y()),
-                0,
-            ]
-        case other:
-            # Should be impossible thanks to pydantic
-            raise InvalidOrientationError(other)
-
-    return np.array(coordinates)
+    return np.array(origin)
 
 
 def convert_sk_transform_to_q_transform(
@@ -171,14 +110,6 @@ def convert_q_transform_to_sk_transform(
     return AffineTransform(
         matrix=get_transformation_matrix_from_q_transform(transformation)
     )
-
-
-def convert_volume_coordinates_to_ccf(
-    coordinates: np.ndarray, settings: VolumeSettings
-) -> np.ndarray:
-    volume_centre = (np.array(settings.shape) - 1) // 2
-
-    return coordinates + volume_centre
 
 
 def get_transformation_matrix_from_q_transform(

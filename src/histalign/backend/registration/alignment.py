@@ -28,7 +28,7 @@ from histalign.backend.io import (
 from histalign.backend.maths import (
     compute_normal,
     compute_normal_from_raw,
-    compute_origin_from_orientation,
+    compute_origin,
 )
 from histalign.backend.models import AlignmentSettings, Orientation, Resolution
 from histalign.backend.registration import Registrator
@@ -309,13 +309,6 @@ def get_plane_from_2d_image(
         image, alignment_settings, origin
     )
 
-    if alignment_settings.volume_settings.orientation == Orientation.HORIZONTAL:
-        registered_slice = ndimage.rotate(registered_slice, 90, reshape=False)
-    if alignment_settings.volume_settings.orientation != Orientation.SAGITTAL:
-        registered_slice = ndimage.rotate(
-            registered_slice, -alignment_settings.volume_settings.pitch, reshape=False
-        )
-
     plane_mesh = slicer.slice(
         alignment_settings.volume_settings, origin=origin, return_mesh=True
     )
@@ -354,7 +347,7 @@ def snap_array_to_grid(
         # Z-stacks require a lot more work
         return _snap_stack_to_grid(image_array, alignment_settings)
 
-    alignment_origin = compute_origin_from_orientation(
+    alignment_origin = compute_origin(
         tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
         alignment_settings.volume_settings,
     )
@@ -395,7 +388,7 @@ def _snap_stack_to_grid(
     # Points describing the normal using the aligned pitch and yaw
     normal_line_points = get_normal_line_points(alignment_settings)
     # Origin of the aligned image based on the offset
-    alignment_origin = compute_origin_from_orientation(
+    alignment_origin = compute_origin(
         tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
         alignment_settings.volume_settings,
     )
@@ -568,7 +561,7 @@ def get_normal_line_points(
     """
     alignment_normal = compute_normal(alignment_settings.volume_settings)
 
-    alignment_origin = compute_origin_from_orientation(
+    alignment_origin = compute_origin(
         tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
         alignment_settings.volume_settings,
     )

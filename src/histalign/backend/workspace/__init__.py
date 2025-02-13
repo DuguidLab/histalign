@@ -35,7 +35,7 @@ import histalign.backend.io as io
 from histalign.backend.maths import (
     compute_mesh_centre,
     compute_normal,
-    compute_origin_from_orientation,
+    compute_origin,
 )
 from histalign.backend.models import (
     AlignmentSettings,
@@ -587,8 +587,8 @@ class VolumeSlicer:
             origin=(
                 origin
                 if origin is not None
-                else compute_origin_from_orientation(
-                    self.volume.dataset.GetCenter(), settings
+                else compute_origin(
+                    list(map(int, self.volume.dataset.GetCenter())), settings
                 )
             ),
             normal=compute_normal(settings).tolist(),
@@ -598,19 +598,17 @@ class VolumeSlicer:
 
         # vedo cuts down the mesh in a way I don't fully understand. Therefore, the
         # origin of the plane used with `slice_plane` is not actually the centre of
-        # the image that we can recover from mesh. Instead, it needs to be translated
-        # (which is done through padding to ensure we don't cut anything out).
-        original_mesh_center = compute_mesh_centre(
-            plane_mesh.metadata["original_bounds"]
-        )
-        original_mesh_center[:2] -= [0.5, 0.5]
+        # the image that we can recover from mesh when working with an offset and
+        # pitch/yaw. Instead, it needs to be translated (which is done through padding
+        # to ensure we don't cut anything out).
+        mesh_centre = compute_mesh_centre(plane_mesh)
 
-        if (padding := original_mesh_center[1]) > 0:
+        if (padding := mesh_centre[1]) > 0:
             i_padding = (int(round(2 * padding)), 0)
         else:
             i_padding = (0, int(round(2 * -padding)))
 
-        if (padding := original_mesh_center[0]) > 0:
+        if (padding := mesh_centre[0]) > 0:
             j_padding = (int(round(2 * padding)), 0)
         else:
             j_padding = (0, int(round(2 * -padding)))
@@ -621,22 +619,28 @@ class VolumeSlicer:
 
             return plane_mesh
 
-        slice_array = plane_mesh.pointdata["ImageScalars"].reshape(
+        plane_array = plane_mesh.pointdata["ImageScalars"].reshape(
             plane_mesh.metadata["shape"]
         )
-        padded_slice_array = np.pad(slice_array, (i_padding, j_padding))
+        plane_array = np.pad(plane_array, (i_padding, j_padding))
 
         if correct_rotation:
-            if settings.orientation == Orientation.HORIZONTAL:
-                padded_slice_array = ndimage.rotate(
-                    padded_slice_array, -90, reshape=False
-                )
-            if settings.orientation != Orientation.SAGITTAL:
-                padded_slice_array = ndimage.rotate(
-                    padded_slice_array, settings.pitch, reshape=False
+            # Correct vedo-specific rotations and apply some custom rotations for
+            # presentation to the user.
+            if settings.orientation == Orientation.CORONAL:
+                # Correct the vedo rotation so that superior is at the top and anterior
+                # is at the bottom.
+                plane_array = ndimage.rotate(plane_array, settings.pitch, reshape=False)
+                # Flip left-right so that the left hemisphere is on the left
+                plane_array = np.fliplr(plane_array)
+            elif settings.orientation == Orientation.HORIZONTAL:
+                # Correct the vedo rotation and apply own so that anterior is at the top
+                # and posterior is at the bottom.
+                plane_array = ndimage.rotate(
+                    plane_array, settings.pitch - 90, reshape=False
                 )
 
-        return padded_slice_array
+        return plane_array
 
 
 class Workspace(QtCore.QObject):
