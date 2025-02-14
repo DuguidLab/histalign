@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+from contextlib import suppress
 from pathlib import Path
 from typing import Optional
 
@@ -75,6 +76,14 @@ class ZStackFrame(TitleFrame):
             1, self.contentsMargins().top(), 1, self.contentsMargins().bottom()
         )
 
+    @property
+    def regex(self) -> str | None:
+        regex = None
+        if self.regex_line_edit.isEnabled():
+            regex = self.regex_line_edit.text() or None
+
+        return regex
+
 
 class ChannelFrame(TitleFrame):
     def __init__(
@@ -135,6 +144,23 @@ class ChannelFrame(TitleFrame):
         self.setContentsMargins(
             1, self.contentsMargins().top(), 1, self.contentsMargins().bottom()
         )
+
+    @property
+    def regex(self) -> str | None:
+        regex = None
+        if self.regex_line_edit.isEnabled():
+            regex = self.regex_line_edit.text() or None
+
+        return regex
+
+    @property
+    def index(self) -> int | None:
+        index = None
+        if self.quantification_channel_line_edit.isEnabled():
+            with suppress(ValueError):
+                index = int(self.quantification_channel_line_edit.text())
+
+        return index
 
 
 class QuantificationParametersFrame(TitleFrame):
@@ -435,6 +461,9 @@ class PrepareWidget(QtWidgets.QWidget):
             fast_rescale=True,
             fast_transform=True,
             measure_settings=self.collect_quantification_settings(),
+            channel_index=self.quantification_parameters_frame.multichannel_frame.index,
+            channel_regex=self.quantification_parameters_frame.multichannel_frame.regex,
+            projection_regex=self.quantification_parameters_frame.z_stack_frame.regex,
         )
 
         quantification_thread = QuantificationThread(quantification_settings, self)

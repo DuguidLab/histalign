@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pydantic
 from PySide6 import QtCore
 
@@ -172,7 +173,7 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
             project_settings = ProjectSettings(**json.load(handle)["project_settings"])
 
         cache_hash = []
-        alignment_array = build_aligned_volume(
+        alignment_array: np.ndarray = build_aligned_volume(
             self.quantification_settings.alignment_directory,
             return_raw_array=True,
             channel_index=self.quantification_settings.channel_index,
@@ -180,6 +181,16 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
             projection_regex=self.quantification_settings.projection_regex,
             hash_return=cache_hash,
         )
+
+        if np.sum(alignment_array) == 0:
+            self.logger.error(
+                "Could not build an alignment volume from the given parameters. Ensure "
+                "the given parameters are correct (e.g., ensure the channel corresponds"
+                " to a valid file name)."
+            )
+            self.results_computed.emit()
+            return quantification_results
+
         self.progress_changed.emit(1)
         interpolated_array = interpolate_sparse_3d_array(
             alignment_array,
