@@ -33,6 +33,7 @@ from histalign.backend.ccf.downloads import download_annotation_volume, download
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_tree
 import histalign.backend.io as io
 from histalign.backend.maths import (
+    compute_centre,
     compute_mesh_centre,
     compute_normal,
     compute_origin,
@@ -615,11 +616,7 @@ class VolumeSlicer:
     ) -> np.ndarray | vedo.Mesh:
         plane_mesh = self.volume.slice_plane(
             origin=(
-                origin
-                if origin is not None
-                else compute_origin(
-                    list(map(int, self.volume.dataset.GetCenter())), settings
-                )
+                origin or compute_origin(compute_centre(self.volume.shape), settings)
             ),
             normal=compute_normal(settings).tolist(),
             autocrop=autocrop,

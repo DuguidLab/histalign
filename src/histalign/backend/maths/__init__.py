@@ -42,6 +42,10 @@ def apply_rotation_from_raw(
     return rotation.apply(vector)
 
 
+def compute_centre(shape: Sequence[int]) -> tuple[int, ...]:
+    return tuple((np.array(shape) - 1) // 2)
+
+
 def compute_mesh_centre(mesh: vedo.Mesh) -> np.ndarray:
     bounds = mesh.metadata["original_bounds"]
 

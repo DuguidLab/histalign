@@ -11,7 +11,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.paths import get_annotation_path
 from histalign.backend.io import clear_directory
-from histalign.backend.maths import apply_rotation, compute_origin
+from histalign.backend.maths import apply_rotation, compute_centre, compute_origin
 from histalign.backend.models import Orientation, ProjectSettings
 from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace
 from histalign.frontend.common_widgets import (
@@ -647,7 +647,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         rotated_coordinates = apply_rotation(pixmap_coordinates, widget.volume_settings)
 
         # Add to slicing plane origin
-        volume_centre = (np.array(widget.volume_settings.shape) - 1) // 2
+        volume_centre = compute_centre(widget.volume_settings.shape)
         volume_origin = compute_origin(volume_centre, widget.volume_settings)
 
         volume_coordinates = volume_origin + rotated_coordinates

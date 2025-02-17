@@ -13,7 +13,6 @@ from typing import Any, Optional
 
 import numpy as np
 from scipy.interpolate import RBFInterpolator
-import scipy.ndimage as ndimage
 import vedo
 
 from histalign.backend.ccf.downloads import download_structure_mask
@@ -26,6 +25,7 @@ from histalign.backend.io import (
     load_volume,
 )
 from histalign.backend.maths import (
+    compute_centre,
     compute_normal,
     compute_normal_from_raw,
     compute_origin,
@@ -348,7 +348,7 @@ def snap_array_to_grid(
         return _snap_stack_to_grid(image_array, alignment_settings)
 
     alignment_origin = compute_origin(
-        tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
+        compute_centre(alignment_settings.volume_settings.shape),
         alignment_settings.volume_settings,
     )
     alignment_origin = tuple(map(float, alignment_origin))
@@ -389,7 +389,7 @@ def _snap_stack_to_grid(
     normal_line_points = get_normal_line_points(alignment_settings)
     # Origin of the aligned image based on the offset
     alignment_origin = compute_origin(
-        tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
+        compute_centre(alignment_settings.volume_settings.shape),
         alignment_settings.volume_settings,
     )
     # Normal of the plane used for alignment
@@ -562,7 +562,7 @@ def get_normal_line_points(
     alignment_normal = compute_normal(alignment_settings.volume_settings)
 
     alignment_origin = compute_origin(
-        tuple((np.array(alignment_settings.volume_settings.shape) - 1) / 2),
+        compute_centre(alignment_settings.volume_settings.shape),
         alignment_settings.volume_settings,
     )
     intersection_line_coordinates = (
