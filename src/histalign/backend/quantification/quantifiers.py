@@ -61,12 +61,16 @@ class Quantifier(QtCore.QObject, FakeQtABC):
     def run(self, save_to_disk: bool = True) -> QuantificationResults:
         raise NotImplementedError
 
-    def save_results(self, results: QuantificationResults, volume_hash: str) -> None:
+    def save_results(
+        self, results: QuantificationResults, volume_hash: str = ""
+    ) -> None:
         project_directory = self.quantification_settings.alignment_directory.parent
         quantification_path = project_directory / "quantification"
         os.makedirs(quantification_path, exist_ok=True)
 
-        out_path = quantification_path / f"{results.hash}_{volume_hash[:4]}.json"
+        if volume_hash:
+            volume_hash = "_" + volume_hash[:4]
+        out_path = quantification_path / f"{results.hash}{volume_hash}.json"
         if out_path.exists():  # Running an already-run quantification
             return
         with open(out_path, "w") as handle:
