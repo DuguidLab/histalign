@@ -61,12 +61,15 @@ class Quantifier(QtCore.QObject, FakeQtABC):
     def run(self, save_to_disk: bool = True) -> QuantificationResults:
         raise NotImplementedError
 
-    def save_results(self, results: QuantificationResults) -> None:
+    def save_results(self, results: QuantificationResults, volume_hash: str) -> None:
         project_directory = self.quantification_settings.alignment_directory.parent
         quantification_path = project_directory / "quantification"
         os.makedirs(quantification_path, exist_ok=True)
 
-        with open(quantification_path / f"{results.hash}.json", "w") as handle:
+        out_path = quantification_path / f"{results.hash}_{volume_hash[:4]}.json"
+        if out_path.exists():  # Running an already-run quantification
+            return
+        with open(out_path, "w") as handle:
             json.dump(results.model_dump(serialize_as_any=True), handle)
 
 
@@ -172,14 +175,12 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
         ) as handle:
             project_settings = ProjectSettings(**json.load(handle)["project_settings"])
 
-        cache_hash = []
-        alignment_array: np.ndarray = build_aligned_volume(
+        alignment_array, cache_path = build_aligned_volume(
             self.quantification_settings.alignment_directory,
             return_raw_array=True,
             channel_index=self.quantification_settings.channel_index,
             channel_regex=self.quantification_settings.channel_regex,
             projection_regex=self.quantification_settings.projection_regex,
-            hash_return=cache_hash,
         )
 
         if np.sum(alignment_array) == 0:
@@ -192,12 +193,8 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
             return quantification_results
 
         self.progress_changed.emit(1)
-        interpolated_array = interpolate_sparse_3d_array(
-            alignment_array,
-            alignment_directory=self.quantification_settings.alignment_directory,
-            use_cache=True,
-            # TODO: Link general hash to interpolation parameters
-            cache_hash=cache_hash[0],
+        interpolated_array, cache_path = interpolate_sparse_3d_array(
+            alignment_array, use_cache=True, aligned_volume_hash=cache_path.stem
         )
         self.progress_changed.emit(2)
 
@@ -218,7 +215,7 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
             self.progress_changed.emit(progress_index)
 
         if save_to_disk:
-            self.save_results(quantification_results)
+            self.save_results(quantification_results, cache_path.stem.split("_")[0])
         self.results_computed.emit()
 
         return quantification_results

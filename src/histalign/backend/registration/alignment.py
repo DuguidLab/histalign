@@ -12,6 +12,7 @@ import time
 from typing import Any, Optional
 
 import numpy as np
+import pydantic
 from scipy.interpolate import RBFInterpolator
 import vedo
 
@@ -52,14 +53,13 @@ def build_aligned_volume(
     alignment_directory: str | Path,
     allow_cache_load: bool = True,
     allow_cache_save: bool = True,
-    hash_return: Optional[list] = None,
     return_raw_array: bool = False,
     channel_index: Optional[int] = None,
     channel_regex: Optional[str] = None,
     projection_regex: Optional[str] = None,
     misc_regexes: Optional[str | list[str]] = None,
     misc_subs: Optional[str | list[str]] = None,
-) -> np.ndarray | vedo.Volume:
+) -> tuple[np.ndarray | vedo.Volume, Path]:
     """Builds an aligned volume from alignment settings.
 
     Args:
@@ -71,7 +71,6 @@ def build_aligned_volume(
             it is returned. Otherwise, the volume is built as normal.
         allow_cache_save (bool, optional):
             Whether to save the built volume to the cache.
-        hash_return (Optional[list], optional): List to insert the cache hash into.
         return_raw_array (bool, optional):
             Whether to return a numpy array (`True`) or a vedo volume (`False`).
         channel_index (Optional[int], optional):
@@ -90,7 +89,8 @@ def build_aligned_volume(
             elements as `misc_regexes`.
 
     Returns:
-        np.ndarray | vedo.Volume: The aligned volume or 3D array.
+        tuple[np.ndarray | vedo.Volume, Path]:
+            The aligned volume or 3D array, and the path to the potential cache.
     """
     _module_logger.debug("Starting build of aligned volume.")
 
@@ -112,38 +112,7 @@ def build_aligned_volume(
     if not alignment_paths:
         raise ValueError("Cannot build aligned volume from empty alignment directory.")
 
-    alignment_hash = generate_hash_from_targets(alignment_paths)
-    alignment_hash = generate_hash_from_aligned_volume_settings(
-        [
-            alignment_hash,
-            channel_index,
-            channel_regex,
-            projection_regex,
-            "".join(misc_regexes) if misc_regexes is not None else "",
-            "".join(misc_subs) if misc_subs is not None else "",
-        ]
-    )
-
-    if hash_return is not None:
-        hash_return.append(alignment_hash)
-
-    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.npz"
-    if cache_path.exists() and allow_cache_load:
-        _module_logger.debug("Found cached aligned volume. Loading from file.")
-
-        array = np.load(cache_path)["array"]
-        if return_raw_array:
-            return array
-        return vedo.Volume(array)
-
-    reference_shape = load_alignment_settings(alignment_paths[0]).volume_settings.shape
-
-    # Volume needs to be created before array as vedo makes a copy
-    aligned_volume = vedo.Volume(np.zeros(shape=reference_shape, dtype=np.uint16))
-    aligned_array = aligned_volume.tonumpy()
-
-    planes = generate_aligned_planes(
-        aligned_volume,
+    alignment_settings_list = convert_alignment_histology_paths(
         alignment_paths,
         channel_index,
         channel_regex,
@@ -151,6 +120,27 @@ def build_aligned_volume(
         misc_regexes,
         misc_subs,
     )
+
+    alignment_hash = generate_hash_from_targets(
+        [settings.histology_path for settings in alignment_settings_list]
+    )
+
+    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.npz"
+    if cache_path.exists() and allow_cache_load:
+        _module_logger.debug("Found cached aligned volume. Loading from file.")
+
+        array = np.load(cache_path)["array"]
+        if return_raw_array:
+            return array, cache_path
+        return vedo.Volume(array), cache_path
+
+    reference_shape = alignment_settings_list[0].volume_settings.shape
+
+    # Volume needs to be created before array as vedo makes a copy
+    aligned_volume = vedo.Volume(np.zeros(shape=reference_shape, dtype=np.uint16))
+    aligned_array = aligned_volume.tonumpy()
+
+    planes = generate_aligned_planes(aligned_volume, alignment_settings_list)
 
     insert_aligned_planes_into_array(aligned_array, planes)
     aligned_volume.modified()  # Probably unnecessary but good practice
@@ -161,8 +151,8 @@ def build_aligned_volume(
         np.savez_compressed(cache_path, array=aligned_array)
 
     if return_raw_array:
-        return aligned_array
-    return aligned_volume
+        return aligned_array, cache_path
+    return aligned_volume, cache_path
 
 
 def insert_aligned_planes_into_array(
@@ -209,32 +199,14 @@ def insert_aligned_planes_into_array(
 
 def generate_aligned_planes(
     alignment_volume: Volume | vedo.Volume,
-    alignment_paths: list[Path],
-    channel_index: Optional[int] = None,
-    channel_regex: Optional[str] = None,
-    projection_regex: Optional[str] = None,
-    misc_regexes: Optional[str] = None,
-    misc_subs: Optional[str] = None,
+    alignment_settings: list[AlignmentSettings],
 ) -> list[vedo.Mesh]:
     """Generates aligned planes for each image (2D or 3D) from the alignment paths.
 
     Args:
         alignment_volume (Volume | vedo.Volume): Volume to generate planes for.
-        alignment_paths (list[Path]):
-            List of alignment settings paths to use when reconstructing the planes.
-        channel_index (Optional[int], optional):
-            Channel index to use when retrieving the original files.
-        channel_regex (Optional[str], optional):
-            Channel regex identifying the channel part of `alignment_paths`'s names.
-        projection_regex (Optional[str], optional):
-            Projection regex identifying the projection part of `alignment_paths`'s
-            names.
-        misc_regexes (Optional[list[str]], optional):
-            Miscellaneous regexes identifying extra parts of alignment paths found in
-            `alignment_directory`.
-        misc_subs (Optional[list[str]], optional):
-            Substitutions to replace `misc_regexes` with. This should have as many
-            elements as `misc_regexes`.
+        alignment_settings (list[AlignmentSettings):
+            List of alignment settings to use to generate planes.
 
     Returns:
         list[vedo.Mesh]:
@@ -245,29 +217,11 @@ def generate_aligned_planes(
     planes = []
     slicer = VolumeSlicer(volume=alignment_volume)
 
-    for index, alignment_path in enumerate(alignment_paths):
+    for index, alignment_settings in enumerate(alignment_settings):
         if index > 0 and index % 5 == 0:
-            _module_logger.debug(f"Generating plane(s) for {alignment_path.name}...")
-
-        alignment_settings = load_alignment_settings(alignment_path)
-
-        histology_path_with_replacement = replace_path_parts(
-            alignment_settings.histology_path,
-            channel_index,
-            channel_regex,
-            projection_regex,
-            misc_regexes,
-            misc_subs,
-        )
-        if not histology_path_with_replacement.exists():
-            _module_logger.error(
-                f"Could not find file '{histology_path_with_replacement}' "
-                f"(original path: '{alignment_settings.histology_path}'). "
-                f"Skipping it."
+            _module_logger.debug(
+                f"Generating plane(s) for {alignment_settings.histology_path.name}..."
             )
-            continue
-
-        alignment_settings.histology_path = histology_path_with_replacement
 
         image_array = load_image(alignment_settings.histology_path, allow_stack=True)
 
@@ -583,21 +537,18 @@ def interpolate_sparse_3d_array(
     chunk_size: Optional[int] = 1_000_000,
     recursive: bool = False,
     use_cache: bool = False,
-    cache_hash: Optional[str] = None,
-    alignment_directory: str | Path = "",
+    aligned_volume_hash: str = "",
     mask_name: str = "",
-) -> np.ndarray:
+) -> tuple[np.ndarray, Path]:
     start_time = time.perf_counter()
 
-    if use_cache and cache_hash is None:
-        raise ValueError("Cannot use cache without 'cache_hash'.")
+    if use_cache and not aligned_volume_hash:
+        raise ValueError("Cannot use cache without a starting 'aligned_volume_hash'.")
     if use_cache and reference_mask is not None and not mask_name:
         raise ValueError(
             "Cannot use cache with reference mask but no 'mask_name' "
             "identifying information."
         )
-    if isinstance(alignment_directory, str):
-        alignment_directory = Path(alignment_directory)
 
     if reference_mask is not None and (array_shape := array.shape) != (
         reference_shape := reference_mask.shape
@@ -612,14 +563,17 @@ def interpolate_sparse_3d_array(
         array = np.where(reference_mask, array, 0)
 
     mask_name = "-".join(mask_name.split(" ")).lower()
+    if mask_name:
+        mask_name = "_" + mask_name
+
     cache_path = (
-        INTERPOLATED_VOLUMES_CACHE_DIRECTORY
-        / f"{cache_hash}{f'_{mask_name}' if reference_mask is not None else ''}.npz"
+        INTERPOLATED_VOLUMES_CACHE_DIRECTORY / f"{aligned_volume_hash}{mask_name}"
+        f"_{kernel}_{neighbours}_{epsilon}_{degree or 0}_{int(recursive)}.npz"
     )
     if cache_path.exists() and use_cache:
         _module_logger.debug("Found cached array. Loading from file.")
 
-        return np.load(cache_path)["array"]
+        return np.load(cache_path)["array"], cache_path
 
     interpolated_array = array.copy()
     interpolated_array = interpolated_array.astype(np.float64)
@@ -746,7 +700,7 @@ def interpolate_sparse_3d_array(
         os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
         np.savez_compressed(cache_path, array=interpolated_array)
 
-    return interpolated_array
+    return interpolated_array, cache_path
 
 
 def mask_off_structure(
@@ -759,6 +713,40 @@ def mask_off_structure(
     mask_volume = load_volume(mask_path)
 
     return vedo.Volume(np.where(mask_volume.tonumpy() > 0, volume.tonumpy(), 0))
+
+
+def convert_alignment_histology_paths(
+    alignment_paths: list[Path],
+    channel_index: Optional[int] = None,
+    channel_regex: Optional[str] = None,
+    projection_regex: Optional[str] = None,
+    misc_regexes: Optional[list[str]] = None,
+    misc_subs: Optional[list[str]] = None,
+) -> list[AlignmentSettings]:
+    alignment_settings_list = []
+    for alignment_path in alignment_paths:
+        alignment_settings = load_alignment_settings(alignment_path)
+
+        histology_path = replace_path_parts(
+            alignment_settings.histology_path,
+            channel_index,
+            channel_regex,
+            projection_regex,
+            misc_regexes,
+            misc_subs,
+        )
+
+        try:
+            alignment_settings.histology_path = histology_path
+            alignment_settings_list.append(alignment_settings)
+        except pydantic.ValidationError:
+            _module_logger.warning(
+                f"Converted path does not exist. "
+                f"Original: '{alignment_settings.histology_path}'. "
+                f"Converted: '{histology_path}'."
+            )
+
+    return alignment_settings_list
 
 
 def replace_path_parts(

@@ -201,7 +201,8 @@ class QuantificationResults(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def hash(self) -> str:
-        hash_string = f"{self.settings.model_dump_json()}{self.timestamp}"
+        hash_string = f"{self.settings.model_dump_json(serialize_as_any=True)}"
+        hash_string += "".join(self.data.keys())
         return hashlib.md5(hash_string.encode("UTF-8")).hexdigest()
 
     @field_serializer("timestamp")
