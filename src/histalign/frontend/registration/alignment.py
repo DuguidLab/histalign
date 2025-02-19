@@ -259,6 +259,9 @@ class AlignmentWidget(QtWidgets.QWidget):
     def resizeEvent(self, event) -> None:
         self.handle_volume_scaling_change(event.size())
 
+    def reset_auto_contrast(self) -> None:
+        self.auto_contrast_passes = 0
+
     def reset_volume(self) -> None:
         if hasattr(self, "volume_pixmap"):
             self.volume_pixmap.setPixmap(QtGui.QPixmap())
