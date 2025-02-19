@@ -34,32 +34,38 @@ def load_image(
     file_path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     allow_stack: bool = False,
+    allow_dataset: bool = False,
 ) -> np.ndarray:
     if isinstance(file_path, Path):
         file_path = str(file_path)
 
     match file_path.split(".")[-1]:
         case "h5" | "hdf5":
-            with h5py.File(file_path, "r") as h5_handle:
-                dataset_name = list(h5_handle.keys())
+            h5_handle = h5py.File(file_path, "r")
+            dataset_name = list(h5_handle.keys())
 
-                if len(dataset_name) != 1:
+            if len(dataset_name) != 1:
+                raise ValueError(
+                    f"Unexpected number of datasets found. "
+                    f"Expected 1, found {len(dataset_name)}. "
+                    f"Make sure the file only contains a single image."
+                )
+
+            array = h5_handle[dataset_name[0]]
+
+            if len(array.shape) != 2:
+                if not (allow_stack and len(array.shape) == 3):
                     raise ValueError(
-                        f"Unexpected number of datasets found. "
-                        f"Expected 1, found {len(dataset_name)}. "
-                        f"Make sure the file only contains a single image."
+                        f"Unexpected number of dataset dimensions. "
+                        f"Expected 2, found {len(array.shape)}. "
+                        f"Make sure the image has been project to only contain "
+                        f"XY data."
                     )
 
-                array = h5_handle[dataset_name[0]][:]
-
-                if len(array.shape) != 2:
-                    if not (allow_stack and len(array.shape) == 3):
-                        raise ValueError(
-                            f"Unexpected number of dataset dimensions. "
-                            f"Expected 2, found {len(array.shape)}. "
-                            f"Make sure the image has been project to only contain "
-                            f"XY data."
-                        )
+            # Datasets can behave as arrays most but not all of the time
+            if not allow_dataset:
+                array = array[:]
+                h5_handle.close()
         case "npy":
             array = np.load(file_path)
         case "npz":
@@ -84,11 +90,36 @@ def load_volume(
     file_path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     return_raw_array: bool = False,
+    allow_dataset: bool = False,
 ) -> np.ndarray | vedo.Volume:
     if isinstance(file_path, Path):
         file_path = str(file_path)
 
     match file_path.split(".")[-1]:
+        case "h5" | "hdf5":
+            handle = h5py.File(file_path, "r")
+            dataset_name = list(handle.keys())
+
+            if len(dataset_name) != 1:
+                raise ValueError(
+                    f"Unexpected number of datasets found. "
+                    f"Expected 1, found {len(dataset_name)}. "
+                    f"Make sure the file only contains a single volume."
+                )
+
+            array = handle[dataset_name[0]]
+
+            if len(array.shape) != 3:
+                raise ValueError(
+                    f"Unexpected number of dataset dimensions. "
+                    f"Expected 3, found {len(array.shape)}. "
+                    f"Make sure the volume contains XYZ data."
+                )
+
+            # Datasets can behave as arrays most but not all of the time
+            if not allow_dataset:
+                array = array[:]
+                h5_handle.close()
         case "nrrd":
             array = nrrd.read(file_path)[0]
         case "npy":
