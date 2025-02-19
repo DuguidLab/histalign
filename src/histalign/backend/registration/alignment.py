@@ -11,6 +11,7 @@ import re
 import time
 from typing import Any, Optional
 
+import h5py
 import numpy as np
 import pydantic
 from scipy.interpolate import RBFInterpolator
@@ -125,11 +126,12 @@ def build_aligned_volume(
         [settings.histology_path for settings in alignment_settings_list]
     )
 
-    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.npz"
+    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.h5"
     if cache_path.exists() and allow_cache_load:
         _module_logger.debug("Found cached aligned volume. Loading from file.")
 
-        array = np.load(cache_path)["array"]
+        with h5py.File(cache_path, "r") as handle:
+            array = handle["array"][:]
         if return_raw_array:
             return array, cache_path
         return vedo.Volume(array), cache_path
@@ -148,7 +150,8 @@ def build_aligned_volume(
     if allow_cache_save:
         _module_logger.debug("Caching volume to file as a NumPy array.")
         os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
-        np.savez_compressed(cache_path, array=aligned_array)
+        with h5py.File(cache_path, "w") as handle:
+            handle.create_dataset(name="array", data=aligned_array, compression="gzip")
 
     if return_raw_array:
         return aligned_array, cache_path
@@ -568,12 +571,13 @@ def interpolate_sparse_3d_array(
 
     cache_path = (
         INTERPOLATED_VOLUMES_CACHE_DIRECTORY / f"{aligned_volume_hash}{mask_name}"
-        f"_{kernel}_{neighbours}_{epsilon}_{degree or 0}_{int(recursive)}.npz"
+        f"_{kernel}_{neighbours}_{epsilon}_{degree or 0}_{int(recursive)}.h5"
     )
     if cache_path.exists() and use_cache:
         _module_logger.debug("Found cached array. Loading from file.")
-
-        return np.load(cache_path)["array"], cache_path
+        with h5py.File(cache_path, "r") as handle:
+            array = handle["array"][:]
+        return array, cache_path
 
     interpolated_array = array.copy()
     interpolated_array = interpolated_array.astype(np.float64)
@@ -698,7 +702,10 @@ def interpolate_sparse_3d_array(
     if use_cache:
         _module_logger.debug("Caching interpolated array to file.")
         os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
-        np.savez_compressed(cache_path, array=interpolated_array)
+        with h5py.File(cache_path, "w") as handle:
+            handle.create_dataset(
+                name="array", data=interpolated_array, compression="gzip"
+            )
 
     return interpolated_array, cache_path
 
