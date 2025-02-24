@@ -1575,8 +1575,11 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
         self.view_centre = QtCore.QPointF(0, 0)
         self.focus_rect = scene.sceneRect()
 
+        self._dragging = False
+        self._drag_button = QtCore.Qt.MouseButton.LeftButton
+        self._zoom_modifier = None
+
         #
-        self.setDragMode(QtWidgets.QGraphicsView.DragMode.ScrollHandDrag)
         self.setTransformationAnchor(
             QtWidgets.QGraphicsView.ViewportAnchor.AnchorViewCenter
         )
@@ -1587,6 +1590,9 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.verticalScrollBar().valueChanged.connect(self.ensure_focus_rect_visible)
+
+    def set_drag_button(self, button: QtCore.Qt.MouseButton) -> None:
+        self._drag_button = button
 
     def set_focus_rect(self, rect: QtCore.QRectF, force_visible: bool = True) -> None:
         """Sets the focus rectangle.
@@ -1609,7 +1615,12 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
             view_rect.adjust(1, 1, 0, 0)
 
             if not view_rect.intersects(focus_rect):
-                self.centerOn(focus_rect.center())
+                self.centre_on_focus()
+
+    def set_zoom_modifier(
+        self, modifier: QtCore.Qt.KeyboardModifier.ControlModifier
+    ) -> None:
+        self._zoom_modifier = modifier
 
     def update_focus_zoom(self) -> None:
         """Updates the focus zoom level."""
@@ -1672,7 +1683,24 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
 
         super().centerOn(position)
 
+    def centre_on_focus(self) -> None:
+        if self.focus_rect is not None:
+            self.centerOn(self.focus_rect.center())
+
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == self._drag_button:
+            self.setDragMode(QtWidgets.QGraphicsView.DragMode.ScrollHandDrag)
+            if self._drag_button != QtCore.Qt.MouseButton.LeftButton:
+                self.setInteractive(False)  # Prevent moving items with drag button
+            if self._drag_button != QtCore.Qt.MouseButton.LeftButton:
+                event = QtGui.QMouseEvent(
+                    QtCore.QEvent.Type.MouseButtonPress,
+                    event.position(),
+                    QtCore.Qt.MouseButton.LeftButton,
+                    event.buttons(),
+                    event.modifiers(),
+                )
+
         super().mousePressEvent(event)
 
         self._dragging = False
@@ -1683,15 +1711,28 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
         Args:
             event (QtGui.QMouseEvent): Event to handle.
         """
-        super().mouseReleaseEvent(event)
+        if event.button() == self._drag_button:
+            if self._drag_button != QtCore.Qt.MouseButton.LeftButton:
+                event = QtGui.QMouseEvent(
+                    QtCore.QEvent.Type.MouseButtonRelease,
+                    event.position(),
+                    QtCore.Qt.MouseButton.LeftButton,
+                    event.buttons(),
+                    event.modifiers(),
+                )
 
-        # Update the view centre after dragging
-        self.update_view_centre()
+            # Update the view centre after dragging
+            self.update_view_centre()
+            self._dragging = False
+
+        super().mouseReleaseEvent(event)
+        if self._drag_button != QtCore.Qt.MouseButton.LeftButton:
+            self.setInteractive(True)
+        self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
 
         # Notify of single clicks (no dragging)
         if not self._dragging and event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.clicked.emit(self.mapToScene(event.pos()))
-        self._dragging = False
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseMoveEvent(event)
@@ -1706,6 +1747,14 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
         Args:
             event (QtGui.QWheelEvent): Event to handle
         """
+        if self._zoom_modifier is not None and self._zoom_modifier != event.modifiers():
+            self.horizontalScrollBar().setEnabled(False)
+            self.verticalScrollBar().setEnabled(False)
+            super().wheelEvent(event)
+            self.horizontalScrollBar().setEnabled(True)
+            self.verticalScrollBar().setEnabled(True)
+            return
+
         # Zoom calculation
         zoom_factor = 1.25 if event.angleDelta().y() > 0 else 1 / 1.25
         new_zoom_level = self.general_zoom * zoom_factor

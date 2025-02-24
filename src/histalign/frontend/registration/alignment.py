@@ -77,6 +77,13 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
             direction_multiplier *= 5
 
         if modifiers & QtCore.Qt.KeyboardModifier.AltModifier:
+            if (
+                modifiers
+                & ~QtCore.Qt.KeyboardModifier.AltModifier
+                & ~QtCore.Qt.KeyboardModifier.ShiftModifier
+            ):
+                # Don't rotate if another modifier than ALT(+SHIFT) is pressed
+                return
             self.rotate(direction_multiplier)
         else:
             self.zoom(direction_multiplier)
