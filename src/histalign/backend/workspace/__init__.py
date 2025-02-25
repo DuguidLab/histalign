@@ -614,7 +614,7 @@ class VolumeSlicer:
         self,
         settings: VolumeSettings,
         interpolation: Literal["nearest", "linear", "cubic"] = "cubic",
-        return_mesh: bool = False,
+        return_display_plane: bool = False,
         origin: Optional[list[float]] = None,
     ) -> np.ndarray | vedo.Mesh:
         origin = origin or compute_origin(compute_centre(self.volume.shape), settings)
@@ -623,15 +623,15 @@ class VolumeSlicer:
             origin=origin, normal=normal.tolist(), mode=interpolation
         )
 
-        if return_mesh:
-            return plane_mesh
-
         # vedo cuts down the mesh in a way I don't fully understand. Therefore, the
         # origin of the plane used with `slice_plane` is not actually the centre of
         # the image that we can recover from mesh when working with an offset and
         # pitch/yaw. Instead, the image in `plane_mesh` is cropped and then padded so
         # that the centre of the image corresponds to the origin.
         display_plane = self.reproduce_display_plane(origin, settings)
+        if return_display_plane:
+            return display_plane
+
         plane_array = self.crop_and_pad_to_display_plane(
             plane_mesh, display_plane, origin, normal, settings
         )

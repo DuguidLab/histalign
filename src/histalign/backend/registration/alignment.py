@@ -160,7 +160,7 @@ def build_aligned_volume(
 
 def insert_aligned_planes_into_array(
     array: np.ndarray,
-    planes: list[vedo.Mesh],
+    planes: list[vedo.Points],
     inplace: bool = True,
 ) -> np.ndarray:
     """Inserts aligned planes into a 3D numpy array.
@@ -203,7 +203,7 @@ def insert_aligned_planes_into_array(
 def generate_aligned_planes(
     alignment_volume: Volume | vedo.Volume,
     alignment_settings: list[AlignmentSettings],
-) -> list[vedo.Mesh]:
+) -> list[vedo.Points]:
     """Generates aligned planes for each image (2D or 3D) from the alignment paths.
 
     Args:
@@ -245,8 +245,8 @@ def get_plane_from_2d_image(
     alignment_settings: AlignmentSettings,
     slicer: VolumeSlicer,
     origin: Optional[list[float]] = None,
-) -> vedo.Mesh:
-    """Creates a plane mesh from an image and its alignment settings.
+) -> vedo.Points:
+    """Creates a plane-like points object from an image and its alignment settings.
 
     Args:
         image (np.ndarray): Scalar information for the plane.
@@ -259,22 +259,39 @@ def get_plane_from_2d_image(
 
     Returns:
         vedo.Mesh:
-            The plane whose scalar point data has been filled with the values of `image.`
+            The plane with scalar point data filled with the values of `image`.
     """
     registrator = Registrator(True, True)
     registered_slice = registrator.get_forwarded_image(
         image, alignment_settings, origin
     )
 
-    plane_mesh = slicer.slice(
-        alignment_settings.volume_settings, origin=origin, return_mesh=True
+    display_plane = slicer.slice(
+        alignment_settings.volume_settings, origin=origin, return_display_plane=True
+    )
+    data_points = generate_points_for_plane(display_plane, registered_slice.shape)
+
+    data_points.pointdata["ImageScalars"] = registered_slice.flatten()
+
+    return data_points
+
+
+def generate_points_for_plane(plane: vedo.Plane, shape: tuple[int, ...]) -> vedo.Points:
+    origin = plane.points[1]
+
+    normal1 = (plane.points[0] - plane.points[1]) / shape[0]
+    normal2 = (plane.points[3] - plane.points[1]) / shape[1]
+
+    xi, yi = np.meshgrid(
+        np.linspace(0, shape[0], shape[0]), np.linspace(0, shape[1], shape[1])
     )
 
-    registered_slice = undo_padding(registered_slice, plane_mesh)
+    points = np.vstack([xi.ravel(), yi.ravel()])
+    points = np.dot(np.vstack((normal1, normal2)).T, points).T
 
-    plane_mesh.pointdata["ImageScalars"] = registered_slice.flatten()
+    points = origin + points
 
-    return plane_mesh
+    return vedo.Points(points)
 
 
 def snap_array_to_grid(
@@ -415,26 +432,6 @@ def _snap_stack_to_grid(
         tuple(np.squeeze(sub_projection_coordinates[i])): sub_projections[i]
         for i in range(len(sub_projection_coordinates))
     }
-
-
-def undo_padding(image: np.ndarray, mesh: vedo.Mesh) -> np.ndarray:
-    """Undoes the padding added during registration.
-
-    Args:
-        image (np.ndarray): Registered image.
-        mesh (vedo.Mesh):
-            Mesh containing the padding information. This should be included in a
-            metadata field. See `histalign.backend.registration.Registrator`.
-
-    Returns:
-        np.ndarray: The image without padding.
-    """
-    unpadded_image = image[
-        mesh.metadata["i_padding"][0] : image.shape[0] - mesh.metadata["i_padding"][1],
-        mesh.metadata["j_padding"][0] : image.shape[1] - mesh.metadata["j_padding"][1],
-    ]
-
-    return unpadded_image
 
 
 def compute_closest_plane(
