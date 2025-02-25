@@ -116,6 +116,30 @@ def convert_q_transform_to_sk_transform(
     )
 
 
+def find_plane_mesh_corners(
+    plane_mesh: vedo.Mesh,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Finds the corners of a plane mesh as obtained from `vedo.Volume.slice_plane`.
+
+    Note this is only guaranteed to work with plane meshes obtained through
+    `vedo.Volume.slice_plane` as the corners are obtained by index rather than by
+    distance to the centre of mass.
+
+    Args:
+        plane_mesh (vedo.Mesh): Plane mesh to find the corners of.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            The corners of `plane_mesh`.
+    """
+    # vedo.Volume.slice_plane returns points in image coordinates, indexing into
+    # the points works as-if indexing into the image.
+    shape = plane_mesh.metadata["shape"]
+    corners = plane_mesh.points[[0, shape[1] - 1, -shape[1], -1]]
+
+    return corners
+
+
 def get_transformation_matrix_from_q_transform(
     transformation: QtGui.QTransform,
     invert: bool = False,
@@ -221,3 +245,11 @@ def get_sk_transform_from_parameters(
         )
 
     return AffineTransform(matrix=matrix)
+
+
+def signed_vector_angle(
+    vector1: np.ndarray, vector2: np.ndarray, axis: np.ndarray
+) -> float:
+    return math.degrees(
+        math.atan2(np.dot((np.cross(vector1, vector2)), axis), np.dot(vector1, vector2))
+    )

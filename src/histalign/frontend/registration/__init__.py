@@ -844,6 +844,12 @@ class RegistrationMainWindow(BasicApplicationWindow):
     @QtCore.Slot()
     def open_atlas_in_aligner(self) -> None:
         self.logger.debug("Opening atlas.")
+
+        # noinspection PyTypeChecker
+        self.workspace.alignment_settings.volume_settings.shape = (
+            self.alignment_widget.volume_slicer.volume.shape
+        )
+
         try:
             self.alignment_widget.update_volume_pixmap()
         except ValueError as error:
@@ -853,9 +859,6 @@ class RegistrationMainWindow(BasicApplicationWindow):
 
         self.toolbar.reset_volume_button.setEnabled(True)
 
-        self.workspace.alignment_settings.volume_settings.shape = (
-            self.alignment_widget.volume_slicer.volume.shape
-        )
         self.settings_widget.volume_settings_widget.update_offset_spin_box_limits()
         self.settings_widget.volume_settings_widget.reload_settings()
         self.settings_widget.volume_settings_widget.setEnabled(True)

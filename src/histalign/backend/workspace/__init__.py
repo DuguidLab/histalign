@@ -11,6 +11,7 @@ from functools import partial
 import hashlib
 import json
 import logging
+import math
 from multiprocessing import Process, Queue
 import os
 from pathlib import Path
@@ -26,6 +27,8 @@ import numpy as np
 from PIL import Image
 from PySide6 import QtCore
 from scipy import ndimage
+from scipy.spatial.distance import euclidean
+from scipy.spatial.transform import Rotation
 from skimage.transform import resize
 import vedo  # type: ignore[import]
 
@@ -34,9 +37,11 @@ from histalign.backend.ccf.paths import get_atlas_path, get_structure_tree
 import histalign.backend.io as io
 from histalign.backend.maths import (
     compute_centre,
-    compute_mesh_centre,
     compute_normal,
+    compute_normal_from_raw,
     compute_origin,
+    find_plane_mesh_corners,
+    signed_vector_angle,
 )
 from histalign.backend.models import (
     AlignmentSettings,
@@ -609,65 +614,219 @@ class VolumeSlicer:
         self,
         settings: VolumeSettings,
         interpolation: Literal["nearest", "linear", "cubic"] = "cubic",
-        autocrop: bool = True,
         return_mesh: bool = False,
-        correct_rotation: bool = True,
         origin: Optional[list[float]] = None,
     ) -> np.ndarray | vedo.Mesh:
+        origin = origin or compute_origin(compute_centre(self.volume.shape), settings)
+        normal = compute_normal(settings)
         plane_mesh = self.volume.slice_plane(
-            origin=(
-                origin or compute_origin(compute_centre(self.volume.shape), settings)
-            ),
-            normal=compute_normal(settings).tolist(),
-            autocrop=autocrop,
-            mode=interpolation,
+            origin=origin, normal=normal.tolist(), mode=interpolation
         )
+
+        if return_mesh:
+            return plane_mesh
 
         # vedo cuts down the mesh in a way I don't fully understand. Therefore, the
         # origin of the plane used with `slice_plane` is not actually the centre of
         # the image that we can recover from mesh when working with an offset and
-        # pitch/yaw. Instead, it needs to be translated (which is done through padding
-        # to ensure we don't cut anything out).
-        mesh_centre = compute_mesh_centre(plane_mesh)
-
-        if (padding := mesh_centre[1]) > 0:
-            i_padding = (int(round(2 * padding)), 0)
-        else:
-            i_padding = (0, int(round(2 * -padding)))
-
-        if (padding := mesh_centre[0]) > 0:
-            j_padding = (int(round(2 * padding)), 0)
-        else:
-            j_padding = (0, int(round(2 * -padding)))
-
-        if return_mesh:
-            plane_mesh.metadata["i_padding"] = i_padding
-            plane_mesh.metadata["j_padding"] = j_padding
-
-            return plane_mesh
-
-        plane_array = plane_mesh.pointdata["ImageScalars"].reshape(
-            plane_mesh.metadata["shape"]
+        # pitch/yaw. Instead, the image in `plane_mesh` is cropped and then padded so
+        # that the centre of the image corresponds to the origin.
+        display_plane = self.reproduce_display_plane(origin, settings)
+        plane_array = self.crop_and_pad_to_display_plane(
+            plane_mesh, display_plane, origin, normal, settings
         )
-        plane_array = np.pad(plane_array, (i_padding, j_padding))
 
-        if correct_rotation:
-            # Correct vedo-specific rotations and apply some custom rotations for
-            # presentation to the user.
-            if settings.orientation == Orientation.CORONAL:
-                # Correct the vedo rotation so that superior is at the top and anterior
-                # is at the bottom.
-                plane_array = ndimage.rotate(plane_array, settings.pitch, reshape=False)
-                # Flip left-right so that the left hemisphere is on the left
-                plane_array = np.fliplr(plane_array)
-            elif settings.orientation == Orientation.HORIZONTAL:
-                # Correct the vedo rotation and apply own so that anterior is at the top
-                # and posterior is at the bottom.
-                plane_array = ndimage.rotate(
-                    plane_array, settings.pitch - 90, reshape=False
-                )
+        # Correct vedo-specific rotations and apply some custom rotations for
+        # presentation to the user.
+        if settings.orientation == Orientation.CORONAL:
+            # Correct the vedo rotation so that superior is at the top and anterior
+            # is at the bottom.
+            plane_array = ndimage.rotate(plane_array, settings.pitch, reshape=False)
+            # Flip left-right so that the left hemisphere is on the left
+            plane_array = np.fliplr(plane_array)
+        elif settings.orientation == Orientation.HORIZONTAL:
+            # Correct the vedo rotation and apply own so that anterior is at the top
+            # and posterior is at the bottom.
+            plane_array = ndimage.rotate(
+                plane_array, settings.pitch - 90, reshape=False
+            )
 
         return plane_array
+
+    @staticmethod
+    def reproduce_display_plane(
+        origin: np.ndarray, settings: VolumeSettings
+    ) -> vedo.Plane:
+        """Reproduces the slicing alignment plane but centred at `origin`.
+
+        Args:
+            origin (np.ndarray): Origin of the plane.
+            settings (VolumeSettings): Settings used for alignment.
+
+        Returns:
+            vedo.Plane:
+                A plane centred at `origin` and whose normal is the same as the plane
+                described by `settings`.
+        """
+        orientation = settings.orientation
+        pitch = settings.pitch
+        yaw = settings.yaw
+
+        display_plane = vedo.Plane(
+            pos=origin,
+            normal=compute_normal_from_raw(0, 0, orientation),
+            s=(1.5 * max(settings.shape),) * 2,
+        )
+
+        match orientation:
+            case Orientation.CORONAL:
+                display_plane.rotate(pitch, axis=[0, 0, 1], point=origin)
+                display_plane.rotate(
+                    yaw,
+                    axis=Rotation.from_euler("Z", pitch, degrees=True).apply([0, 1, 0]),
+                    point=origin,
+                )
+                display_plane.rotate(
+                    -pitch,
+                    axis=Rotation.from_euler("ZY", [pitch, yaw], degrees=True).apply(
+                        [1, 0, 0]
+                    ),
+                    point=origin,
+                )
+            case Orientation.HORIZONTAL:
+                display_plane.rotate(180, axis=[0, 1, 0], point=origin)
+                display_plane.rotate(pitch, axis=[0, 0, 1], point=origin)
+                display_plane.rotate(
+                    yaw,
+                    axis=Rotation.from_euler("Z", pitch, degrees=True).apply([1, 0, 0]),
+                    point=origin,
+                )
+                display_plane.rotate(
+                    90 - pitch,
+                    axis=Rotation.from_euler("ZX", [pitch, yaw], degrees=True).apply(
+                        [0, 1, 0]
+                    ),
+                    point=origin,
+                )
+            case Orientation.SAGITTAL:
+                # Pitch
+                display_plane.rotate(pitch, axis=[1, 0, 0], point=origin)
+                # Yaw
+                display_plane.rotate(
+                    yaw,
+                    axis=Rotation.from_euler("X", pitch, degrees=True).apply([0, 1, 0]),
+                    point=origin,
+                )
+
+        return display_plane
+
+    @staticmethod
+    def crop_and_pad_to_display_plane(
+        image_plane: vedo.Mesh,
+        display_plane: vedo.Plane,
+        origin: np.ndarray,
+        normal: np.ndarray,
+        settings: VolumeSettings,
+    ) -> np.ndarray:
+        """Crops and pads the `image_plane` data into `display_plane`'s shape.
+
+        From the display plane, the four corners are retrieved (a, b, c, d). From the
+        image plane, three corners are retrieved (A, C, D). The display plane being in
+        place, overlaps the image plane. Hence, the distance between A<->a and B<->b can
+        be computed and decomposed into x, y, x_prime, and y_prime values which inform
+        how to either crop the image plane data or pad it so that the final image
+        represents the surface covered by the display plane.
+
+        Args:
+            image_plane (vedo.Mesh): Plane mesh with the image data.
+            display_plane (vedo.Plane): Plane to crop to.
+            origin (np.ndarray): Origin of the display plane.
+            normal (np.ndarray): Normal of the display plane.
+            settings (VolumeSettings): Settings used for alignment.
+
+        Returns:
+            np.ndarray:
+                The cropped and padded image from `image_plane` fit to `display_plane`'s
+                shape.
+        """
+        orientation = settings.orientation
+        pitch = settings.pitch
+        yaw = settings.yaw
+
+        A, _, D, C = find_plane_mesh_corners(image_plane)
+        a, b, d, c = display_plane.points
+
+        if orientation == Orientation.SAGITTAL:
+            # Mimic vedo rotation
+            display_plane.rotate(
+                signed_vector_angle(a - d, A - D, normal),
+                axis=Rotation.from_euler("XY", [pitch, yaw], degrees=True).apply(
+                    [0, 0, 1]
+                ),
+                point=origin,
+            )
+            a, b, d, c = display_plane.points
+
+        e = euclidean(A, a)
+        e_prime = euclidean(C, c)
+
+        theta = signed_vector_angle(A - a, a - d, normal)
+        theta_prime = signed_vector_angle(C - c, b - c, normal)
+
+        x, y, x_prime, y_prime = VolumeSlicer.extract_values(
+            e, theta, e_prime, theta_prime
+        )
+
+        match settings.orientation:
+            case Orientation.CORONAL:
+                x += 1
+                y_prime -= 1
+            case Orientation.HORIZONTAL:
+                x_prime -= 1
+                y += 1
+            case Orientation.SAGITTAL:
+                x += 1
+                y += 1
+
+        image = image_plane.pointdata["ImageScalars"].reshape(
+            image_plane.metadata["shape"]
+        )
+        image = image[
+            x if x > 0 else 0 : image.shape[0] - (-x_prime if x_prime < 0 else 0),
+            y if y > 0 else 0 : image.shape[1] - (-y_prime if y_prime < 0 else 0),
+        ]
+        image = np.pad(
+            image,
+            (
+                [-x if x < 0 else 0, x_prime if x_prime > 0 else 0],
+                [-y if y < 0 else 0, y_prime if y_prime > 0 else 0],
+            ),
+        )
+
+        return image
+
+    @staticmethod
+    def extract_values(
+        e: float, theta: float, e_prime: float, theta_prime: float
+    ) -> tuple[int, int, int, int]:
+        """Computes the x, y, x_prime, and y_prime values required for cropping/padding.
+
+        Args:
+            e (float): Euclidean distance between A and a.
+            theta (float): Signed angle between da and aA.
+            e_prime (float): Euclidean distance between C and c.
+            theta_prime (float): Signed angle between cb and cC.
+
+        Returns:
+            tuple[int, int, int, int]:
+                The cropping and padding values.
+        """
+        x = round(e * math.cos(math.radians(theta)))
+        y = round(e * math.sin(math.radians(theta)))
+        x_prime = round(e_prime * math.cos(math.radians(theta_prime)))
+        y_prime = round(e_prime * math.sin(math.radians(theta_prime)))
+
+        return x, y, x_prime, y_prime
 
 
 class Workspace(QtCore.QObject):
