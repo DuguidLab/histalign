@@ -851,7 +851,7 @@ class RegistrationMainWindow(BasicApplicationWindow):
         )
 
         try:
-            self.alignment_widget.update_volume_pixmap()
+            self.alignment_widget.update_volume_pixmap(rescale=True)
         except ValueError as error:
             self.logger.error("Could not open atlas volume.")
             self.logger.error(error)

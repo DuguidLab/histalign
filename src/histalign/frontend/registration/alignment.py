@@ -19,6 +19,7 @@ from histalign.backend.maths import (
 from histalign.backend.models import (
     AlignmentSettings,
     HistologySettings,
+    Orientation,
     VolumeSettings,
 )
 from histalign.backend.preprocessing import simulate_auto_contrast_passes
@@ -96,7 +97,7 @@ class AlignmentWidget(QtWidgets.QWidget):
     auto_contrast_passes: int = 0
 
     scene: QtWidgets.QGraphicsScene
-    view: QtWidgets.QGraphicsView
+    view: ZoomAndPanView
     volume_pixmap: QtWidgets.QGraphicsPixmapItem
     volume_slicer: Optional[VolumeSlicer] = None
     histology_pixmap: QtWidgets.QGraphicsPixmapItem
@@ -119,18 +120,17 @@ class AlignmentWidget(QtWidgets.QWidget):
         self.lut = lut
 
         #
-        self.scene = QtWidgets.QGraphicsScene(self)
+        self.scene = QtWidgets.QGraphicsScene(
+            QtCore.QRectF(-100_000, -100_000, 200_000, 200_000),  # Make "infinite"
+            self,
+        )
 
-        self.view = QtWidgets.QGraphicsView(self.scene)
+        self.view = ZoomAndPanView(self.scene)
         self.view.setBackgroundBrush(
             QtGui.QBrush(QtWidgets.QApplication.instance().palette().base())
         )
-        self.view.setVerticalScrollBarPolicy(
-            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.view.setHorizontalScrollBarPolicy(
-            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.view.set_drag_button(QtCore.Qt.MouseButton.MiddleButton)
+        self.view.set_zoom_modifier(QtCore.Qt.KeyboardModifier.ControlModifier)
 
         #
         self.reset_volume()
@@ -200,8 +200,6 @@ class AlignmentWidget(QtWidgets.QWidget):
         q_transform = convert_sk_transform_to_q_transform(sk_transform)
         self.volume_pixmap.setTransform(q_transform)
 
-        self.view.setSceneRect(self.volume_pixmap.sceneBoundingRect())
-
         self.update_histology_pixmap()
 
     def apply_auto_contrast(self, force: bool = False) -> None:
@@ -236,6 +234,16 @@ class AlignmentWidget(QtWidgets.QWidget):
             self.volume_pixmap.sceneBoundingRect().size(),
             self.layout().contentsMargins(),
         )
+
+        match self.volume_settings.orientation:
+            case Orientation.CORONAL:
+                factor = 2
+            case Orientation.HORIZONTAL:
+                factor = 1.5
+            case Orientation.SAGITTAL:
+                factor = 1.7
+        scale_ratio /= factor
+
         self.alignment_settings.histology_scaling = scale_ratio
 
         return get_sk_transform_from_parameters(
@@ -299,6 +307,14 @@ class AlignmentWidget(QtWidgets.QWidget):
             self.volume_pixmap.sceneBoundingRect().size(),
             self.layout().contentsMargins(),
         )
+        match self.volume_settings.orientation:
+            case Orientation.CORONAL:
+                factor = 2
+            case Orientation.HORIZONTAL:
+                factor = 1.5
+            case Orientation.SAGITTAL:
+                factor = 1.7
+        scale_ratio /= factor
         current_transform = get_sk_transform_from_parameters(
             scale=(
                 scale_ratio,
@@ -355,12 +371,28 @@ class AlignmentWidget(QtWidgets.QWidget):
         )
 
     @QtCore.Slot()
-    def update_volume_pixmap(self) -> None:
+    def update_volume_pixmap(self, rescale: bool = False) -> None:
         pixmap = self.convert_8_bit_numpy_to_pixmap(
             self.volume_slicer.slice(self.volume_settings)
         )
+
         self.volume_pixmap.setPixmap(pixmap)
-        self.handle_volume_scaling_change()
+        if rescale:
+            self.handle_volume_scaling_change()
+            match self.volume_settings.orientation:
+                case Orientation.CORONAL:
+                    self.view.general_zoom = 2.0
+                case Orientation.HORIZONTAL:
+                    self.view.general_zoom = 1.5
+                case Orientation.SAGITTAL:
+                    self.view.general_zoom = 1.7
+
+        self.view.set_focus_rect(self.volume_pixmap.sceneBoundingRect())
+
+        if rescale:
+            self.view.centre_on_focus()
+
+        self.view.update_focus_zoom()
 
     @QtCore.Slot()
     def update_histology_pixmap(self) -> None:
