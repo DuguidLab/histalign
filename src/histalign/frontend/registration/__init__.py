@@ -10,7 +10,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.paths import get_annotation_path
-from histalign.backend.io import clear_directory
+from histalign.backend.io import clear_directory, RESOURCES_ROOT
 from histalign.backend.maths import apply_rotation, compute_centre, compute_origin
 from histalign.backend.models import Orientation, ProjectSettings
 from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace
@@ -183,7 +183,9 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         save_button.setShortcut(QtGui.QKeySequence("Ctrl+s"))
         save_button.setToolTip("Save alignment for the current image. ")
         save_button.setStatusTip("Save alignment for the current image.")
-        save_button.setIcon(DynamicThemeIcon("resources/icons/file-black-icon.png"))
+        save_button.setIcon(
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "file-black-icon.png")
+        )
 
         save_button.clicked.connect(self.save_requested.emit)
 
@@ -194,7 +196,9 @@ class RegistrationToolBar(QtWidgets.QToolBar):
 
         load_button.setToolTip("Load the saved alignment for the current image.")
         load_button.setStatusTip("Load the saved alignment for the current image.")
-        load_button.setIcon(DynamicThemeIcon("resources/icons/upload-arrow-icon.png"))
+        load_button.setIcon(
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "upload-arrow-icon.png")
+        )
 
         load_button.clicked.connect(self.load_requested.emit)
         load_button.setShortcut(QtGui.QKeySequence("Ctrl+l"))
@@ -206,7 +210,9 @@ class RegistrationToolBar(QtWidgets.QToolBar):
 
         delete_button.setToolTip("Delete the saved alignment for the current image.")
         delete_button.setStatusTip("Delete the saved alignment for the current image.")
-        delete_button.setIcon(DynamicThemeIcon("resources/icons/recycle-bin-icon.png"))
+        delete_button.setIcon(
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "recycle-bin-icon.png")
+        )
 
         delete_button.clicked.connect(self.delete_requested.emit)
 
@@ -218,7 +224,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         reset_histology_button.setToolTip("Reset the image alignment settings.")
         reset_histology_button.setStatusTip("Reset the image alignment settings.")
         reset_histology_button.setIcon(
-            DynamicThemeIcon("resources/icons/forward-restore-icon.png")
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "forward-restore-icon.png")
         )
 
         reset_histology_button.clicked.connect(self.reset_histology_requested.emit)
@@ -232,7 +238,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         reset_volume_button.setToolTip("Reset the atlas alignment settings.")
         reset_volume_button.setStatusTip("Reset the atlas alignment settings.")
         reset_volume_button.setIcon(
-            DynamicThemeIcon("resources/icons/forward-restore-icon.png")
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "forward-restore-icon.png")
         )
 
         reset_volume_button.clicked.connect(self.reset_volume_requested.emit)
@@ -250,7 +256,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
             "Apply a pass of ImageJ's brightness/contrast auto-thresholding algorithm."
         )
         apply_auto_threshold_button.setIcon(
-            DynamicThemeIcon("resources/icons/background-icon.png")
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "background-icon.png")
         )
 
         apply_auto_threshold_button.clicked.connect(
@@ -264,7 +270,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
         background_spin_box_icon = QtWidgets.QToolButton()
 
         background_spin_box_icon.setIcon(
-            DynamicThemeIcon("resources/icons/color-contrast-icon.png")
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "color-contrast-icon.png")
         )
         background_spin_box_icon.setStyleSheet(
             """
@@ -298,7 +304,7 @@ class RegistrationToolBar(QtWidgets.QToolBar):
             "Start the landmark registration process."
         )
         landmark_registration_button.setIcon(
-            DynamicThemeIcon("resources/icons/interactivity-icon.png")
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "interactivity-icon.png")
         )
 
         landmark_registration_button.clicked.connect(

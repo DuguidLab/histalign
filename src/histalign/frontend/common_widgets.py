@@ -22,6 +22,7 @@ from histalign.backend.ccf.model_view import (
     ABAStructureTreeModel,
     iterate_structure_node_dfs,
 )
+from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.pyside_helpers import connect_single_shot_slot, FakeQtABC
@@ -346,7 +347,7 @@ class StructureTagWidget(QtWidgets.QFrame):
 
         #
         pixmap_label = ResizablePixmapLabel(
-            "resources/icons/close-line-icon.png", icon_mode=True
+            RESOURCES_ROOT / "icons" / "close-line-icon.png", icon_mode=True
         )
 
         pixmap_height = name_label.fontMetrics().boundingRect(name).height()
@@ -1401,7 +1402,7 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
     @staticmethod
     def generate_pixmaps() -> None:
         """Generates and caches the relevant pixmaps for this item."""
-        pixmap_out = QtGui.QPixmap("resources/icons/circle-center-icon.png")
+        pixmap_out = QtGui.QPixmap(RESOURCES_ROOT / "icons" / "circle-center-icon.png")
         painter = QtGui.QPainter(pixmap_out)
         painter.setCompositionMode(
             QtGui.QPainter.CompositionMode.CompositionMode_SourceIn

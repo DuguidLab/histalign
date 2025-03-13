@@ -6,6 +6,7 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.models import HistologySettings, Orientation, VolumeSettings
 from histalign.frontend.common_widgets import DynamicThemeIcon, Icon
 
@@ -202,7 +203,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         scale_link_button.clicked.connect(self.toggle_scale_link)
 
         scale_link_button.setIcon(
-            DynamicThemeIcon("resources/icons/link-vertical-icon.png")
+            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "link-vertical-icon.png")
         )
 
         self.scale_link_button = scale_link_button
@@ -219,7 +220,11 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         scale_x_layout.addWidget(scale_x_spin_box, stretch=1)
         scale_x_layout.addWidget(
-            Icon("resources/icons/arrow-thin-chevron-top-right-corner-icon.png")
+            Icon(
+                RESOURCES_ROOT
+                / "icons"
+                / "arrow-thin-chevron-top-right-corner-icon.png"
+            )
         )
 
         #
@@ -227,7 +232,11 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         scale_y_layout.addWidget(scale_y_spin_box, stretch=1)
         scale_y_layout.addWidget(
-            Icon("resources/icons/arrow-thin-chevron-bottom-right-corner-icon.png")
+            Icon(
+                RESOURCES_ROOT
+                / "icons"
+                / "arrow-thin-chevron-bottom-right-corner-icon.png"
+            )
         )
 
         #
@@ -398,11 +407,13 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
         if self.scaling_linked:
             self.scale_link_button.setIcon(
-                DynamicThemeIcon("resources/icons/link-vertical-icon.png")
+                DynamicThemeIcon(RESOURCES_ROOT / "icons" / "link-vertical-icon.png")
             )
         else:
             self.scale_link_button.setIcon(
-                DynamicThemeIcon("resources/icons/broken-link-vertical-icon.png")
+                DynamicThemeIcon(
+                    RESOURCES_ROOT / "icons" / "broken-link-vertical-icon.png"
+                )
             )
 
         self.scale_link_button.update()

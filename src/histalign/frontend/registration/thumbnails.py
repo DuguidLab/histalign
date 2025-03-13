@@ -9,6 +9,7 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.workspace import Workspace
 from histalign.frontend.common_widgets import (
     CutOffLabel,
@@ -108,7 +109,7 @@ class ThumbnailWidget(QtWidgets.QFrame):
             "ThumbnailWidget_complete", complete_icon_pixmap
         ):
             complete_icon_pixmap = QtGui.QPixmap(
-                "resources/icons/check-mark-square-icon.svg"
+                RESOURCES_ROOT / "icons" / "check-mark-square-icon.png"
             )
             QtGui.QPixmapCache.insert("ThumbnailWidget_complete", complete_icon_pixmap)
 

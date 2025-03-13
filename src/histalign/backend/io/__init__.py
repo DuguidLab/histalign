@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+import importlib.resources
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,8 @@ if not data_directories:
     raise ValueError("Cannot find a data directory.")
 DATA_ROOT = Path(data_directories[0]) / "histalign"
 del data_directories
+
+RESOURCES_ROOT = importlib.resources.files("histalign.resources")
 
 ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
 
