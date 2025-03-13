@@ -122,7 +122,7 @@ def load_volume(
             # Datasets can behave as arrays most but not all of the time
             if not allow_dataset:
                 array = array[:]
-                h5_handle.close()
+                handle.close()
         case "nrrd":
             array = nrrd.read(file_path)[0]
         case "npy":
