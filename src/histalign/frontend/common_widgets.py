@@ -32,6 +32,8 @@ from histalign.frontend.pyside_helpers import (
 )
 from histalign.frontend.themes import is_light_colour
 
+QWIDGETSIZE_MAX = 16777215  # Qt constant
+
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
 _module_logger = logging.getLogger(__name__)
@@ -2531,3 +2533,341 @@ class CutOffLabel(QtWidgets.QLabel):
             text = text[:-4] + "..."
 
         self.setText(text, overwrite=False)
+
+
+class BinaryAlphaPixmap(QtGui.QPixmap):
+    def __init__(self, image_path: str | Path) -> None:
+        """A pixmap that draws its binary content as foreground vs alpha.
+
+        Args:
+            image_path (str | Path): Path to the image to draw.
+        """
+        image = QtGui.QImage(str(image_path))
+
+        pixmap = QtGui.QPixmap(image)
+
+        painter = QtGui.QPainter(pixmap)
+
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceAtop
+        )
+        painter.setBrush(
+            QtGui.QBrush(
+                lua_aware_shift(
+                    QtWidgets.QApplication.instance().palette().window().color(), 100
+                )
+            )
+        )
+
+        painter.drawRect(pixmap.rect())
+
+        painter.end()
+
+        super().__init__(pixmap)
+
+
+class HoverButton(QtWidgets.QPushButton):
+    def __init__(
+        self,
+        colour_shift: int = 20,
+        flat: bool = True,
+        icon_path: str | None = None,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        """A button that reacts when hovered by changing its background color.
+
+        Args:
+            colour_shift (int, optional): Shift in the background colour on hover.
+            flat (bool, optional): Whether the button should be flat.
+            parent (QtWidgets.QWidget, optional): Parent of this widget.
+        """
+        super().__init__(parent)
+
+        #
+        self.colour_shift = colour_shift
+
+        self._palette = self.palette()
+        self._auto_fill_background = True
+
+        #
+        self.setFlat(flat)
+
+        self.setAutoFillBackground(True)
+
+        #
+        if icon_path is not None:
+            self.setIcon(DynamicThemeIcon(icon_path))
+
+    def enterEvent(self, event: QtGui.QEnterEvent) -> None:
+        """Handles enter events.
+
+        On enter, the palette and the background fill are temporarily changed.
+
+        Args:
+            event (QtGui.QEnterEvent): Event to handle.
+        """
+        super().enterEvent(event)
+
+        if not self.isEnabled():
+            return
+
+        palette = self.palette()
+        palette.setColor(
+            QtGui.QPalette.ColorRole.Button,
+            lua_aware_shift(palette.button().color(), self.colour_shift),
+        )
+        self.setPalette(palette, overwrite=False)
+
+        self.setAutoFillBackground(True, overwrite=False)
+
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        """Handles leave events.
+
+        On leave, any temporary modifications of the palette and background fill are
+        reverted.
+
+        Args:
+            event (QtCore.QEvent): Event to handle.
+        """
+        super().leaveEvent(event)
+
+        self.setAutoFillBackground(self._auto_fill_background)
+        self.setPalette(self._palette)
+
+    def setAutoFillBackground(self, enabled: bool, overwrite: bool = True) -> None:
+        """Sets the autofill background property.
+
+        Args:
+            enabled (bool): Value to set the property to.
+            overwrite (bool, optional):
+                Whether the new value should overwrite the cache or be considered
+                temporary.
+        """
+        if overwrite:
+            self._auto_fill_background = enabled
+
+        super().setAutoFillBackground(enabled)
+
+    def setPalette(self, palette: QtGui.QPalette, overwrite: bool = True) -> None:
+        """Sets the palette for this widget.
+
+        Args:
+            palette (QtGui.QPalette): Palette to set on this widget.
+            overwrite (bool, optional):
+                Whether the new value should overwrite the cache or be considered
+                temporary.
+        """
+        if overwrite:
+            self._palette = palette
+
+        super().setPalette(palette)
+
+
+class CollapsibleWidgetArea(QtWidgets.QWidget):
+    collapsed: QtCore.Signal = QtCore.Signal()
+    expanded: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self,
+        expand_direction: Literal[
+            "left_to_right", "right_to_left", "top_to_bottom", "bottom_to_top"
+        ] = "left_to_right",
+        icon_dimension: int = 20,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.expand_direction = expand_direction
+        self.icon_dimension = icon_dimension
+
+        self._icons = []
+        self._widgets = []
+        self._expanded_widget = None
+
+        #
+        icon_widget = QtWidgets.QWidget(self)
+        icon_widget.setObjectName("IconWidget")
+
+        frame_colour = lua_aware_shift(
+            icon_widget.palette().window().color(), 10
+        ).getRgb()
+
+        if expand_direction == "left_to_right":
+            icon_layout = QtWidgets.QVBoxLayout()
+            icon_layout.setContentsMargins(0, 5, 3, 5)
+            border = "right"
+        elif expand_direction == "right_to_left":
+            icon_layout = QtWidgets.QVBoxLayout()
+            icon_layout.setContentsMargins(3, 5, 0, 5)
+            border = "left"
+        elif expand_direction == "top_to_bottom":
+            icon_layout = QtWidgets.QHBoxLayout()
+            icon_layout.setContentsMargins(5, 0, 5, 3)
+            border = "bottom"
+        elif expand_direction == "bottom_to_top":
+            icon_layout = QtWidgets.QHBoxLayout()
+            icon_layout.setContentsMargins(5, 3, 5, 0)
+            border = "top"
+        else:
+            raise Exception("ASSERT NOT REACHED")
+
+        stylesheet = (
+            "#IconWidget {{ border-{}: 1px solid rgba({}, {}, {}, {}); }}".format(
+                border, *frame_colour
+            )
+        )
+        icon_widget.setStyleSheet(stylesheet)
+
+        icon_layout.addStretch(1)
+
+        icon_widget.setLayout(icon_layout)
+
+        self.icon_layout = icon_layout
+
+        #
+        widget_layout = QtWidgets.QVBoxLayout()
+
+        widget_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.widget_layout = widget_layout
+
+        #
+        if expand_direction in ["left_to_right", "right_to_left"]:
+            layout = QtWidgets.QHBoxLayout()
+        else:
+            layout = QtWidgets.QVBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        if expand_direction in ["left_to_right", "top_to_bottom"]:
+            layout.addWidget(icon_widget)
+            layout.addLayout(widget_layout)
+        else:
+            layout.addLayout(widget_layout)
+            layout.addWidget(icon_widget)
+
+        self.setLayout(layout)
+
+        #
+        self.set_maximum_dimension()
+
+    def add_widget(
+        self, widget: QtWidgets.QWidget, icon_path: str | None = None
+    ) -> None:
+        widget.hide()
+
+        self._widgets.append(widget)
+
+        icon_button = HoverButton(
+            icon_path=icon_path or RESOURCES_ROOT / "icons" / "add-categories-icon.png"
+        )
+
+        icon_button.setFixedSize(self.icon_dimension, self.icon_dimension)
+
+        icon_button.clicked.connect(lambda: self.toggle_widget(widget))
+
+        self._icons.append(icon_button)
+
+        self.icon_layout.insertWidget(len(self._widgets) - 1, icon_button)
+
+    def collapse(self, widget: QtWidgets.QWidget | None = None) -> None:
+        if self._expanded_widget is not None:
+            self.widget_layout.removeWidget(self._expanded_widget)
+
+        self.set_maximum_dimension()
+
+        if widget is not None:
+            widget.hide()
+        self._expanded_widget = None
+
+        self.collapsed.emit()
+
+    def expand(self, widget: QtWidgets.QWidget) -> None:
+        self.reset_maximum_dimension()
+
+        self.widget_layout.addWidget(widget)
+
+        self._expanded_widget = widget
+        widget.show()
+
+        self.expanded.emit()
+
+    def reset_maximum_dimension(self) -> None:
+        if self.expand_direction in ["left_to_right", "right_to_left"]:
+            self.setMaximumWidth(QWIDGETSIZE_MAX)
+        else:
+            self.setMaximumHeight(QWIDGETSIZE_MAX)
+
+    def set_maximum_dimension(self) -> None:
+        if self.expand_direction in ["left_to_right", "right_to_left"]:
+            self.setMaximumWidth(
+                self.icon_dimension
+                + self.contentsMargins().left()
+                + self.contentsMargins().right()
+                + self.layout().contentsMargins().left()
+                + self.layout().contentsMargins().right()
+            )
+        else:
+            self.setMaximumHeight(
+                self.icon_dimension
+                + self.contentsMargins().top()
+                + self.contentsMargins().bottom()
+                + self.layout().contentsMargins().top()
+                + self.layout().contentsMargins().bottom()
+            )
+
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        super().showEvent(event)
+
+        if len(self._widgets):
+            self.expand(self._widgets[0])
+
+    @QtCore.Slot()
+    def toggle_widget(self, widget: QtWidgets.QWidget) -> None:
+        if self._expanded_widget is None:
+            self.expand(widget)
+        else:
+            should_expand = widget != self._expanded_widget
+
+            self.collapse(self._expanded_widget)
+            if should_expand:
+                self.expand(widget)
+
+
+class VisibleSplitterHandle(QtWidgets.QSplitterHandle):
+    """A splitter handle with a visible ellipsis icon."""
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        """Handles paint events.
+
+        Args:
+            event (QtGui.QPaintEvent): Event to handle.
+        """
+        if not self.isEnabled():
+            return
+
+        painter = QtGui.QPainter(self)
+
+        icon_rect = QtCore.QRect(0, 0, 4 * self.rect().width(), 4 * self.rect().width())
+        icon_rect.moveCenter(self.rect().center())
+
+        if self.orientation() == QtCore.Qt.Orientation.Vertical:
+            pixmap = BinaryAlphaPixmap(RESOURCES_ROOT / "icons" / "ellipsis-h-icon.png")
+        else:
+            pixmap = BinaryAlphaPixmap(RESOURCES_ROOT / "icons" / "ellipsis-v-icon.png")
+        painter.drawPixmap(icon_rect, pixmap, pixmap.rect())
+
+        painter.end()
+
+
+class VisibleHandleSplitter(QtWidgets.QSplitter):
+    """A splitter with handles showing up as ellipsis icons."""
+
+    def createHandle(self) -> VisibleSplitterHandle:
+        """Creates a visible handle.
+
+        Returns:
+            VisibleSplitterHandle: The newly created handle.
+        """
+        return VisibleSplitterHandle(self.orientation(), self)
