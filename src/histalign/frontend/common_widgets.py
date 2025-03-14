@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 import re
 import sys
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Literal, Optional
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
@@ -25,7 +25,11 @@ from histalign.backend.ccf.model_view import (
 from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
-from histalign.frontend.pyside_helpers import connect_single_shot_slot, FakeQtABC
+from histalign.frontend.pyside_helpers import (
+    connect_single_shot_slot,
+    FakeQtABC,
+    lua_aware_shift,
+)
 from histalign.frontend.themes import is_light_colour
 
 HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
@@ -1004,7 +1008,18 @@ class BasicApplicationWindow(QtWidgets.QMainWindow, FakeQtABC):
         self.set_up_menu_bar()
 
         #
-        self.statusBar()
+        status_bar = self.statusBar()
+        status_bar.setObjectName("MainStatusBar")
+
+        frame_colour = lua_aware_shift(
+            status_bar.palette().window().color(), 10
+        ).getRgb()
+
+        status_bar.setStyleSheet(
+            "#MainStatusBar {{ border-top: 1px solid rgba({}, {}, {}, {}); }}".format(
+                *frame_colour
+            )
+        )
 
     def set_up_menu_bar(self) -> None:
         menu_bar = BasicMenuBar()

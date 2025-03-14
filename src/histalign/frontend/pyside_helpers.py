@@ -6,7 +6,9 @@ from contextlib import suppress
 from typing import Optional, TypeVar
 
 import numpy as np
-from PySide6 import QtWidgets
+from PySide6 import QtGui, QtWidgets
+
+from histalign.frontend.themes import is_light_colour
 
 _T = TypeVar("_T")
 
@@ -121,3 +123,33 @@ def get_colour_table(colour: str, alpha: int = 255, threshold: int = 1) -> np.nd
     colour_table[:threshold] = 0
 
     return colour_table
+
+
+def lua_aware_shift(
+    colour: QtGui.QColor, shift: int, away: bool = True
+) -> QtGui.QColor:
+    """Shifts a colour darker or lighter.
+
+    In the case of a light colour and `away=True`, the returned colour will be shifted
+    to a darker colour by `shift`, and vice versa for a dark colour.
+    In the case of a light colour and `away=False`, the returned colour will be shifted
+    to a lighter colour by `shift`, and vice versa for a dark colour.
+
+    Args:
+        colour (QtGui.QColor): Colour to shift.
+        shift (int): Positive shift value to modify the colour by.
+        away (bool, optional):
+            Whether the colour should be shifted towards the opposite lua category or
+            towards its own.
+
+    Returns:
+        QtGui.QColor: The shifted colour.
+    """
+    shift = 100 + shift
+
+    if (is_light_colour(colour) and away) or (not is_light_colour(colour) and not away):
+        colour = colour.darker(shift)
+    else:
+        colour = colour.lighter(shift)
+
+    return colour
