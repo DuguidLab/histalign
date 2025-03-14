@@ -2634,6 +2634,11 @@ class HoverButton(QtWidgets.QPushButton):
         self.setAutoFillBackground(self._auto_fill_background)
         self.setPalette(self._palette)
 
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.setIconSize(self.contentsRect().size())
+
     def setAutoFillBackground(self, enabled: bool, overwrite: bool = True) -> None:
         """Sets the autofill background property.
 
