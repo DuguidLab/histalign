@@ -22,6 +22,8 @@ SCROLL_THRESHOLD: int = 50
 
 
 class ThumbnailWidget(QtWidgets.QFrame):
+    double_clicked: QtCore.Signal = QtCore.Signal()
+
     def __init__(
         self,
         file_path: str | Path,
@@ -175,8 +177,13 @@ class ThumbnailWidget(QtWidgets.QFrame):
     def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
         self.pixmap_label.setPixmap(pixmap)
 
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseDoubleClickEvent(event)
 
-class _ThumbnailsContainerWidget(QtWidgets.QWidget):
+        self.double_clicked.emit()
+
+
+class ThumbnailsContainerWidget(QtWidgets.QWidget):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
@@ -375,8 +382,8 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         if thumbnail_item is not None:
             thumbnail_item.widget().set_completed(completed)
 
-    def setWidget(self, widget: _ThumbnailsContainerWidget) -> None:
-        if not isinstance(widget, _ThumbnailsContainerWidget):
+    def setWidget(self, widget: ThumbnailsContainerWidget) -> None:
+        if not isinstance(widget, ThumbnailsContainerWidget):
             raise ValueError(
                 "ThumbnailsWidget only accepts _ThumbnailsContainerWidget as a widget."
             )
@@ -384,11 +391,11 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         self._widget = widget
         super().setWidget(widget)
 
-    def widget(self) -> _ThumbnailsContainerWidget:
+    def widget(self) -> ThumbnailsContainerWidget:
         return self._widget
 
     def _initialise_container_widget(self) -> None:
-        widget = _ThumbnailsContainerWidget()
+        widget = ThumbnailsContainerWidget()
 
         self.setMinimumSize(
             widget.layout().minimumSize()

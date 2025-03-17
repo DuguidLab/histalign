@@ -2,14 +2,19 @@
 #
 # SPDX-License-Identifier: MIT
 
+from pathlib import Path
+
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.io import RESOURCES_ROOT
+from histalign.backend.io import load_alignment_settings, RESOURCES_ROOT
+from histalign.backend.workspace import HistologySlice
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     CollapsibleWidgetArea,
     VisibleHandleSplitter,
+    ZoomAndPanView,
 )
+from histalign.frontend.pyside_helpers import np_to_qpixmap
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.navigation import NavigationWidget
 
@@ -22,8 +27,12 @@ class VisualisationMainWindow(BasicApplicationWindow):
         self._saved_left_size = -1
         self._saved_right_size = -1
 
+        self._pixmap_item = None
+
         #
         navigation_widget = NavigationWidget()
+
+        navigation_widget.open_image_requested.connect(self.open_image)
 
         self.navigation_widget = navigation_widget
 
@@ -33,7 +42,14 @@ class VisualisationMainWindow(BasicApplicationWindow):
         self.information_widget = information_widget
 
         #
-        central_view = QtWidgets.QGraphicsView()
+        scene = QtWidgets.QGraphicsScene(-100_000, -100_000, 200_000, 200_000, self)
+
+        self.scene = scene
+
+        #
+        central_view = ZoomAndPanView(scene)
+
+        central_view.setBackgroundBrush(QtCore.Qt.GlobalColor.black)
 
         self.central_view = central_view
 
@@ -96,8 +112,28 @@ class VisualisationMainWindow(BasicApplicationWindow):
         self.centralWidget().setSizes(sizes)
 
     @QtCore.Slot()
+    def open_image(self, alignment_path: Path) -> None:
+        alignment_settings = load_alignment_settings(alignment_path)
+        histology_path = alignment_settings.histology_path
+
+        file = HistologySlice(str(histology_path))
+        file.load_image(str(alignment_path.parent), 16)
+
+        pixmap = np_to_qpixmap(file.image_array)
+
+        if self._pixmap_item is not None:
+            self.scene.removeItem(self._pixmap_item)
+        pixmap_item = self.scene.addPixmap(pixmap)
+
+        self.central_view.set_focus_rect(pixmap_item.sceneBoundingRect())
+
+        self._pixmap_item = pixmap_item
+
+    @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:
-        raise NotImplementedError
+        project_path = Path(project_file_path).parent
+
+        self.navigation_widget.set_project_root(project_path)
 
     @QtCore.Slot()
     def left_collapsed(self) -> None:

@@ -153,3 +153,34 @@ def lua_aware_shift(
         colour = colour.lighter(shift)
 
     return colour
+
+
+def np_to_qimage(
+    array: np.ndarray, format: Optional[QtGui.QImage.Format] = None
+) -> QtGui.QImage:
+    if format is None:
+        match array.dtype:
+            case np.uint8:
+                format = QtGui.QImage.Format.Format_Grayscale8
+            case np.uint16:
+                format = QtGui.QImage.Format.Format_Grayscale16
+            case np.uint32:
+                format = QtGui.QImage.Format.Format_Grayscale32
+            case other:
+                raise ValueError(
+                    f"Cannot infer QImage format from '{other}' numpy datatype."
+                )
+
+    return QtGui.QImage(
+        array.tobytes(),
+        array.shape[1],
+        array.shape[0],
+        array.shape[1] * array.itemsize,
+        format,
+    )
+
+
+def np_to_qpixmap(
+    array: np.ndarray, format: Optional[QtGui.QImage.Format] = None
+) -> QtGui.QPixmap:
+    return QtGui.QPixmap.fromImage(np_to_qimage(array, format))

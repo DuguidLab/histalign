@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from contextlib import suppress
 import itertools
 import json
 import logging
@@ -1379,7 +1380,7 @@ class Icon(QtWidgets.QPushButton):
 
     def event(self, e: QtCore.QEvent) -> bool:
         if e.type() != QtCore.QEvent.Type.Paint:
-            return True
+            return False
 
         return super().event(e)
 
@@ -1611,28 +1612,29 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
     def set_drag_button(self, button: QtCore.Qt.MouseButton) -> None:
         self._drag_button = button
 
-    def set_focus_rect(self, rect: QtCore.QRectF, force_visible: bool = True) -> None:
+    def set_focus_rect(
+        self,
+        rect: QtCore.QRectF,
+        centre_on: bool = True,
+        reset_general_zoom: bool = True,
+    ) -> None:
         """Sets the focus rectangle.
 
         Args:
             rect (QtCore.QRectF):
                 Rectangle which should always have a single visible pixel. This should
                 be in scene coordinates.
-            force_visible (bool, optional):
-                Whether to force the rectangle to be visible after setting. If it is
-                not and this is true, the view will centre on the rectangle.
+            centre_on (bool, optional): Whether to centre on the focus rect.
+            reset_general_zoom (bool, optional): Whether to reset the general zoom to 1.
         """
         self.focus_rect = rect
         self.update_focus_zoom()
 
-        if force_visible:
-            view_rect = self.viewport().rect()
-            focus_rect = self.mapFromScene(self.focus_rect).boundingRect()
-            # Offset left and top edges to ensure a pixel can be visible along them
-            view_rect.adjust(1, 1, 0, 0)
-
-            if not view_rect.intersects(focus_rect):
-                self.centre_on_focus()
+        if centre_on:
+            self.centre_on_focus()
+        if reset_general_zoom:
+            self.general_zoom = 1
+            self.update_focus_zoom()
 
     def set_zoom_modifier(
         self, modifier: QtCore.Qt.KeyboardModifier.ControlModifier
@@ -2520,6 +2522,9 @@ class CutOffLabel(QtWidgets.QLabel):
         super().resizeEvent(event)
 
         rect = self.contentsRect()
+        if rect.width() < 1:
+            return
+
         text = self._text
 
         if rect.width() > QtGui.QFontMetrics(self.font()).boundingRect(text).width():
@@ -2566,37 +2571,34 @@ class BinaryAlphaPixmap(QtGui.QPixmap):
         super().__init__(pixmap)
 
 
-class HoverButton(QtWidgets.QPushButton):
+class HoverMixin:
     def __init__(
         self,
-        colour_shift: int = 20,
-        flat: bool = True,
-        icon_path: str | None = None,
         parent: Optional[QtWidgets.QWidget] = None,
+        /,
+        colour_change: int | QtGui.QColor = 20,
+        *args,
+        roles: Optional[list[QtGui.QPalette.ColorRole]] = None,
+        **kwargs,
     ) -> None:
-        """A button that reacts when hovered by changing its background color.
-
-        Args:
-            colour_shift (int, optional): Shift in the background colour on hover.
-            flat (bool, optional): Whether the button should be flat.
-            parent (QtWidgets.QWidget, optional): Parent of this widget.
-        """
-        super().__init__(parent)
+        super().__init__(parent, *args, **kwargs)
 
         #
-        self.colour_shift = colour_shift
+        self.colour_change = colour_change
 
         self._palette = self.palette()
         self._auto_fill_background = True
 
-        #
-        self.setFlat(flat)
+        self._roles = roles or [QtGui.QPalette.ColorRole.Window]
 
+        #
         self.setAutoFillBackground(True)
 
-        #
-        if icon_path is not None:
-            self.setIcon(DynamicThemeIcon(icon_path))
+    def changeEvent(self, event: QtCore.QEvent) -> None:
+        super().changeEvent(event)
+
+        if event.type() == QtCore.QEvent.Type.EnabledChange:
+            self.reset_temporary_changes()
 
     def enterEvent(self, event: QtGui.QEnterEvent) -> None:
         """Handles enter events.
@@ -2612,10 +2614,15 @@ class HoverButton(QtWidgets.QPushButton):
             return
 
         palette = self.palette()
-        palette.setColor(
-            QtGui.QPalette.ColorRole.Button,
-            lua_aware_shift(palette.button().color(), self.colour_shift),
-        )
+
+        try:
+            new_colour = lua_aware_shift(palette.button().color(), self.colour_change)
+        except TypeError:
+            new_colour = self.colour_change
+
+        for role in self._roles:
+            palette.setColor(role, new_colour)
+
         self.setPalette(palette, overwrite=False)
 
         self.setAutoFillBackground(True, overwrite=False)
@@ -2631,13 +2638,11 @@ class HoverButton(QtWidgets.QPushButton):
         """
         super().leaveEvent(event)
 
+        self.reset_temporary_changes()
+
+    def reset_temporary_changes(self) -> None:
         self.setAutoFillBackground(self._auto_fill_background)
         self.setPalette(self._palette)
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-
-        self.setIconSize(self.contentsRect().size())
 
     def setAutoFillBackground(self, enabled: bool, overwrite: bool = True) -> None:
         """Sets the autofill background property.
@@ -2666,6 +2671,59 @@ class HoverButton(QtWidgets.QPushButton):
             self._palette = palette
 
         super().setPalette(palette)
+
+
+class HoverButton(HoverMixin, QtWidgets.QPushButton):
+    def __init__(
+        self,
+        parent: Optional[QtWidgets.QWidget] = None,
+        /,
+        colour_change: int | QtGui.QColor = 20,
+        flat: bool = True,
+        icon_path: Optional[str] = None,
+        roles: Optional[list[QtGui.QPalette.ColorRole]] = None,
+    ) -> None:
+        """A button that reacts when hovered by changing its background color.
+
+        Args:
+            parent (QtWidgets.QWidget, optional): Parent of this widget.
+            colour_change (int | QtGui.QColor, optional):
+                Shift in the background colour on hover or the hover colour.
+            flat (bool, optional): Whether the button should be flat.
+        """
+        roles = (
+            roles
+            if roles is not None
+            else [
+                QtGui.QPalette.ColorRole.Window,
+                QtGui.QPalette.ColorRole.Button,
+            ]
+        )
+
+        super().__init__(
+            parent,
+            colour_change,
+            roles=roles,
+        )
+
+        #
+        self.setFlat(flat)
+
+        self.setAutoFillBackground(True)
+
+        #
+        if icon_path is not None:
+            self.setIcon(DynamicThemeIcon(icon_path))
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        icon_dimension = min(
+            *self.contentsRect().size().toTuple()
+        ) - self.style().pixelMetric(QtWidgets.QStyle.PixelMetric.PM_ButtonMargin)
+        icon_size = QtCore.QSize(icon_dimension, icon_dimension)
+
+        self.setIconSize(icon_size)
 
 
 class CollapsibleWidgetArea(QtWidgets.QWidget):
@@ -2876,3 +2934,143 @@ class VisibleHandleSplitter(QtWidgets.QSplitter):
             VisibleSplitterHandle: The newly created handle.
         """
         return VisibleSplitterHandle(self.orientation(), self)
+
+
+class StackWidget(QtWidgets.QWidget):
+    index_changed: QtCore.Signal = QtCore.Signal(int)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        self._widget_stack = []
+        self._index = -1
+
+        #
+        layout = QtWidgets.QGridLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        layout.setRowStretch(0, 1)
+        layout.setColumnStretch(0, 1)
+
+        self.setLayout(layout)
+
+    def in_stack(self, widget: QtWidgets.QWidget) -> bool:
+        return widget in self._widget_stack
+
+    def has_next(self) -> bool:
+        return self._index < len(self._widget_stack) - 1
+
+    def has_previous(self) -> bool:
+        return self._index > 0
+
+    def next(self) -> None:
+        if not self.has_next():
+            return
+
+        self._widget_stack[self._index].hide()
+        self._index += 1
+        self._widget_stack[self._index].show()
+
+        self.index_changed.emit(self._index)
+
+    def pop(self) -> None:
+        self._pop()
+
+        with suppress(IndexError):
+            self._widget_stack[self._index].show()
+
+    def previous(self) -> None:
+        if not self.has_previous():
+            return
+
+        self._widget_stack[self._index].hide()
+        self._index -= 1
+        self._widget_stack[self._index].show()
+
+    def put(self, widget: QtWidgets.QWidget) -> None:
+        with suppress(IndexError):
+            self._widget_stack[self._index].hide()
+
+        self._clean_stack()
+
+        self._widget_stack.append(widget)
+        self._index += 1
+
+        self.layout().addWidget(widget, 0, 0)
+
+    def _clean_stack(self) -> None:
+        while self._index < len(self._widget_stack) - 1:
+            self._pop()
+
+    def _pop(self) -> None:
+        with suppress(IndexError):
+            widget = self._widget_stack.pop()
+            index = self.layout().indexOf(widget)
+            item = self.layout().takeAt(index)
+            if item.widget().parent() is None:
+                item.widget().deleteLater()
+
+        self._index = min(self._index, len(self._widget_stack) - 1)
+
+
+class FileWidget(HoverMixin, QtWidgets.QWidget):
+    clicked: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self,
+        parent: Optional[QtWidgets.QWidget] = None,
+        /,
+        colour_change: int | QtGui.QColor = 20,
+        path: Path = None,
+        is_folder: bool = False,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            parent,
+            colour_change,
+            roles=[QtGui.QPalette.ColorRole.Window, QtGui.QPalette.ColorRole.Button],
+            *args,
+            **kwargs,
+        )
+
+        #
+        self._clicked = False
+
+        #
+        icon_file = "folder-icon.png" if is_folder else "file-black-icon.png"
+
+        icon = Icon(icon_path=RESOURCES_ROOT / "icons" / icon_file)
+
+        self.icon = icon
+
+        #
+        label = CutOffLabel(str(path))
+
+        self.label = label
+
+        #
+        layout = QtWidgets.QHBoxLayout()
+
+        layout.addWidget(icon)
+        layout.addWidget(label, stretch=1)
+
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.setLayout(layout)
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mousePressEvent(event)
+
+        self._clicked = True
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseReleaseEvent(event)
+
+        if self._clicked:
+            self.clicked.emit()
+            self._clicked = False
