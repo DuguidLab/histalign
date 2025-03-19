@@ -377,7 +377,7 @@ def iterate_tree_model_dfs(model: QtCore.QAbstractItemModel) -> Iterator[Index]:
     """
     queue = [model.index(0, 0)]
     while len(queue) > 0:
-        index = queue.pop()
+        index = queue.pop(0)
         yield index
         for row_index in range(model.rowCount(index)):
             queue.append(model.index(row_index, 0, index))
