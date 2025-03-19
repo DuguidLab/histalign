@@ -164,10 +164,10 @@ class ABAStructureModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.ItemDataRole.CheckStateRole:
             if value == QtCore.Qt.CheckState.Checked.value:
                 self._checked_indices.append(index)
-                self.item_checked.emit(index)
+                self.item_checked.emit(index.siblingAtColumn(0))
             else:
                 self._checked_indices.remove(index)
-                self.item_unchecked.emit(index)
+                self.item_unchecked.emit(index.siblingAtColumn(0))
 
             self.dataChanged.emit(index, index)
 
