@@ -56,6 +56,8 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
     def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
         new_position = event.scenePos()
 
+        if self.previous_position is None:
+            return
         self.move(self.previous_position, new_position)
 
         self.previous_position = new_position
@@ -71,7 +73,7 @@ class MovableAndZoomableGraphicsPixmapItem(QtWidgets.QGraphicsPixmapItem):
         elif event.delta() < 0:
             direction_multiplier = -1
         else:  # Horizontal scrolling
-            return super().eventFilter(watched, event)
+            return super().wheelEvent(event)
 
         # TODO: Avoid hard-coding 5x for modifier here and in `settings.py`
         if modified:
@@ -102,6 +104,7 @@ class AlignmentWidget(QtWidgets.QWidget):
     volume_slicer: Optional[VolumeSlicer] = None
     histology_pixmap: QtWidgets.QGraphicsPixmapItem
     histology_image: QtGui.QImage
+    histology_array: Optional[np.ndarray] = None
 
     alignment_settings: Optional[AlignmentSettings] = None
     volume_settings: Optional[VolumeSettings] = None
@@ -155,7 +158,7 @@ class AlignmentWidget(QtWidgets.QWidget):
         else:
             self.update_histology_image(array)
 
-    def update_histology_image(self, array: np.ndarray) -> None:
+    def update_histology_image(self, array: Optional[np.ndarray]) -> None:
         if array is None:
             self.histology_image = QtGui.QImage()
         else:
@@ -167,7 +170,9 @@ class AlignmentWidget(QtWidgets.QWidget):
                 QtGui.QImage.Format.Format_Indexed8,
             )
             self.histology_image.setColorTable(
-                get_colour_table(self.lut, self.global_alpha, self.background_threshold)
+                get_colour_table(
+                    self.lut, self.global_alpha, self.background_threshold
+                ).tolist()
             )
 
         pixmap = QtGui.QPixmap.fromImage(self.histology_image)
@@ -212,6 +217,9 @@ class AlignmentWidget(QtWidgets.QWidget):
                 successful passes count will be used. This can mean no thresholding is
                 applied if no passes count greater than 0 is successful.
         """
+        if self.histology_array is None:
+            return
+
         self.auto_contrast_passes += 1
 
         new_array, successful = simulate_auto_contrast_passes(
@@ -1075,14 +1083,14 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         self._reference_point.moved.connect(
             lambda x: widget.update_reference_coordinates(
                 self.convert_position_to_coordinates(
-                    self.reference_pixmap_item.mapFromScene(x)
+                    self.reference_pixmap_item.mapFromScene(x)  # type: ignore[arg-type]
                 )
             )
         )
         self._histology_point.moved.connect(
             lambda x: widget.update_histology_coordinates(
                 self.convert_position_to_coordinates(
-                    self.histology_pixmap_item.mapFromScene(x)
+                    self.histology_pixmap_item.mapFromScene(x)  # type: ignore[arg-type]
                 )
             )
         )
@@ -1105,10 +1113,10 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         Args:
             item (PointGraphicsItem): Item to select.
         """
-        self.reference_scene.setFocusItem(None)
+        self.reference_scene.setFocusItem(None)  # type: ignore[arg-type]
         self.reference_scene.clearSelection()
 
-        self.histology_scene.setFocusItem(None)
+        self.histology_scene.setFocusItem(None)  # type: ignore[arg-type]
         self.histology_scene.clearSelection()
 
         item.setSelected(True)
@@ -1185,7 +1193,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
             self.reference_pixmap_item.pixmap(), self.reference_pixmap_item.transform()
         )
         window.update_histology_pixmap(
-            self.histology_pixmap_item.pixmap(), self.estimate_histology_transform()
+            self.histology_pixmap_item.pixmap(), self.estimate_histology_transform()  # type: ignore[arg-type]
         )
 
         window.show()

@@ -8,7 +8,7 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.models import ProjectSettings
+from histalign.backend.models import Orientation, ProjectSettings, Resolution
 
 
 class AtlasChangeDialog(QtWidgets.QDialog):
@@ -88,7 +88,7 @@ class AtlasProgressDialog(QtWidgets.QProgressDialog):
 
         self.setMinimum(0)
         self.setMaximum(0)
-        self.setCancelButton(None)
+        self.setCancelButton(None)  # type: ignore[arg-type]
 
 
 class InvalidProjectFileDialog(QtWidgets.QMessageBox):
@@ -256,9 +256,9 @@ class NewProjectDialog(QtWidgets.QDialog):
 
         self.submitted.emit(
             ProjectSettings(
-                project_path=self.project_path_widget.text(),
-                orientation=self.orientation_widget.currentText().lower(),
-                resolution=self.resolution_widget.currentText(),
+                project_path=Path(self.project_path_widget.text()),
+                orientation=Orientation(self.orientation_widget.currentText().lower()),
+                resolution=Resolution(int(self.resolution_widget.currentText())),
             )
         )
         self.accept()

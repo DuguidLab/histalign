@@ -22,7 +22,7 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
 
     def __init__(
         self,
-        parent: Optional[QtCore.QObject] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
@@ -128,7 +128,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
 
     def __init__(
         self,
-        parent: Optional[QtCore.QObject] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
@@ -457,7 +457,7 @@ class SettingsWidget(QtWidgets.QWidget):
 
     def __init__(
         self,
-        parent: Optional[QtCore.QObject] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 

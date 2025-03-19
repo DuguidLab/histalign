@@ -106,6 +106,9 @@ class ThumbnailWidget(QtWidgets.QFrame):
             return
 
         pixmap = self.pixmap_label._pixmap
+        if pixmap is None:
+            return
+
         complete_icon_pixmap = QtGui.QPixmap()
         if not QtGui.QPixmapCache.find(
             "ThumbnailWidget_complete", complete_icon_pixmap
@@ -260,7 +263,8 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         # According to the docs, the source is a QWidget, not just a QObject
         source = event.source()
         if not isinstance(source, ThumbnailWidget):
-            # noinspection PyTypeChecker
+            if not isinstance(source, QtWidgets.QWidget):
+                return
             source = find_parent(source, ThumbnailWidget)
         target = self.childAt(event.position().toPoint())
         if target is not None and not isinstance(target, ThumbnailWidget):
@@ -345,12 +349,13 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
             event.buttons() == QtCore.Qt.MouseButton.LeftButton
             and self._start_drag_position is not None
         ):
-            dragged_widget = find_parent(
-                self.childAt(self._start_drag_position), ThumbnailWidget
-            )
+            child = self.childAt(self._start_drag_position)
+            if not isinstance(child, QtWidgets.QWidget):
+                return super().mouseMoveEvent(event)
+
+            dragged_widget = find_parent(child, ThumbnailWidget)
             if dragged_widget is None:
-                super().mouseMoveEvent(event)
-                return
+                return super().mouseMoveEvent(event)
 
             dragged_widget.set_highlighted(False, False)
 

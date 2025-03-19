@@ -323,7 +323,7 @@ class StructureFinderWidget(QtWidgets.QWidget):
         self.tree_view.selectionModel().select(
             index,
             QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect
-            | QItemSelectionModel.Current
+            | QtCore.QItemSelectionModel.Current
             | QtCore.QItemSelectionModel.SelectionFlag.Rows,
         )
         self.tree_view.scrollTo(index)
@@ -1084,7 +1084,7 @@ class DynamicThemeIcon(QtGui.QIcon):
 
     _pixmap: QtGui.QPixmap
 
-    def __init__(self, icon_path: str) -> None:
+    def __init__(self, icon_path: str | Path) -> None:
         pixmap = QtGui.QPixmap(icon_path)
 
         self._pixmap = pixmap.copy()
@@ -1379,7 +1379,7 @@ class Canvas(FigureCanvasQTAgg):
 class Icon(QtWidgets.QPushButton):
     def __init__(
         self,
-        icon_path: Optional[str] = None,
+        icon_path: Optional[str | Path] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -1411,7 +1411,7 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
         self,
         position: QtCore.QPointF,
         size: int,
-        parent: Optional[QtWidgets.QGraphicsItem] = None,
+        parent: Optional[QtWidgets.QGraphicsObject] = None,
     ) -> None:
         super().__init__(parent)
 
@@ -1828,7 +1828,7 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
 
     # noinspection PyTypeChecker
     def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
-        self.scene().setFocusItem(None)
+        self.scene().setFocusItem(None)  # type: ignore[arg-type]
         super().focusOutEvent(event)
 
 
@@ -2628,9 +2628,9 @@ class HoverMixin:
 
         palette = self.palette()
 
-        try:
+        if isinstance(self.colour_change, int):
             new_colour = lua_aware_shift(palette.button().color(), self.colour_change)
-        except TypeError:
+        else:
             new_colour = self.colour_change
 
         for role in self._roles:
@@ -2693,7 +2693,7 @@ class HoverButton(HoverMixin, QtWidgets.QPushButton):
         /,
         colour_change: int | QtGui.QColor = 20,
         flat: bool = True,
-        icon_path: Optional[str] = None,
+        icon_path: Optional[str | Path] = None,
         roles: Optional[list[QtGui.QPalette.ColorRole]] = None,
     ) -> None:
         """A button that reacts when hovered by changing its background color.

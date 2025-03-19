@@ -79,7 +79,7 @@ class Registrator:
         settings: AlignmentSettings,
         volume_name: str,
         histology_image: Optional[np.ndarray] = None,
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray:
         match volume_name.lower():
             case "atlas":
                 volume_path = settings.volume_path
@@ -115,7 +115,7 @@ class Registrator:
                 lazy=False,
             )
 
-        if histology_image is None:
+        if histology_image is None and settings.histology_path is not None:
             histology_image = load_image(settings.histology_path)
 
         volume_final_scaling = get_volume_scaling_factor(settings)

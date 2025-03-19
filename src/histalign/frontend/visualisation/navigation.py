@@ -247,7 +247,6 @@ class NavigationArea(QtWidgets.QScrollArea):
 
     @QtCore.Slot()
     def parse_slice_folders(self) -> None:
-        print("Parsing")
         if self.parsed_slice:
             return
 

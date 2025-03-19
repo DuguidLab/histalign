@@ -325,9 +325,7 @@ class ThumbnailGeneratorThread(QtCore.QThread):
 
     def start(
         self,
-        priority: Optional[
-            QtCore.QThread.Priority
-        ] = QtCore.QThread.Priority.InheritPriority,
+        priority: QtCore.QThread.Priority = QtCore.QThread.Priority.InheritPriority,
     ):
         _module_logger.debug(f"Starting ThumbnailGeneratorThread ({hex(id(self))}).")
         super().start(priority)
@@ -540,9 +538,7 @@ class VolumeLoaderThread(QtCore.QThread):
 
     def start(
         self,
-        priority: Optional[
-            QtCore.QThread.Priority
-        ] = QtCore.QThread.Priority.InheritPriority,
+        priority: QtCore.QThread.Priority = QtCore.QThread.Priority.InheritPriority,
     ):
         _module_logger.debug(f"Starting VolumeLoaderThread ({hex(id(self))}).")
         super().start(priority)

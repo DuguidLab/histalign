@@ -17,7 +17,7 @@ class AlphaWidget(QtWidgets.QWidget):
     def __init__(
         self,
         orientation: QtCore.Qt.Orientation = QtCore.Qt.Orientation.Vertical,
-        parent: typing.Optional[QtCore.QObject] = None,
+        parent: typing.Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
