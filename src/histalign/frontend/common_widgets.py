@@ -19,6 +19,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from histalign.backend import UserRole
 from histalign.backend.ccf.model_view import (
     ABAStructureTreeModel,
     iterate_tree_model_dfs,
@@ -85,19 +86,22 @@ class NoFocusRectProxyStyle(QtWidgets.QProxyStyle):
 class StructureTreeView(QtWidgets.QTreeView):
     """A tree view used to display the CCF structure hierarchy."""
 
+    item_checked: QtCore.Signal = QtCore.Signal(QtCore.QModelIndex)
+    item_unchecked: QtCore.Signal = QtCore.Signal(QtCore.QModelIndex)
+
     selection_hidden: QtCore.Signal = QtCore.Signal()
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
         #
+        self.setModel(ABAStructureTreeModel())
+
+        #
         self.setStyle(NoFocusRectProxyStyle())
         self.setHeaderHidden(True)
 
         self.collapsed.connect(self.collapse_all_children)
-
-        #
-        self.setModel(ABAStructureTreeModel())
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -118,8 +122,8 @@ class StructureTreeView(QtWidgets.QTreeView):
             .width()
         ) + 10
 
-        self.setColumnWidth(0, self.viewport().width() - width - 1)
-        self.setColumnWidth(1, width - 1)
+        self.setColumnWidth(0, self.viewport().width() - width - 2)
+        self.setColumnWidth(1, width - 2)
 
     @QtCore.Slot()
     def collapse_all_children(
@@ -155,6 +159,49 @@ class StructureTreeView(QtWidgets.QTreeView):
                 self._collapse_all_children(child_index, sub_child_count)
 
             self.collapse(child_index)
+
+
+class StructureTableView(QtWidgets.QTableView):
+    """A table view used to display the CCF structure hierarchy."""
+
+    def __init__(
+        self,
+        model: Optional[ABAStructureListModel] = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.setModel(model or ABAStructureListModel())
+
+        #
+        self.setWordWrap(False)
+        self.setStyle(NoFocusRectProxyStyle())
+
+        self.horizontalHeader().hide()
+        self.verticalHeader().hide()
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.auto_resize_columns()
+
+    @QtCore.Slot()
+    def auto_resize_columns(self, _=...) -> None:
+        """Resizes the columns to ensure acronyms are visible in the first column."""
+        options = QtWidgets.QStyleOptionFrame()
+        self.initStyleOption(options)
+
+        width = (
+            self.style()
+            .subElementRect(
+                QtWidgets.QStyle.SubElement.SE_CheckBoxClickRect, options, self
+            )
+            .width()
+        ) + 10
+
+        self.setColumnWidth(0, self.viewport().width() - width - 2)
+        self.setColumnWidth(1, width - 2)
 
 
 class StructureFinderDialog(QtWidgets.QDialog):
@@ -215,7 +262,9 @@ class StructureFinderWidget(QtWidgets.QWidget):
         tree_view (StructureTreeView): Tree view with which to show the hierarchy.
     """
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, use_proxy: bool = True, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
 
         #
@@ -233,6 +282,15 @@ class StructureFinderWidget(QtWidgets.QWidget):
         tree_view = StructureTreeView()
 
         tree_view.selection_hidden.connect(self.clear_search_and_selection)
+
+        if use_proxy:
+            proxy = CustomDisplayRoleProxy()
+
+            proxy.setSourceModel(tree_view.model())
+
+            proxy.override_display_role(UserRole.SHORTENED_NAME)
+
+            tree_view.setModel(proxy)
 
         self.tree_view = tree_view
 
@@ -275,8 +333,23 @@ class StructureFinderWidget(QtWidgets.QWidget):
         match_index = -1
         self._previous_search = text
 
-        for index in iterate_tree_model_dfs(self.tree_view.model()):
-            if text.lower() in index.data(QtCore.Qt.ItemDataRole.DisplayRole).lower():
+        # Search in the full name
+        model = self.tree_view.model()
+        for index in iterate_tree_model_dfs(model):
+            try:
+                found = (
+                    text.lower()
+                    in model.data(
+                        index, QtCore.Qt.ItemDataRole.DisplayRole, skip_override=True
+                    ).lower()
+                )
+            except TypeError:
+                found = (
+                    text.lower()
+                    in index.data(QtCore.Qt.ItemDataRole.DisplayRole).lower()
+                )
+
+            if found:
                 match_index += 1
 
                 # Keep track of the first match as a default if searching forward
@@ -3087,3 +3160,55 @@ class FileWidget(HoverMixin, QtWidgets.QWidget):
         if self._clicked:
             self.clicked.emit()
             self._clicked = False
+
+
+class DisplayableSortFilterProxyModel(QtCore.QSortFilterProxyModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        index = self.sourceModel().index(source_row, 0, source_parent)
+        displayable = self.sourceModel().data(index, UserRole.IS_DISPLAYABLE)
+
+        # Can potentially be `None` which should be `False`
+        return displayable == True
+
+
+class CheckAwareSortFilterProxyModel(QtCore.QSortFilterProxyModel):
+    def lessThan(self, source_left, source_right):
+        less_than = super().lessThan(source_left, source_right)
+
+        left_checked = self.sourceModel().data(
+            source_left, QtCore.Qt.ItemDataRole.CheckStateRole
+        )
+        right_checked = self.sourceModel().data(
+            source_right, QtCore.Qt.ItemDataRole.CheckStateRole
+        )
+
+        left_checked = left_checked == True
+        right_checked = right_checked == True
+
+        if left_checked and not right_checked:
+            less_than = True
+        elif right_checked and not left_checked:
+            less_than = False
+
+        return less_than
+
+
+class CustomDisplayRoleProxy(QtCore.QSortFilterProxyModel):
+    _role: int = QtCore.Qt.ItemDataRole.DisplayRole
+
+    def data(
+        self,
+        index: IndexType,
+        role: int = QtCore.Qt.ItemDataRole.DisplayRole,
+        skip_override: bool = False,
+    ) -> Any:
+        if role == QtCore.Qt.ItemDataRole.DisplayRole and not skip_override:
+            role = self._role
+
+        return super().data(index, role)
+
+    def override_display_role(self, role: int) -> None:
+        self._role = role

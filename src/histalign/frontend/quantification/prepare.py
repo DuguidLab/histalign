@@ -324,9 +324,9 @@ class StructureFrame(TitleFrame):
         #
         structure_tag_holder = StructureTagHolderWidget()
 
-        model = pop_up.finder_widget.tree_view.model()
-        model.item_checked.connect(structure_tag_holder.add_tag_from_index)
-        model.item_unchecked.connect(structure_tag_holder.remove_tag_from_index)
+        view = pop_up.finder_widget.tree_view
+        view.item_checked.connect(structure_tag_holder.add_tag_from_index)
+        view.item_unchecked.connect(structure_tag_holder.remove_tag_from_index)
 
         self.structure_tag_holder = structure_tag_holder
 

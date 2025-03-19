@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 import re
+from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -157,7 +158,7 @@ class NavigationHeader(QtWidgets.QWidget):
 
 
 class NavigationArea(QtWidgets.QScrollArea):
-    project_root: Path
+    project_root: Optional[Path] = None
     parsed_slice: bool = False
     parsed_brain: bool = False
 
@@ -247,7 +248,7 @@ class NavigationArea(QtWidgets.QScrollArea):
 
     @QtCore.Slot()
     def parse_slice_folders(self) -> None:
-        if self.parsed_slice:
+        if self.parsed_slice or self.project_root is None:
             return
 
         for path in self.project_root.iterdir():

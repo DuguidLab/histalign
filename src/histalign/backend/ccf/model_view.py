@@ -84,42 +84,6 @@ class ABAStructureModel(QtCore.QAbstractItemModel):
             Path to the hierarchy file to parse. If left empty, the path is
             retrieved from the application's default directory.
         parent (Optional[QtCore.QObject], optional): Parent of this object.
-    """
-
-    def __init__(
-        self,
-        root: str = "Basic cell groups and regions",
-        json_path: str | Path = "",
-        parent: Optional[QtCore.QObject] = None,
-    ) -> None:
-        super().__init__(parent)
-
-        #
-        self._root = build_structure_tree(json_path or get_structures_hierarchy_path())
-
-        if root:
-            self._replace_root(root)
-
-    def _replace_root(self, name: str) -> None:
-        items = [*self._root.children]
-        while items:
-            item = items.pop(0)
-            if item.name == name:
-                self.beginResetModel()
-                self._root = item
-                self.endResetModel()
-                return
-
-            items.extend(item.children)
-
-        _module_logger.error(f"Could not replace root with new item named '{name}'.")
-
-
-class ABAStructureTreeModel(ABAStructureModel):
-    """A model class for the Allen Mouse Brain Atlas structure hierarchy in tree form.
-
-    This class' methods are undocumented as they would simply be copy-pastes of the
-    official PySide documentation. For details, use that documentation.
 
     Signals:
         item_checked (QtCore.QModelIndex):
@@ -137,10 +101,145 @@ class ABAStructureTreeModel(ABAStructureModel):
         json_path: str | Path = "",
         parent: Optional[QtCore.QObject] = None,
     ) -> None:
-        super().__init__(root, json_path, parent)
+        super().__init__(parent)
 
         #
-        self._checked_indices: list[IndexType] = []
+        self._root = build_structure_tree(json_path or get_structures_hierarchy_path())
+        self._checked_indices = []
+
+        if root:
+            self._replace_root(root)
+
+    def data(
+        self, index: IndexType, role: int = QtCore.Qt.ItemDataRole.DisplayRole
+    ) -> Any:
+        if not index.isValid():
+            return None
+
+        if index.column() == 1:
+            if role == QtCore.Qt.ItemDataRole.CheckStateRole:
+                return (
+                    QtCore.Qt.CheckState.Checked
+                    if index in self._checked_indices
+                    else QtCore.Qt.CheckState.Unchecked
+                )
+            else:
+                return None
+
+        item = index.internalPointer()
+        if (
+            role == QtCore.Qt.ItemDataRole.DisplayRole
+            or role == QtCore.Qt.ItemDataRole.ToolTipRole
+        ):
+            return f"{item.name} ({item.acronym})"
+        elif role == UserRole.IS_DISPLAYABLE:
+            return item.displayable
+        elif role == UserRole.SHORTENED_NAME:
+            name = f"{item.name} ({item.acronym})"
+            if item.parent is not None:
+                name = name.replace(item.parent.name, "")
+
+            if name.startswith(","):
+                name = name[1:]
+
+            name = name.strip()
+
+            name = name[0].upper() + name[1:]
+
+            return name
+        elif role == UserRole.NAME_NO_ACRONYM:
+            return item.name
+
+        return None
+
+    def setData(
+        self,
+        index: IndexType,
+        value: Any,
+        role: int = QtCore.Qt.ItemDataRole.EditRole,
+    ) -> bool:
+        if not index.isValid():
+            return False
+
+        if role == QtCore.Qt.ItemDataRole.CheckStateRole:
+            if value == QtCore.Qt.CheckState.Checked.value:
+                self._checked_indices.append(index)
+                self.item_checked.emit(index)
+            else:
+                self._checked_indices.remove(index)
+                self.item_unchecked.emit(index)
+
+            self.dataChanged.emit(index, index)
+
+            return True
+
+        return super().setData(index, value, role)
+
+    def _replace_root(self, name: str) -> None:
+        items = [*self._root.children]
+        while items:
+            item = items.pop(0)
+            if item.name == name:
+                self.beginResetModel()
+                self._root = item
+                self.endResetModel()
+                return
+
+            items.extend(item.children)
+
+        _module_logger.error(f"Could not replace root with new item named '{name}'.")
+
+
+class ABAStructureListModel(ABAStructureModel):
+    """A model for the Allen Mouse Brain Atlas structure hierarchy in list form."""
+
+    def __init__(
+        self,
+        root: str = "Basic cell groups and regions",
+        json_path: str | Path = "",
+        parent: Optional[QtCore.QObject] = None,
+    ) -> None:
+        super().__init__(root, json_path, parent)
+
+        self._flatten()
+
+    def index(self, row: int, column: int, parent: IndexType = Index()) -> Index:
+        if not self.hasIndex(row, column, parent):
+            return Index()
+
+        return self.createIndex(row, column, self._root[row])
+
+    # noinspection PyMethodOverriding
+    def parent(self, child: IndexType) -> Index:  # type: ignore[override]
+        return Index()
+
+    def rowCount(self, parent: IndexType = Index()) -> int:
+        return len(self._root)
+
+    def columnCount(self, parent: IndexType = Index()) -> int:
+        return 2
+
+    def flags(self, index: IndexType) -> QtCore.Qt.ItemFlag:
+        flags = QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
+
+        if index.column() == 1:
+            flags |= (
+                QtCore.Qt.ItemFlag.ItemIsUserCheckable
+                | QtCore.Qt.ItemFlag.ItemIsEditable
+            )
+
+        return flags
+
+    def _flatten(self) -> None:
+        data = [self._root]
+        for item in data:
+            data.extend(item.children)
+
+        self._root = data
+
+
+class ABAStructureTreeModel(ABAStructureModel):
+    """A model for the Allen Mouse Brain Atlas structure hierarchy in tree form."""
 
     def index(self, row: int, column: int, parent: IndexType = Index()) -> Index:
         if not self.hasIndex(row, column, parent):
@@ -180,73 +279,13 @@ class ABAStructureTreeModel(ABAStructureModel):
     def flags(self, index: IndexType) -> QtCore.Qt.ItemFlag:
         flags = QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
 
-        if index.column() > 0:
+        if index.column() == 1:
             flags |= (
                 QtCore.Qt.ItemFlag.ItemIsUserCheckable
                 | QtCore.Qt.ItemFlag.ItemIsEditable
             )
 
         return flags
-
-    def data(
-        self, index: IndexType, role: int = QtCore.Qt.ItemDataRole.DisplayRole
-    ) -> Any:
-        if not index.isValid():
-            return None
-
-        if index.column() > 0:
-            if role == QtCore.Qt.ItemDataRole.CheckStateRole:
-                return (
-                    QtCore.Qt.CheckState.Checked
-                    if index in self._checked_indices
-                    else QtCore.Qt.CheckState.Unchecked
-                )
-            else:
-                return None
-
-        item = index.internalPointer()
-        if role == QtCore.Qt.ItemDataRole.DisplayRole:
-            return f"{item.name} ({item.acronym})"
-        elif role == UserRole.IS_DISPLAYABLE:
-            return item.displayable
-        elif role == UserRole.SHORTENED_NAME:
-            name = f"{item.name} ({item.acronym})"
-            if item.parent is not None:
-                name = name.replace(item.parent.name, "")
-
-            if name.startswith(","):
-                name = name[1:]
-
-            name = name.strip()
-
-            name = name[0].upper() + name[1:]
-
-            return name
-
-        return None
-
-    def setData(
-        self,
-        index: IndexType,
-        value: Any,
-        role: int = QtCore.Qt.ItemDataRole.EditRole,
-    ) -> bool:
-        if not index.isValid():
-            return False
-
-        if role == QtCore.Qt.ItemDataRole.CheckStateRole:
-            if value == QtCore.Qt.CheckState.Checked.value:
-                self._checked_indices.append(index)
-                self.item_checked.emit(index)
-            else:
-                self._checked_indices.remove(index)
-                self.item_unchecked.emit(index)
-
-            self.dataChanged.emit(index, index)
-
-            return True
-
-        return super().setData(index, value, role)
 
 
 def build_structure_tree(json_path: str | Path) -> StructureNode:
