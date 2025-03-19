@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
+import re
+
 from PySide6 import QtCore, QtWidgets
 
+from histalign.backend import UserRole
 from histalign.backend.ccf.model_view import ABAStructureListModel
 from histalign.frontend.common_widgets import (
     CheckAwareSortFilterProxyModel,
@@ -102,6 +105,7 @@ class StructuresWidget(QtWidgets.QWidget):
     @QtCore.Slot()
     def filter_model(self, regex: str) -> None:
         search_regex = regex.split(" ")
+        search_regex = map(re.escape, search_regex)
         search_regex = ".*".join(search_regex)
 
         self._sorted_list_model.setFilterRegularExpression(rf".*{search_regex}.*")
