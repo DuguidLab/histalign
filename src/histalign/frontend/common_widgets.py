@@ -21,7 +21,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.model_view import (
     ABAStructureTreeModel,
-    iterate_structure_node_dfs,
+    iterate_tree_model_dfs,
 )
 from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.workspace import HistologySlice
@@ -92,20 +92,34 @@ class StructureTreeView(QtWidgets.QTreeView):
 
         #
         self.setStyle(NoFocusRectProxyStyle())
+        self.setHeaderHidden(True)
 
-        self.collapsed.connect(self.auto_resize_columns)
         self.collapsed.connect(self.collapse_all_children)
-        self.expanded.connect(self.auto_resize_columns)
-        self.auto_resize_columns()
 
         #
         self.setModel(ABAStructureTreeModel())
 
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.auto_resize_columns()
+
     @QtCore.Slot()
     def auto_resize_columns(self, _=...) -> None:
         """Resizes the columns to ensure acronyms are visible in the first column."""
-        self.resizeColumnToContents(0)
-        self.setColumnWidth(0, self.columnWidth(0) + 11)
+        options = QtWidgets.QStyleOptionFrame()
+        self.initStyleOption(options)
+
+        width = (
+            self.style()
+            .subElementRect(
+                QtWidgets.QStyle.SubElement.SE_CheckBoxClickRect, options, self
+            )
+            .width()
+        ) + 10
+
+        self.setColumnWidth(0, self.viewport().width() - width - 1)
+        self.setColumnWidth(1, width - 1)
 
     @QtCore.Slot()
     def collapse_all_children(
@@ -119,7 +133,7 @@ class StructureTreeView(QtWidgets.QTreeView):
             index (QtCore.QModelIndex | QtCore.QPersistentModelIndex):
                 Root node to collapse the children of.
         """
-        child_count = index.internalPointer().child_count()
+        child_count = self.model().rowCount(index)
         self._collapse_all_children(index, child_count)
 
         selection = self.selectionModel().selectedIndexes()
@@ -136,7 +150,7 @@ class StructureTreeView(QtWidgets.QTreeView):
         for i in range(child_count):
             child_index = self.model().index(i, 0, index)
 
-            sub_child_count = child_index.internalPointer().child_count()
+            sub_child_count = self.model().rowCount(child_index)
             if sub_child_count > 0:
                 self._collapse_all_children(child_index, sub_child_count)
 
@@ -261,15 +275,15 @@ class StructureFinderWidget(QtWidgets.QWidget):
         match_index = -1
         self._previous_search = text
 
-        for node in iterate_structure_node_dfs(self.tree_view.model().root):
-            if text in node.acronym.lower() or text in node.name.lower():
+        for index in iterate_tree_model_dfs(self.tree_view.model()):
+            if text.lower() in index.data(QtCore.Qt.ItemDataRole.DisplayRole).lower():
                 match_index += 1
 
                 # Keep track of the first match as a default if searching forward
                 if first_match is None and not reverse:
-                    first_match = node
+                    first_match = index
                 # Keep track of the last match as a default for when searching backward
-                last_match = node
+                last_match = index
 
                 # When doing a reverse search for the first time or when cycling to the
                 # end, search until the last match.
@@ -285,7 +299,6 @@ class StructureFinderWidget(QtWidgets.QWidget):
 
                 self._previous_index = match_index
 
-                index = self.tree_view.model().get_item_index(node)
                 self.tree_view.selectionModel().select(
                     index,
                     QtCore.QItemSelectionModel.SelectionFlag.ClearAndSelect
@@ -298,11 +311,11 @@ class StructureFinderWidget(QtWidgets.QWidget):
         if not reverse and first_match is not None:
             # Forward search cycling, select the first match if it exists
             self._previous_index = 0
-            index = self.tree_view.model().get_item_index(first_match)
+            index = first_match
         elif reverse and last_match is not None:
             # Reverse search cycling, select the last match if it exists
             self._previous_index = match_index
-            index = self.tree_view.model().get_item_index(last_match)
+            index = last_match
         else:
             # No match
             return
