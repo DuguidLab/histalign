@@ -8,7 +8,7 @@ from typing import Optional, Sequence
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageTransform
 from PySide6 import QtCore, QtGui
 from skimage.transform import AffineTransform, rescale as sk_rescale, warp
 import vedo
@@ -26,6 +26,8 @@ from histalign.backend.models import (
 )
 import histalign.backend.workspace as workspace  # Avoid circular import
 
+_module_logger = logging.getLogger(__name__)
+
 
 class Registrator:
     fast_rescale: bool
@@ -34,8 +36,8 @@ class Registrator:
 
     def __init__(
         self,
-        fast_rescale: bool = False,
-        fast_transform: bool = False,
+        fast_rescale: bool = True,
+        fast_transform: bool = True,
         interpolation: str = "bilinear",
     ) -> None:
         self.logger = logging.getLogger(
@@ -337,12 +339,14 @@ def rescale(
             raise ValueError(f"Unknown interpolation '{interpolation}'")
 
     if fast:
-        return np.array(
-            Image.fromarray(image.T).resize(
-                np.round(np.array(image.shape) * scaling).astype(int).tolist(),
-                resample=resample,
-            )
-        ).T
+        target_shape = (
+            np.round(np.array(image.shape[::-1]) * scaling).astype(int).tolist()
+        )
+
+        image_pil = Image.fromarray(image)
+        image_pil = image_pil.resize(target_shape, resample=Image.Resampling.BILINEAR)
+
+        return np.asarray(image_pil)
     else:
         return sk_rescale(
             image,
@@ -375,16 +379,34 @@ def transform_image(
         case _:
             raise ValueError(f"Unknown interpolation '{interpolation}'")
 
-    # NOTE: OpenCV's warp is much faster but seemingly less accurate
+    # NOTE: OpenCV's warp is much faster but seemingly less accurate at interpolating.
     if fast:
-        return cv2.warpPerspective(
-            image,
-            matrix,
-            image.shape[::-1],
-            flags=flag | cv2.WARP_INVERSE_MAP,
-        )
+        # OpenCV cannot handle images with dimensions larger than 2**15 - 1
+        if max(image.shape) < 2**15 - 1:
+            cv2.warpAffine(
+                image,
+                matrix,
+                image.shape[::-1],
+                image,
+                flags=flag | cv2.WARP_INVERSE_MAP,
+            )
+        else:
+            _module_logger.debug(
+                "Falling back to PIL warping as image has at least one dimension "
+                "larger than 2**15 - 1."
+            )
+
+            # Fallback to PIL. ~10x slower than OpenCV. Still much faster than skimage.
+            image_pil = Image.fromarray(image)  # Does not copy the data
+            image_pil.readonly = False  # Avoid a copy-on-write
+
+            transform = ImageTransform.AffineTransform(matrix.flatten()[:6])
+            # Paste the output onto the image to modify the NumPy array directly
+            image_pil.paste(image_pil.transform(image_pil.size, transform))
     else:
         sk_transform = AffineTransform(matrix=matrix)
-        return warp(
+        image = warp(
             image, sk_transform, order=order, preserve_range=True, clip=True
         ).astype(image.dtype)
+
+    return image
