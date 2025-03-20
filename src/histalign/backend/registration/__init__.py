@@ -136,11 +136,7 @@ class Registrator:
             interpolation=self.interpolation,
             forward=False,
         )
-        return crop_down(
-            volume_image,
-            histology_image.shape,
-            get_top_left_point(volume_image.shape, histology_image.shape),
-        )
+        return crop_down(volume_image, histology_image.shape)
 
 
 class ContourGeneratorThread(QtCore.QThread):
@@ -216,12 +212,14 @@ class ContourGeneratorThread(QtCore.QThread):
 
 def crop_down(
     image: np.ndarray,
-    shape: tuple[int, ...],
-    top_left: Optional[tuple[int, ...]] = (0, 0),
+    reference_shape: tuple[int, ...],
 ) -> np.ndarray:
+    centre = np.array(image.shape) // 2
+    top_left = centre - (np.array(reference_shape) // 2)
+
     return image[
-        top_left[0] : top_left[0] + shape[0],
-        top_left[1] : top_left[1] + shape[1],
+        top_left[0] : top_left[0] + reference_shape[0],
+        top_left[1] : top_left[1] + reference_shape[1],
     ]
 
 
