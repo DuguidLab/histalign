@@ -84,6 +84,10 @@ class StructuresWidget(QtWidgets.QWidget):
         )
         sorted_list_model.sort(0)
 
+        # Dynamic sorting does not allow changing check state through a proxy
+        sorted_list_model.setDynamicSortFilter(False)
+        list_model.dataChanged.connect(lambda _: sorted_list_model.sort(0))
+
         self._sorted_list_model = sorted_list_model
 
         #

@@ -3179,14 +3179,14 @@ class CheckAwareSortFilterProxyModel(QtCore.QSortFilterProxyModel):
         less_than = super().lessThan(source_left, source_right)
 
         left_checked = self.sourceModel().data(
-            source_left, QtCore.Qt.ItemDataRole.CheckStateRole
+            source_left.siblingAtColumn(1), QtCore.Qt.ItemDataRole.CheckStateRole
         )
         right_checked = self.sourceModel().data(
-            source_right, QtCore.Qt.ItemDataRole.CheckStateRole
+            source_right.siblingAtColumn(1), QtCore.Qt.ItemDataRole.CheckStateRole
         )
 
-        left_checked = left_checked == True
-        right_checked = right_checked == True
+        left_checked = left_checked == QtCore.Qt.CheckState.Checked
+        right_checked = right_checked == QtCore.Qt.CheckState.Checked
 
         if left_checked and not right_checked:
             less_than = True
