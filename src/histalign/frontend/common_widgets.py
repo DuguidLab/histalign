@@ -1828,7 +1828,6 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
 
             # Update the view centre after dragging
             self.update_view_centre()
-            self._dragging = False
 
         super().mouseReleaseEvent(event)
         if self._drag_button != QtCore.Qt.MouseButton.LeftButton:
@@ -1838,6 +1837,8 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
         # Notify of single clicks (no dragging)
         if not self._dragging and event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.clicked.emit(self.mapToScene(event.pos()))
+
+        self._dragging = False
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseMoveEvent(event)
