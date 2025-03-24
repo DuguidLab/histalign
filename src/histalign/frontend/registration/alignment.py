@@ -895,7 +895,9 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Landmark Registration")
 
     def update_reference_pixmap(
-        self, pixmap_item: QtWidgets.QGraphicsPixmapItem
+        self,
+        pixmap_item: QtWidgets.QGraphicsPixmapItem,
+        general_zoom: float = 1.0,
     ) -> None:
         """Updates the pixmap item shown in the reference (top) view.
 
@@ -903,12 +905,14 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
 
         Args:
             pixmap_item (QtWidgets.QGraphicsPixmapItem): Pixmap item to update with.
+            general_zoom (float, optional): Initial general zoom of the view.
         """
         self.reference_pixmap_item.setPixmap(pixmap_item.pixmap())
         self.reference_pixmap_item.setTransform(pixmap_item.transform())
 
+        self.reference_view.general_zoom = general_zoom
         self.reference_view.set_focus_rect(
-            self.reference_pixmap_item.sceneBoundingRect()
+            self.reference_pixmap_item.sceneBoundingRect(), reset_general_zoom=False
         )
 
     def update_histology_pixmap(

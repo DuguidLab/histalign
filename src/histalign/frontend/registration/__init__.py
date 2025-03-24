@@ -774,7 +774,19 @@ class RegistrationMainWindow(BasicApplicationWindow):
     def show_landmark_registration_window(self) -> None:
         window = LandmarkRegistrationWindow(self)
 
-        window.update_reference_pixmap(self.alignment_widget.volume_pixmap)
+        match self.workspace.alignment_settings.volume_settings.orientation:
+            case Orientation.CORONAL:
+                general_zoom = 2.0
+            case Orientation.HORIZONTAL:
+                general_zoom = 1.5
+            case Orientation.SAGITTAL:
+                general_zoom = 1.7
+            case _:
+                raise Exception("ASSERT NOT REACHED")
+
+        window.update_reference_pixmap(
+            self.alignment_widget.volume_pixmap, general_zoom
+        )
         window.update_histology_pixmap(self.alignment_widget.histology_pixmap)
 
         window.resize(
