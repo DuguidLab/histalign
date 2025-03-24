@@ -57,9 +57,11 @@ class StructuresWidget(QtWidgets.QWidget):
         #
         list_model = ABAStructureListModel()
 
-        list_model.item_checked.connect(lambda x: self.structure_checked.emit(x.data()))
+        list_model.item_checked.connect(
+            lambda x: self.structure_checked.emit(x.data(UserRole.NAME_NO_ACRONYM))
+        )
         list_model.item_unchecked.connect(
-            lambda x: self.structure_unchecked.emit(x.data())
+            lambda x: self.structure_unchecked.emit(x.data(UserRole.NAME_NO_ACRONYM))
         )
 
         self.list_model = list_model

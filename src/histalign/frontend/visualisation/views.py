@@ -73,7 +73,7 @@ class SliceViewer(QtWidgets.QWidget):
         histology_path = alignment_settings.histology_path
 
         file = HistologySlice(str(histology_path))
-        file.load_image(str(alignment_path.parent), 16)
+        file.load_image(str(alignment_path.parent), downsampling_factor=1)
 
         pixmap = np_to_qpixmap(file.image_array)
 
@@ -97,17 +97,30 @@ class SliceViewer(QtWidgets.QWidget):
         self._contours_threads[structure] = thread
 
     @QtCore.Slot()
-    def add_contours(self, structure: str, contours: np.ndarray) -> None:
+    def add_contours(self, structure: str, contours: list[np.ndarray]) -> None:
         if self._histology_item is None:
             return
 
-        pixmap = QtGui.QPixmap(self._histology_item.pixmap().size())
+        image = QtGui.QImage(
+            self._histology_item.pixmap().size(),
+            QtGui.QImage.Format.Format_ARGB32,
+        )
+
+        pixmap = QtGui.QPixmap(image)
 
         painter = QtGui.QPainter(pixmap)
 
         painter.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, 10))
 
-        painter.drawPointsNp(contours[..., 0], contours[..., 1])
+        for contour in contours:
+            for i in range(contour.shape[0]):
+                p1 = QtCore.QPoint(*contour[i, 0].tolist())
+                j = i + 1
+                if i == contour.shape[0] - 1:
+                    j = 0
+                p2 = QtCore.QPoint(*contour[j, 0].tolist())
+
+                painter.drawLine(p1, p2)
 
         painter.end()
 

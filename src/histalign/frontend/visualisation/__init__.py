@@ -6,17 +6,15 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.io import load_alignment_settings, RESOURCES_ROOT
-from histalign.backend.workspace import HistologySlice
+from histalign.backend.io import RESOURCES_ROOT
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     CollapsibleWidgetArea,
     VisibleHandleSplitter,
-    ZoomAndPanView,
 )
-from histalign.frontend.pyside_helpers import np_to_qpixmap
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.navigation import NavigationWidget
+from histalign.frontend.visualisation.views import SliceViewer
 
 
 class VisualisationMainWindow(BasicApplicationWindow):
@@ -30,28 +28,28 @@ class VisualisationMainWindow(BasicApplicationWindow):
         self._pixmap_item = None
 
         #
+        central_view = SliceViewer()
+
+        self.central_view = central_view
+
+        #
         navigation_widget = NavigationWidget()
 
-        navigation_widget.open_image_requested.connect(self.open_image)
+        navigation_widget.open_image_requested.connect(self.central_view.open_image)
 
         self.navigation_widget = navigation_widget
 
         #
         information_widget = InformationWidget()
 
+        information_widget.structures_widget.structure_checked.connect(
+            central_view.contour_structure
+        )
+        information_widget.structures_widget.structure_unchecked.connect(
+            central_view.remove_contours
+        )
+
         self.information_widget = information_widget
-
-        #
-        scene = QtWidgets.QGraphicsScene(-100_000, -100_000, 200_000, 200_000, self)
-
-        self.scene = scene
-
-        #
-        central_view = ZoomAndPanView(scene)
-
-        central_view.setBackgroundBrush(QtCore.Qt.GlobalColor.black)
-
-        self.central_view = central_view
 
         #
         left_tools_widget = CollapsibleWidgetArea("left_to_right")
@@ -110,24 +108,6 @@ class VisualisationMainWindow(BasicApplicationWindow):
         sizes[1] += difference
 
         self.centralWidget().setSizes(sizes)
-
-    @QtCore.Slot()
-    def open_image(self, alignment_path: Path) -> None:
-        alignment_settings = load_alignment_settings(alignment_path)
-        histology_path = alignment_settings.histology_path
-
-        file = HistologySlice(str(histology_path))
-        file.load_image(str(alignment_path.parent), 16)
-
-        pixmap = np_to_qpixmap(file.image_array)
-
-        if self._pixmap_item is not None:
-            self.scene.removeItem(self._pixmap_item)
-        pixmap_item = self.scene.addPixmap(pixmap)
-
-        self.central_view.set_focus_rect(pixmap_item.sceneBoundingRect())
-
-        self._pixmap_item = pixmap_item
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:
