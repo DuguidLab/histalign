@@ -225,12 +225,26 @@ class NavigationArea(QtWidgets.QScrollArea):
             ),
         )
 
+        with open(path / "metadata.json") as handle:
+            order = json.load(handle)["slice_paths"]
+
         index = 0
+        aligned_paths = []
+        indices = {}
         for child_path in path.iterdir():
             if re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, child_path.name) is None:
                 continue
 
-            thumbnail = self._get_thumbnail(child_path)
+            aligned_paths.append(child_path)
+
+            settings = load_alignment_settings(child_path)
+            histology_path = settings.histology_path
+
+            indices[child_path] = order.index(str(histology_path))
+
+        aligned_paths.sort(key=lambda x: indices[x])
+        for path in aligned_paths:
+            thumbnail = self._get_thumbnail(path)
 
             widget.layout().replaceAt(index, thumbnail)
 
