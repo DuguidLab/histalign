@@ -6,9 +6,8 @@ import cv2
 import numpy as np
 import vedo
 
-from histalign.backend.maths import get_transformation_matrix_from_q_transform
 from histalign.backend.models import AlignmentSettings
-from histalign.backend.registration import recreate_q_transform_from_alignment
+from histalign.backend.registration import get_transformation_matrix_from_alignment
 from histalign.backend.workspace import Volume, VolumeSlicer
 
 
@@ -43,13 +42,8 @@ def compute_cortical_depths(
         _find_closest_point(point, cortex_points) for point in structure_points
     ]
 
-    transformation_matrix = get_transformation_matrix_from_q_transform(
-        recreate_q_transform_from_alignment(
-            cortex_slice.shape,
-            settings,
-            True,
-        ),
-        True,
+    transformation_matrix = get_transformation_matrix_from_alignment(
+        settings, invert=True
     )
 
     registered_structure_points = _apply_transformation_matrix_to_points(

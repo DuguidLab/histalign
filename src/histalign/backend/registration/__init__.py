@@ -9,17 +9,15 @@ from typing import Optional, Sequence
 import cv2
 import numpy as np
 from PIL import Image, ImageTransform
-from PySide6 import QtCore, QtGui
-from skimage.transform import AffineTransform, rescale as sk_rescale, warp
+from PySide6 import QtCore
+from skimage.transform import rescale as sk_rescale, warp
 import vedo
 
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
 from histalign.backend.io import load_image
 from histalign.backend.maths import (
-    convert_sk_transform_to_q_transform,
     get_sk_transform_from_parameters,
-    get_transformation_matrix_from_q_transform,
 )
 from histalign.backend.models import (
     AlignmentSettings,
@@ -82,6 +80,106 @@ class Registrator:
         volume_name: str,
         histology_image: Optional[np.ndarray] = None,
     ) -> np.ndarray:
+        self._load_volume(volume_name, settings)
+
+        if histology_image is None and settings.histology_path is not None:
+            histology_image = load_image(settings.histology_path)
+
+        volume_final_scaling = get_volume_scaling_factor(settings)
+
+        volume_image = self._volume_slicer.slice(
+            settings.volume_settings, interpolation="linear"
+        )
+        volume_image = rescale(
+            volume_image,
+            volume_final_scaling,
+            fast=self.fast_rescale,
+            interpolation=self.interpolation,
+        )
+
+        volume_image = transform_image(
+            volume_image,
+            settings,
+            fast=self.fast_transform,
+            interpolation=self.interpolation,
+            forward=False,
+        )
+        return crop_down(volume_image, histology_image.shape)
+
+    def get_reversed_contours(
+        self,
+        settings: AlignmentSettings,
+        volume_name: str,
+        histology_image: Optional[np.ndarray] = None,
+    ) -> list[np.ndarray]:
+        self._load_volume(volume_name, settings)
+
+        # TODO: Avoid loading the whole image just for its shape
+        # Retrieve the histology image for its shape
+        if histology_image is None and settings.histology_path is not None:
+            histology_image = load_image(settings.histology_path)
+
+        # Compute relative volume scaling needed to the same scale as histology
+        volume_scaling = get_volume_scaling_factor(settings)
+
+        # Get the alignment slice
+        volume_image = self._volume_slicer.slice(
+            settings.volume_settings, interpolation="linear"
+        )
+
+        # Compute the contours on the small slice and convert them to a single array
+        # while keeping track of where they each are. This simplifies applying
+        # transformations to all of them at once.
+        contours = cv2.findContours(volume_image, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[
+            0
+        ]
+        if len(contours) < 1:
+            return []
+
+        contour_lengths = [contour.shape[0] for contour in contours]
+        contours = np.concatenate(contours, axis=0)
+
+        # Rescale the contours
+        contours = contours.astype(np.float64) * volume_scaling
+        # Keep track of what the volume shape would be at this point
+        scaled_volume_shape = tuple(
+            np.round(np.array(volume_image.shape) * volume_scaling).astype(int)
+        )
+
+        # Apply reverse registration on the contours
+        matrix = get_transformation_matrix_from_alignment(
+            settings, np.array(scaled_volume_shape) // 2, True
+        )
+
+        contours = contours.T[:, 0]  # Go from (N, 1, 2) to (2, N)
+        contours = np.vstack([contours, [1] * contours.shape[1]])  # Go to (3, N)
+
+        contours = matrix @ contours
+
+        contours = contours[:2]
+
+        # Adjust for cropping
+        # Contours work with XY while the top left if taken from shapes, hence is in IJ
+        top_left = get_top_left_point(scaled_volume_shape, histology_image.shape)[::-1]
+
+        contours = contours - np.array(top_left).reshape(-1, 1)
+
+        # Fix up the contours to a format OpenCV understands
+        contours = contours.T.reshape(-1, 1, 2)
+        contours = np.round(contours).astype(np.int32)
+
+        # Convert the contours back to a list of individual contours
+        i = 0
+        contour_list = []
+        for index in contour_lengths:
+            contour = contours[i : i + index]
+            i += index
+
+            contour_list.append(contour)
+
+        return contour_list
+
+    def _load_volume(self, volume_name: str, settings: AlignmentSettings) -> None:
         match volume_name.lower():
             case "atlas":
                 volume_path = settings.volume_path
@@ -117,29 +215,6 @@ class Registrator:
                 lazy=False,
             )
 
-        if histology_image is None and settings.histology_path is not None:
-            histology_image = load_image(settings.histology_path)
-
-        volume_final_scaling = get_volume_scaling_factor(settings)
-
-        volume_image = self._volume_slicer.slice(
-            settings.volume_settings, interpolation="linear"
-        )
-        volume_image = rescale(
-            volume_image,
-            volume_final_scaling,
-            fast=self.fast_rescale,
-            interpolation=self.interpolation,
-        )
-        volume_image = transform_image(
-            volume_image,
-            settings,
-            fast=self.fast_transform,
-            interpolation=self.interpolation,
-            forward=False,
-        )
-        return crop_down(volume_image, histology_image.shape)
-
 
 class ContourGeneratorThread(QtCore.QThread):
     """Thread class for handling contour generation for the QA GUI.
@@ -167,8 +242,7 @@ class ContourGeneratorThread(QtCore.QThread):
 
     should_emit: bool = True
 
-    mask_ready: QtCore.Signal = QtCore.Signal(np.ndarray)
-    contours_ready: QtCore.Signal = QtCore.Signal(np.ndarray)
+    contours_ready: QtCore.Signal = QtCore.Signal(list)  # Really list[np.ndarray]
 
     def __init__(
         self,
@@ -189,7 +263,7 @@ class ContourGeneratorThread(QtCore.QThread):
         registrator = Registrator(True, True)
 
         try:
-            structure_mask = registrator.get_reversed_image(
+            contours = registrator.get_reversed_contours(
                 self.alignment_settings, volume_name=self.structure_name
             )
         except FileNotFoundError:
@@ -198,17 +272,7 @@ class ContourGeneratorThread(QtCore.QThread):
             )
             return
 
-        contours = cv2.findContours(
-            structure_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
-        )[0]
-
-        if contours:
-            contours = np.concatenate(contours).squeeze()
-        else:
-            contours = np.array([])
-
         if self.should_emit:
-            self.mask_ready.emit(structure_mask)
             self.contours_ready.emit(contours)
 
 
@@ -216,8 +280,7 @@ def crop_down(
     image: np.ndarray,
     reference_shape: tuple[int, ...],
 ) -> np.ndarray:
-    centre = np.array(image.shape) // 2
-    top_left = centre - (np.array(reference_shape) // 2)
+    top_left = get_top_left_point(image.shape, reference_shape)
 
     return image[
         top_left[0] : top_left[0] + reference_shape[0],
@@ -248,12 +311,8 @@ def get_top_left_point(
             f"smaller: {smaller_shape})."
         )
 
-    maximum = np.max(ratios)
-
-    if ratios[0] == maximum:
-        top_left = ((larger_shape[0] - smaller_shape[0]) // 2, 0)
-    else:
-        top_left = (0, (larger_shape[1] - smaller_shape[1]) // 2)
+    centre = np.array(larger_shape) // 2
+    top_left = centre - (np.array(smaller_shape) // 2)
 
     return top_left
 
@@ -285,20 +344,22 @@ def pad(image: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
     )
 
 
-def recreate_q_transform_from_alignment(
-    image_shape: Sequence[int],
+def get_transformation_matrix_from_alignment(
     settings: AlignmentSettings,
+    transformation_origin: Sequence[int] = (0, 0),
     invert: bool = False,
-) -> QtGui.QTransform:
+) -> np.ndarray:
     histology_settings = settings.histology_settings
 
+    # When inverting, the translation obtained during registration needs to be rescaled
+    # to the unit vectors of the histology.
     translation_factor = 1
-    if not invert:
-        # When doing a reverse registration (invert is False), the translation needs to
-        # be scaled up to the coordinate space of the full-size image.
+    if invert:
         translation_factor = (
-            settings.volume_scaling * settings.histology_downsampling
-        ) / settings.histology_scaling
+            settings.volume_scaling
+            * settings.histology_downsampling
+            / settings.histology_scaling
+        )
 
     sk_transform = get_sk_transform_from_parameters(
         scale=(
@@ -315,12 +376,17 @@ def recreate_q_transform_from_alignment(
             histology_settings.translation_y * translation_factor,
         ),
         extra_translation=(
-            -image_shape[1] / 2,
-            -image_shape[0] / 2,
+            -transformation_origin[0],
+            -transformation_origin[1],
         ),
         undo_extra=True,
     )
-    return convert_sk_transform_to_q_transform(sk_transform)
+
+    matrix = sk_transform.params
+    if invert:
+        matrix = np.linalg.inv(matrix)
+
+    return matrix
 
 
 def rescale(
@@ -346,7 +412,7 @@ def rescale(
         image_pil = Image.fromarray(image)
         image_pil = image_pil.resize(target_shape, resample=Image.Resampling.BILINEAR)
 
-        return np.asarray(image_pil)
+        return np.array(image_pil)
     else:
         return sk_rescale(
             image,
@@ -364,17 +430,16 @@ def transform_image(
     interpolation: str,
     forward: bool = True,
 ) -> np.ndarray:
-    q_transform = recreate_q_transform_from_alignment(
-        image.shape, alignment_settings, forward
+    matrix = get_transformation_matrix_from_alignment(
+        alignment_settings, np.array(image.shape) // 2, not forward
     )
-    matrix = get_transformation_matrix_from_q_transform(q_transform, forward)
 
     match interpolation:
         case "nearest":
-            flag = cv2.INTER_NEAREST
+            flags = cv2.INTER_NEAREST
             order = 0
         case "bilinear":
-            flag = cv2.INTER_LINEAR
+            flags = cv2.INTER_LINEAR
             order = 1
         case _:
             raise ValueError(f"Unknown interpolation '{interpolation}'")
@@ -385,16 +450,19 @@ def transform_image(
         if max(image.shape) < 2**15 - 1:
             cv2.warpAffine(
                 image,
-                matrix,
+                matrix[:2],
                 image.shape[::-1],
                 image,
-                flags=flag | cv2.WARP_INVERSE_MAP,
+                flags=flags,
             )
         else:
             _module_logger.debug(
                 "Falling back to PIL warping as image has at least one dimension "
                 "larger than 2**15 - 1."
             )
+
+            # PIL needs the inverse map
+            matrix = np.linalg.inv(matrix)
 
             # Fallback to PIL. ~10x slower than OpenCV. Still much faster than skimage.
             image_pil = Image.fromarray(image)  # Does not copy the data
@@ -404,9 +472,11 @@ def transform_image(
             # Paste the output onto the image to modify the NumPy array directly
             image_pil.paste(image_pil.transform(image_pil.size, transform))
     else:
-        sk_transform = AffineTransform(matrix=matrix)
-        image = warp(
-            image, sk_transform, order=order, preserve_range=True, clip=True
-        ).astype(image.dtype)
+        # `warp` needs the inverse map
+        matrix = np.linalg.inv(matrix)
+
+        image = warp(image, matrix, order=order, preserve_range=True, clip=True).astype(
+            image.dtype
+        )
 
     return image
