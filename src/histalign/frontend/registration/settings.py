@@ -219,25 +219,25 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         scale_x_layout = QtWidgets.QHBoxLayout()
 
         scale_x_layout.addWidget(scale_x_spin_box, stretch=1)
-        scale_x_layout.addWidget(
-            Icon(
-                RESOURCES_ROOT
-                / "icons"
-                / "arrow-thin-chevron-top-right-corner-icon.png"
-            )
+
+        icon = Icon(
+            RESOURCES_ROOT / "icons" / "arrow-thin-chevron-top-right-corner-icon.png"
         )
+        icon.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+        scale_x_layout.addWidget(icon)
 
         #
         scale_y_layout = QtWidgets.QHBoxLayout()
 
         scale_y_layout.addWidget(scale_y_spin_box, stretch=1)
-        scale_y_layout.addWidget(
-            Icon(
-                RESOURCES_ROOT
-                / "icons"
-                / "arrow-thin-chevron-bottom-right-corner-icon.png"
-            )
+
+        icon = Icon(
+            RESOURCES_ROOT / "icons" / "arrow-thin-chevron-bottom-right-corner-icon.png"
         )
+        icon.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+        scale_y_layout.addWidget(icon)
 
         #
         layout = QtWidgets.QFormLayout()
