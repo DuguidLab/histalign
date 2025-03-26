@@ -8,6 +8,8 @@ from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
+from histalign.backend import UserRole
+from histalign.backend.ccf.model_view import get_checked_items
 from histalign.backend.models import (
     MeasureSettings,
     QuantificationMeasure,
@@ -433,7 +435,13 @@ class PrepareWidget(QtWidgets.QWidget):
 
         if self.analysis_parameters_frame.current_analysis_widget.includes_structures:
             model = self.structures_frame.pop_up.finder_widget.tree_view.model()
-            structures = [node.name for node in model.get_checked_items()]
+            checked_items = get_checked_items(model)
+
+            structures = [
+                model.data(index, role=UserRole.NAME_NO_ACRONYM)
+                for index in checked_items
+            ]
+
             settings.structures = structures
 
         return settings

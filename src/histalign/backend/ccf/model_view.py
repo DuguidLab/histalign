@@ -114,6 +114,14 @@ class ABAStructureModel(QtCore.QAbstractItemModel):
         self, index: IndexType, role: int = QtCore.Qt.ItemDataRole.DisplayRole
     ) -> Any:
         if not index.isValid():
+            # Allow retrieving checked items
+            if (
+                index.row() == -1
+                and index.column() == -1
+                and role == QtCore.Qt.ItemDataRole.CheckStateRole
+            ):
+                return self._checked_indices
+
             return None
 
         if index.column() == 1:
@@ -381,3 +389,17 @@ def iterate_tree_model_dfs(model: QtCore.QAbstractItemModel) -> Iterator[Index]:
         yield index
         for row_index in range(model.rowCount(index)):
             queue.append(model.index(row_index, 0, index))
+
+
+def get_checked_items(model: QtCore.QAbstractItemModel) -> list[Index]:
+    checked_items = []
+    for index in iterate_tree_model_dfs(model):
+        if (
+            model.data(
+                index.siblingAtColumn(1), role=QtCore.Qt.ItemDataRole.CheckStateRole
+            )
+            == QtCore.Qt.CheckState.Checked
+        ):
+            checked_items.append(index)
+
+    return checked_items
