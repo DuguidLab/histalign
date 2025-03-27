@@ -166,6 +166,8 @@ class VolumeViewer(QtWidgets.QWidget):
         self._horizontal_pixmap_item = None
         self._sagittal_pixmap_item = None
 
+        self._slicing_indices = np.array([0, 0, 0])
+
         #
         self.setContentsMargins(0, 0, 0, 0)
 
@@ -195,6 +197,8 @@ class VolumeViewer(QtWidgets.QWidget):
         coronal_view.make_primary_requested.connect(
             lambda: self.make_primary(coronal_view)
         )
+        coronal_view.up_scrolled.connect(lambda: self.increment_slicing_index(0))
+        coronal_view.down_scrolled.connect(lambda: self.decrement_slicing_index(0))
 
         self.coronal_view = coronal_view
 
@@ -204,6 +208,8 @@ class VolumeViewer(QtWidgets.QWidget):
         horizontal_view.make_primary_requested.connect(
             lambda: self.make_primary(horizontal_view)
         )
+        horizontal_view.up_scrolled.connect(lambda: self.increment_slicing_index(1))
+        horizontal_view.down_scrolled.connect(lambda: self.decrement_slicing_index(1))
 
         self.horizontal_view = horizontal_view
 
@@ -213,6 +219,8 @@ class VolumeViewer(QtWidgets.QWidget):
         sagittal_view.make_primary_requested.connect(
             lambda: self.make_primary(sagittal_view)
         )
+        sagittal_view.up_scrolled.connect(lambda: self.increment_slicing_index(2))
+        sagittal_view.down_scrolled.connect(lambda: self.decrement_slicing_index(2))
 
         self.sagittal_view = sagittal_view
 
@@ -229,8 +237,8 @@ class VolumeViewer(QtWidgets.QWidget):
                 path, normalise_dtype=np.uint16, return_raw_array=True
             )
 
-        self.reference_volume = reference_volume
         self.overlay_volume = overlay_volume
+        self.set_reference_volume(reference_volume)
         self.update_views()
 
     def minimumSize(self) -> QtCore.QSize:
@@ -238,6 +246,7 @@ class VolumeViewer(QtWidgets.QWidget):
 
     def set_reference_volume(self, volume: np.ndarray) -> None:
         self.reference_volume = volume
+        self._slicing_indices = (np.array(volume.shape) - 1) // 2
         if volume is not None:
             self.update_views()
 
@@ -251,35 +260,87 @@ class VolumeViewer(QtWidgets.QWidget):
 
         self._do_layout()
 
+    def increment_slicing_index(self, view_index: int) -> None:
+        if self.reference_volume is None:
+            return
+
+        new_index = self._slicing_indices[view_index] + 1
+        if new_index >= self.reference_volume.shape[view_index]:
+            new_index -= 1
+
+        self._slicing_indices[view_index] = new_index
+
+        if view_index == 0:
+            view = self.coronal_view
+        elif view_index == 1:
+            view = self.horizontal_view
+        elif view_index == 2:
+            view = self.sagittal_view
+        else:
+            return
+
+        self._update_view(view)
+
+    def decrement_slicing_index(self, view_index: int) -> None:
+        if self.reference_volume is None:
+            return
+
+        new_index = self._slicing_indices[view_index] - 1
+        if new_index < 0:
+            new_index += 1
+
+        self._slicing_indices[view_index] = new_index
+
+        if view_index == 0:
+            view = self.coronal_view
+        elif view_index == 1:
+            view = self.horizontal_view
+        elif view_index == 2:
+            view = self.sagittal_view
+        else:
+            return
+
+        self._update_view(view)
+
     def update_views(self) -> None:
         if self.reference_volume is None:
             return
 
-        # Coronal
-        array = self.reference_volume[(self.reference_volume.shape[0] - 1) // 2]
-        if self.overlay_volume is not None:
-            overlay = self.overlay_volume[(self.overlay_volume.shape[0] - 1) // 2]
-            array = np.where(overlay, overlay, array)
-        pixmap = np_to_qpixmap(array)
-        self.set_coronal_pixmap(pixmap)
+        self._update_view(self.coronal_view)
+        self._update_view(self.horizontal_view)
+        self._update_view(self.sagittal_view)
 
-        # Horizontal
-        array = self.reference_volume[:, (self.reference_volume.shape[1] - 1) // 2]
-        if self.overlay_volume is not None:
-            overlay = self.overlay_volume[:, (self.overlay_volume.shape[1] - 1) // 2]
-            array = np.where(overlay, overlay, array)
-        pixmap = np_to_qpixmap(array)
-        self.set_horizontal_pixmap(pixmap)
+    def _update_view(self, view: FMRIPreview) -> None:
+        if self.reference_volume is None:
+            return
 
-        # Sagittal
-        array = self.reference_volume[..., (self.reference_volume.shape[2] - 1) // 2].T
+        if view == self.coronal_view:
+            index = 0
+            slicing = self._slicing_indices[index]
+        elif view == self.horizontal_view:
+            index = 1
+            slicing = (slice(None), self._slicing_indices[index])
+        elif view == self.sagittal_view:
+            index = 2
+            slicing = (slice(None), slice(None), self._slicing_indices[index])
+        else:
+            return
+
+        array = self.reference_volume[slicing]
         if self.overlay_volume is not None:
-            overlay = self.overlay_volume[
-                ..., (self.overlay_volume.shape[2] - 1) // 2
-            ].T
+            overlay = self.overlay_volume[slicing]
             array = np.where(overlay, overlay, array)
+
+            if view == self.sagittal_view:
+                array = array.T
         pixmap = np_to_qpixmap(array)
-        self.set_sagittal_pixmap(pixmap)
+
+        if view == self.coronal_view:
+            self.set_coronal_pixmap(pixmap)
+        elif view == self.horizontal_view:
+            self.set_horizontal_pixmap(pixmap)
+        elif view == self.sagittal_view:
+            self.set_sagittal_pixmap(pixmap)
 
     def set_coronal_pixmap(self, pixmap: QtGui.QPixmap) -> None:
         self._coronal_pixmap_item = self._replace_pixmap_item(
@@ -378,6 +439,8 @@ class VolumeViewer(QtWidgets.QWidget):
 
 class FMRIPreview(ZoomAndPanView):
     make_primary_requested: QtCore.Signal = QtCore.Signal()
+    up_scrolled: QtCore.Signal = QtCore.Signal()
+    down_scrolled: QtCore.Signal = QtCore.Signal()
 
     def __init__(
         self,
@@ -390,6 +453,7 @@ class FMRIPreview(ZoomAndPanView):
         self.setContentsMargins(0, 0, 0, 0)
         self.setBackgroundBrush(QtCore.Qt.GlobalColor.black)
 
+        self.set_drag_button(QtCore.Qt.MouseButton.MiddleButton)
         self.set_zoom_modifier(QtCore.Qt.KeyboardModifier.ControlModifier)
 
         #
@@ -408,3 +472,12 @@ class FMRIPreview(ZoomAndPanView):
         super().resizeEvent(event)
 
         self.make_primary_button.setGeometry(self.width() - 25, 5, 20, 20)
+
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        super().wheelEvent(event)
+
+        delta = event.angleDelta()
+        if delta.y() > 0:
+            self.up_scrolled.emit()
+        elif delta.y() < 0:
+            self.down_scrolled.emit()
