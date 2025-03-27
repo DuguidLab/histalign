@@ -3104,6 +3104,7 @@ class StackWidget(QtWidgets.QWidget):
 
 class FileWidget(HoverMixin, QtWidgets.QWidget):
     clicked: QtCore.Signal = QtCore.Signal()
+    double_clicked: QtCore.Signal = QtCore.Signal()
 
     def __init__(
         self,
@@ -3161,6 +3162,11 @@ class FileWidget(HoverMixin, QtWidgets.QWidget):
         if self._clicked:
             self.clicked.emit()
             self._clicked = False
+
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseDoubleClickEvent(event)
+
+        self.double_clicked.emit()
 
 
 class DisplayableSortFilterProxyModel(QtCore.QSortFilterProxyModel):

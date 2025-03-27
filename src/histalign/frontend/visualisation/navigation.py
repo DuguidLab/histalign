@@ -37,6 +37,7 @@ class NavigationWidget(QtWidgets.QWidget):
     project_root: Path | None = None
 
     open_image_requested: QtCore.Signal = QtCore.Signal(Path)
+    open_volume_requested: QtCore.Signal = QtCore.Signal(Path)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -56,6 +57,7 @@ class NavigationWidget(QtWidgets.QWidget):
         header.back_requested.connect(area.layer_popped.emit)
 
         area.open_image_requested.connect(self.open_image_requested.emit)
+        area.open_volume_requested.connect(self.open_volume_requested.emit)
 
         self.area = area
 
@@ -160,11 +162,12 @@ class NavigationHeader(QtWidgets.QWidget):
 class NavigationArea(QtWidgets.QScrollArea):
     project_root: Optional[Path] = None
     parsed_slice: bool = False
-    parsed_brain: bool = False
+    parsed_brains: bool = False
 
     layer_put: QtCore.Signal = QtCore.Signal(str)
     layer_popped: QtCore.Signal = QtCore.Signal()
     open_image_requested: QtCore.Signal = QtCore.Signal(Path)
+    open_volume_requested: QtCore.Signal = QtCore.Signal(Path)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -292,7 +295,38 @@ class NavigationArea(QtWidgets.QScrollArea):
 
     @QtCore.Slot()
     def parse_brain_files(self) -> None:
-        pass
+        if self.parsed_brains or self.project_root is None:
+            return
+
+        volumes_path = self.project_root / "volumes.json"
+        if not volumes_path.exists():
+            return
+
+        with open(volumes_path) as handle:
+            paths = json.load(handle)["volumes"]
+        for path in paths:
+            path = Path(path)
+
+            with open(path.parent.parent / "metadata.json") as handle:
+                contents = json.load(handle)
+
+            try:
+                user_friendly_path = contents["directory_path"]
+            except KeyError:
+                _module_logger.error(
+                    f"Could not parse original directory name from metadata.json file "
+                    f"in '{path}'."
+                )
+                return
+            user_friendly_path = Path(user_friendly_path)
+
+            widget = self.brain_file_container.add_brain(user_friendly_path)
+
+            widget.double_clicked.connect(
+                lambda x=path: self.open_volume_requested.emit(x)
+            )
+
+        self.parsed_brains = True
 
     @QtCore.Slot()
     def show_slice_folders(self) -> None:
@@ -310,6 +344,7 @@ class NavigationArea(QtWidgets.QScrollArea):
             self.stack_widget.next()
         else:
             self.stack_widget.put(self.brain_file_container)
+            self.brain_file_container.show()
 
         self.layer_put.emit("3D volumes")
 
@@ -397,3 +432,17 @@ class SliceFolderContainer(QtWidgets.QWidget):
 class BrainFileContainer(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+
+        layout.addStretch(1)
+
+        self.setLayout(layout)
+
+    def add_brain(self, path: Path) -> FileWidget:
+        widget = FileWidget(path=path, is_folder=False)
+
+        self.layout().insertWidget(self.layout().count() - 1, widget)
+
+        return widget

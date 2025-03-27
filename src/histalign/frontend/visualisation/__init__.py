@@ -2,11 +2,18 @@
 #
 # SPDX-License-Identifier: MIT
 
+import json
 from pathlib import Path
 
+import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
+from scipy.ndimage import gaussian_filter
 
-from histalign.backend.io import RESOURCES_ROOT
+from histalign.backend.ccf.downloads import download_structure_mask
+from histalign.backend.ccf.paths import get_structure_mask_path
+from histalign.backend.io import load_volume, RESOURCES_ROOT
+from histalign.backend.models import ProjectSettings
+from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     CollapsibleWidgetArea,
@@ -14,7 +21,7 @@ from histalign.frontend.common_widgets import (
 )
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.navigation import NavigationWidget
-from histalign.frontend.visualisation.views import SliceViewer
+from histalign.frontend.visualisation.views import SliceViewer, VolumeViewer
 
 
 class VisualisationMainWindow(BasicApplicationWindow):
@@ -22,6 +29,8 @@ class VisualisationMainWindow(BasicApplicationWindow):
         super().__init__(parent)
 
         #
+        self.project_root = None
+
         self._saved_left_size = -1
         self._saved_right_size = -1
 
@@ -35,7 +44,8 @@ class VisualisationMainWindow(BasicApplicationWindow):
         #
         navigation_widget = NavigationWidget()
 
-        navigation_widget.open_image_requested.connect(self.central_view.open_image)
+        navigation_widget.open_image_requested.connect(self.open_image)
+        navigation_widget.open_volume_requested.connect(self.open_volume)
 
         self.navigation_widget = navigation_widget
 
@@ -113,7 +123,56 @@ class VisualisationMainWindow(BasicApplicationWindow):
     def open_project(self, project_file_path: str) -> None:
         project_path = Path(project_file_path).parent
 
+        self.project_root = project_path
         self.navigation_widget.set_project_root(project_path)
+
+    @QtCore.Slot()
+    def open_image(self, path: Path) -> None:
+        old_view = self.central_view
+        new_view = old_view
+
+        if isinstance(old_view, SliceViewer):
+            new_view.open_image(path)
+        else:
+            new_view = SliceViewer()
+
+        if old_view is not new_view:
+            self.central_view = new_view
+            self.centralWidget().replaceWidget(1, new_view)
+            old_view.deleteLater()
+
+    @QtCore.Slot()
+    def open_volume(self, path: Path) -> None:
+        old_view = self.central_view
+        new_view = old_view
+
+        with open(self.project_root / "project.json") as handle:
+            settings = ProjectSettings(**json.load(handle)["project_settings"])
+            resolution = settings.resolution
+
+        volume = load_volume(path, normalise_dtype=np.uint16, return_raw_array=True)
+
+        # Preprocessing would have been done beforehand
+        volume = gaussian_filter(volume, sigma=5, radius=20)
+        volume = normalise_array(volume, dtype=np.uint8)
+        volume = np.digitize(volume, np.linspace(0, 255, 25)).astype(np.uint8)
+        volume = normalise_array(volume, dtype=np.uint16)
+
+        mask_path = get_structure_mask_path("root", resolution)
+        if not Path(mask_path).exists():
+            download_structure_mask("root", resolution)
+        mask = load_volume(mask_path, return_raw_array=True)
+        volume = np.where(mask, volume, 0)
+
+        if isinstance(old_view, VolumeViewer):
+            new_view.set_overlay_volume(volume)
+        else:
+            new_view = VolumeViewer(resolution=resolution, overlay_volume=volume)
+
+        if old_view is not new_view:
+            self.central_view = new_view
+            self.centralWidget().replaceWidget(1, new_view)
+            old_view.deleteLater()
 
     @QtCore.Slot()
     def left_collapsed(self) -> None:
