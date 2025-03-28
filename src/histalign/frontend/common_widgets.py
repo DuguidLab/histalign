@@ -2594,20 +2594,12 @@ class PixmapFlowLayout(QtWidgets.QLayout):
 
 class CutOffLabel(QtWidgets.QLabel):
     def __init__(self, text: str, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(text, parent)
+        super().__init__(parent)
 
-        self._text = text
-        self.setToolTip(text)
+        self._text = ""
+        self.setText(text)
 
-    def setText(self, text: str, overwrite: bool = True) -> None:
-        if overwrite:
-            self._text = text
-
-        super().setText(text)
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-
+    def truncate_text_if_needed(self) -> None:
         rect = self.contentsRect()
         if rect.width() < 1:
             return
@@ -2615,6 +2607,7 @@ class CutOffLabel(QtWidgets.QLabel):
         text = self._text
 
         if rect.width() > QtGui.QFontMetrics(self.font()).boundingRect(text).width():
+            self.setToolTip("")
             self.setText(text, overwrite=False)
             return
 
@@ -2624,7 +2617,20 @@ class CutOffLabel(QtWidgets.QLabel):
         ):
             text = text[:-4] + "..."
 
+        self.setToolTip(self._text)
         self.setText(text, overwrite=False)
+
+    def setText(self, text: str, overwrite: bool = True) -> None:
+        if overwrite:
+            self._text = text
+            return self.truncate_text_if_needed()
+
+        super().setText(text)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.truncate_text_if_needed()
 
 
 class BinaryAlphaPixmap(QtGui.QPixmap):
