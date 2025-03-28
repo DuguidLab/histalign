@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from contextlib import suppress
 import itertools
 import json
 import logging
@@ -24,7 +23,11 @@ from histalign.backend.ccf.model_view import (
     ABAStructureTreeModel,
     iterate_tree_model_dfs,
 )
-from histalign.backend.io import RESOURCES_ROOT
+from histalign.backend.io import (
+    ALIGNMENT_FILE_NAME_PATTERN,
+    load_alignment_settings,
+    RESOURCES_ROOT,
+)
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.pyside_helpers import (
@@ -3037,147 +3040,6 @@ class VisibleHandleSplitter(QtWidgets.QSplitter):
         return VisibleSplitterHandle(self.orientation(), self)
 
 
-class StackWidget(QtWidgets.QWidget):
-    index_changed: QtCore.Signal = QtCore.Signal(int)
-
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-
-        #
-        self._widget_stack = []
-        self._index = -1
-
-        #
-        layout = QtWidgets.QGridLayout()
-
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        layout.setRowStretch(0, 1)
-        layout.setColumnStretch(0, 1)
-
-        self.setLayout(layout)
-
-    def in_stack(self, widget: QtWidgets.QWidget) -> bool:
-        return widget in self._widget_stack
-
-    def has_next(self) -> bool:
-        return self._index < len(self._widget_stack) - 1
-
-    def has_previous(self) -> bool:
-        return self._index > 0
-
-    def next(self) -> None:
-        if not self.has_next():
-            return
-
-        self._widget_stack[self._index].hide()
-        self._index += 1
-        self._widget_stack[self._index].show()
-
-        self.index_changed.emit(self._index)
-
-    def pop(self) -> None:
-        self._pop()
-
-        with suppress(IndexError):
-            self._widget_stack[self._index].show()
-
-    def previous(self) -> None:
-        if not self.has_previous():
-            return
-
-        self._widget_stack[self._index].hide()
-        self._index -= 1
-        self._widget_stack[self._index].show()
-
-    def put(self, widget: QtWidgets.QWidget) -> None:
-        with suppress(IndexError):
-            self._widget_stack[self._index].hide()
-
-        self._clean_stack()
-
-        self._widget_stack.append(widget)
-        self._index += 1
-
-        self.layout().addWidget(widget, 0, 0)
-
-    def _clean_stack(self) -> None:
-        while self._index < len(self._widget_stack) - 1:
-            self._pop()
-
-    def _pop(self) -> None:
-        with suppress(IndexError):
-            widget = self._widget_stack.pop()
-            index = self.layout().indexOf(widget)
-            item = self.layout().takeAt(index)
-            if item.widget().parent() is None:
-                item.widget().deleteLater()
-
-        self._index = min(self._index, len(self._widget_stack) - 1)
-
-
-class FileWidget(HoverMixIn, QtWidgets.QWidget):
-    clicked: QtCore.Signal = QtCore.Signal()
-    double_clicked: QtCore.Signal = QtCore.Signal()
-
-    def __init__(
-        self,
-        path: str | Path = "",
-        shift: int | QtGui.QColor = 20,
-        is_folder: bool = False,
-        parent: Optional[QtWidgets.QWidget] = None,
-    ) -> None:
-        super().__init__(
-            shift=shift,
-            roles=[QtGui.QPalette.ColorRole.Window, QtGui.QPalette.ColorRole.Button],
-            parent=parent,
-        )
-
-        #
-        self._clicked = False
-
-        #
-        icon_file = "folder-icon.png" if is_folder else "file-black-icon.png"
-
-        icon = Icon(icon_path=RESOURCES_ROOT / "icons" / icon_file)
-
-        self.icon = icon
-
-        #
-        label = CutOffLabel(str(path))
-
-        self.label = label
-
-        #
-        layout = QtWidgets.QHBoxLayout()
-
-        layout.addWidget(icon)
-        layout.addWidget(label, stretch=1)
-
-        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self.setLayout(layout)
-
-    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        super().mousePressEvent(event)
-
-        self._clicked = True
-
-    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
-        super().mouseReleaseEvent(event)
-
-        if self._clicked:
-            self.clicked.emit()
-            self._clicked = False
-
-    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
-        super().mouseDoubleClickEvent(event)
-
-        self.double_clicked.emit()
-
-
 class DisplayableSortFilterProxyModel(QtCore.QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3415,3 +3277,578 @@ class ThumbnailsContainerWidget(QtWidgets.QWidget):
 
         self._layout = layout
         super().setLayout(layout)
+
+
+# noinspection PyPep8Naming
+class DoubleClickMixIn:
+    """A mix-in for any QWidget to make it double-clickable.
+
+    Note that single clicking is therefore disabled by default.
+    You should still connect to the `clicked` signal as that is what is emitted on
+    double clicks.
+    The inheriting widget does not need to have a clicked signal by default. If it does
+    not, one is added to it.
+
+    Signals:
+        clicked (QtCore.Signal): Emitted when the widget is double clicked.
+    """
+
+    def __init__(self: QtWidgets.QWidget, *args, **kwargs) -> None:
+        if not hasattr(type(self), "clicked"):
+            type(self).clicked = QtCore.Signal()
+
+        super().__init__(*args, **kwargs)
+
+        self._double_clicking = False
+
+        self.installEventFilter(self)
+
+    def eventFilter(
+        self: QtWidgets.QWidget, watched: QtCore.QObject, event: QtCore.QEvent
+    ) -> bool:
+        """Filters events on a watched object.
+
+        Single clicks are ignored while double clicks apply the clicked logic.
+
+        Args:
+            watched (QtCore.QObject): A watched object.
+            event (QtCore.QEvent): Event to filer
+
+        Returns:
+            bool: Whether the event was handled.
+        """
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            return True
+        elif event.type() == QtCore.QEvent.Type.MouseButtonRelease:
+            if self._double_clicking:
+                self._double_clicking = False
+                self.clicked.emit()
+                return super().eventFilter(watched, event)
+            return True
+        elif event.type() == QtCore.QEvent.Type.MouseButtonDblClick:
+            self.mousePressEvent(
+                QtGui.QMouseEvent(
+                    QtCore.QEvent.Type.MouseButtonPress,
+                    event.localPos(),
+                    event.globalPos(),
+                    event.button(),
+                    event.buttons(),
+                    event.modifiers(),
+                    event.device(),
+                )
+            )
+            self._double_clicking = True
+            return True
+
+        return super().eventFilter(watched, event)
+
+
+class DoubleClickButton(DoubleClickMixIn, QtWidgets.QPushButton):
+    """A QPushButton that only allows double clicks."""
+
+
+class DoubleClickHoverButton(DoubleClickMixIn, HoverButton):
+    """A QPushButton that only allows double clicks and reacts to hovering."""
+
+
+class FilePathLabel(CutOffLabel):
+    def __init__(
+        self, text: str = "", parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
+        super().__init__(text, parent)
+
+        self.setFrameShape(QtWidgets.QFrame.Shape.Box)
+        self.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.setMargin(4)
+        font = self.font()
+        font.setPixelSize(12)
+        self.setFont(font)
+
+        background_colour = self.palette().window().color()
+        new_colour = lua_aware_shift(background_colour, 20)
+
+        self.setObjectName("CustomLabel")
+        self.setStyleSheet(
+            f"#CustomLabel {{ background-color: rgba{new_colour.getRgb()}; }}"
+        )
+        self.setMinimumWidth(20)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Ignored,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+
+
+class FileWidget(HoverMixIn, DoubleClickMixIn, QtWidgets.QWidget):
+    def __init__(
+        self,
+        text: str = "",
+        is_folder: bool = False,
+        icon_path: str | Path = "",
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent=parent)
+
+        if not icon_path:
+            icon_file_name = "folder-icon.svg" if is_folder else "file-black-icon.svg"
+            icon_path = RESOURCES_ROOT / "icons" / icon_file_name
+        icon = Icon(icon_path)
+        icon.setFixedSize(QtCore.QSize(30, 30))
+        icon.setIconSize(QtCore.QSize(20, 20))
+
+        label = CutOffLabel(text)
+
+        layout = QtWidgets.QHBoxLayout()
+        layout.addWidget(icon)
+        layout.addWidget(label)
+        layout.setContentsMargins(5, 0, 5, 0)
+        self.setLayout(layout)
+
+
+class FileListWidget(QtWidgets.QWidget):
+    def __init__(
+        self,
+        file_icon_path: str | Path = "",
+        folder_icon_path: str | Path = "",
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.file_icon_path = file_icon_path
+        self.folder_icon_path = folder_icon_path
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+    def add_file(self, path: str | Path) -> FileWidget:
+        widget = FileWidget(str(path), icon_path=self.file_icon_path)
+        self.layout().addWidget(widget)
+
+        return widget
+
+    def add_folder(self, path: str | Path) -> FileWidget:
+        widget = FileWidget(str(path), is_folder=True, icon_path=self.folder_icon_path)
+        self.layout().addWidget(widget)
+
+        widget.clicked.emit()
+        return widget
+
+
+class NavigationWidget(QtWidgets.QWidget):
+    open_image_requested: QtCore.Signal = QtCore.Signal(Path)
+    open_volume_requested: QtCore.Signal = QtCore.Signal(Path)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.project_root = None
+
+        area = NavigationArea()
+        area.open_image_requested.connect(self.open_image_requested.emit)
+        area.open_volume_requested.connect(self.open_volume_requested.emit)
+        self.area = area
+
+        header = NavigationHeader()
+        header.put_on_stack("Pick dimensionality")
+        header.back_button.setEnabled(False)
+        header.forward_button.setEnabled(False)
+        header.back_button.clicked.connect(area.decrease_stack_index)
+        header.forward_button.clicked.connect(area.increase_stack_index)
+        area.stack_start_reached.connect(lambda: header.back_button.setEnabled(False))
+        area.stack_start_reached.connect(lambda: header.forward_button.setEnabled(True))
+        area.stack_end_reached.connect(lambda: header.back_button.setEnabled(True))
+        area.stack_end_reached.connect(lambda: header.forward_button.setEnabled(False))
+        header.back_button.clicked.connect(
+            lambda: header.forward_button.setEnabled(True)
+        )
+        header.forward_button.clicked.connect(
+            lambda: header.back_button.setEnabled(True)
+        )
+        area.folders_2d_opened.connect(lambda: header.put_on_stack("Slices"))
+        area.files_3d_opened.connect(lambda: header.put_on_stack("Volumes"))
+        area.folder_2d_opened.connect(lambda x: header.put_on_stack(str(x)))
+        self.header = header
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(header)
+        layout.addWidget(area)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
+        self.setLayout(layout)
+
+    def parse_project(self, path: Path) -> None:
+        self.project_root = path
+        self.area.parse_project(path)
+
+
+class NavigationHeader(QtWidgets.QWidget):
+    back_button: QtWidgets.QPushButton
+    forward_button: QtWidgets.QPushButton
+    label: FilePathLabel
+
+    _stack_index: int
+    _title_stack: list[str]
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self._stack_index = -1
+        self._title_stack = []
+
+        back_button = HoverButton(flat=True)
+        back_button.clicked.connect(self.decrease_stack_index)
+        back_button.setFixedSize(40, 40)
+        back_button.setIcon(
+            QtGui.QIcon(str(RESOURCES_ROOT / "icons" / "thin-arrow-left-icon.png"))
+        )
+        back_button.setIconSize(QtCore.QSize(18, 18))
+        self.back_button = back_button
+
+        forward_button = HoverButton(flat=True)
+        forward_button.clicked.connect(self.increase_stack_index)
+        forward_button.setFixedSize(40, 40)
+        forward_button.setIcon(
+            QtGui.QIcon(str(RESOURCES_ROOT / "icons" / "thin-arrow-right-icon.png"))
+        )
+        forward_button.setIconSize(QtCore.QSize(18, 18))
+        self.forward_button = forward_button
+
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addWidget(back_button)
+        button_layout.addWidget(forward_button)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(0)
+
+        label = FilePathLabel()
+        self.label = label
+
+        label_layout = QtWidgets.QHBoxLayout()
+        label_layout.addWidget(label)
+        label_layout.setContentsMargins(5, 5, 5, 5)
+
+        layout = QtWidgets.QHBoxLayout()
+        layout.addLayout(button_layout)
+        layout.addLayout(label_layout, stretch=1)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setLayout(layout)
+
+        self.setFixedHeight(40)
+
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.MinimumExpanding,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+
+    def put_on_stack(self, title: str) -> None:
+        self._stack_index += 1
+        self._title_stack[self._stack_index :] = [title]
+
+        self.update_title()
+
+    def increase_stack_index(self) -> None:
+        self._stack_index += 1
+        if self._stack_index >= len(self._title_stack):
+            self._stack_index -= 1
+            return
+
+        self.update_title()
+
+    def decrease_stack_index(self) -> None:
+        self._stack_index -= 1
+        if self._stack_index < 0:
+            self._stack_index += 1
+            return
+
+        self.update_title()
+
+    def update_title(self) -> None:
+        title = self._title_stack[self._stack_index]
+        self.label.setText(title)
+
+    def minimumSizeHint(self) -> QtCore.QSize:
+        return QtCore.QSize(300, 40)
+
+
+class NavigationArea(QtWidgets.QScrollArea):
+    _widget_stack: list[QtWidgets.QWidget]
+
+    folder_2d_opened: QtCore.Signal = QtCore.Signal(Path)
+    folders_2d_opened: QtCore.Signal = QtCore.Signal()
+    files_3d_opened: QtCore.Signal = QtCore.Signal()
+    open_image_requested: QtCore.Signal = QtCore.Signal(Path)
+    open_volume_requested: QtCore.Signal = QtCore.Signal(Path)
+    stack_start_reached: QtCore.Signal = QtCore.Signal()
+    stack_end_reached: QtCore.Signal = QtCore.Signal()
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.project_root = None
+
+        self._dimension_picker_widget = None
+        self._folders_2d_widget = FileListWidget(parent=self)
+        self._folders_2d_widget.hide()
+        self._files_3d_widget = FileListWidget(
+            file_icon_path=RESOURCES_ROOT / "icons" / "innovative-brain-icon.svg",
+            parent=self,
+        )
+        self._files_3d_widget.hide()
+
+        self._visible_widget = None
+        self._stack_index = -1
+        self._widget_stack = []
+
+        folder_2d_button = DoubleClickHoverButton(
+            icon_path=RESOURCES_ROOT / "icons" / "2d-folder-icon.svg"
+        )
+        folder_2d_button.clicked.connect(self.show_2d_folders)
+        folder_2d_button.setFixedSize(QtCore.QSize(100, 100))
+        folder_2d_button.setIconSize(QtCore.QSize(80, 80))
+
+        folder_3d_button = DoubleClickHoverButton(
+            icon_path=RESOURCES_ROOT / "icons" / "3d-folder-icon.svg"
+        )
+        folder_3d_button.clicked.connect(self.show_3d_files)
+        folder_3d_button.setFixedSize(QtCore.QSize(100, 100))
+        folder_3d_button.setIconSize(QtCore.QSize(80, 80))
+
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addWidget(folder_2d_button)
+        button_layout.addWidget(folder_3d_button)
+        button_layout.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft
+        )
+
+        widget = QtWidgets.QWidget(self)
+        widget.setLayout(button_layout)
+        self._dimension_picker_widget = widget
+        self.put_on_stack(widget)
+
+        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.setAutoFillBackground(True)
+        self.setPalette(lua_aware_shift(self.palette().window().color(), 10))
+        self.setWidgetResizable(True)
+
+    def parse_project(self, path: Path) -> None:
+        self.project_root = path
+        self.parse_2d_folders()
+        self.parse_3d_files()
+
+    def put_on_stack(self, widget: QtWidgets.QWidget) -> None:
+        if self._visible_widget is not None:
+            self._visible_widget.hide()
+
+        self._stack_index += 1
+        self._widget_stack[self._stack_index :] = [widget]
+
+        self.takeWidget()
+        self.setWidget(widget)
+        widget.show()
+
+        self.stack_end_reached.emit()
+
+    def increase_stack_index(self) -> None:
+        self._stack_index += 1
+        if self._stack_index >= len(self._widget_stack):
+            self._stack_index -= 1
+            return
+        elif self._stack_index == len(self._widget_stack) - 1:
+            self.stack_end_reached.emit()
+
+        self.update_visible_widget()
+
+    def decrease_stack_index(self) -> None:
+        self._stack_index -= 1
+        if self._stack_index < 0:
+            self._stack_index += 1
+            return
+        elif self._stack_index == 0:
+            self.stack_start_reached.emit()
+
+        self.update_visible_widget()
+
+    def update_visible_widget(self) -> None:
+        visible_widget = self._widget_stack[self._stack_index]
+        if self._visible_widget is not None and visible_widget != self._visible_widget:
+            self._visible_widget.hide()
+
+        self.takeWidget()
+        self.setWidget(visible_widget)
+        self._visible_widget = visible_widget
+
+    def parse_2d_folders(self) -> None:
+        if self.project_root is None:
+            return
+
+        for path in self.project_root.iterdir():
+            if re.fullmatch(HASHED_DIRECTORY_NAME_PATTERN, path.name) is None:
+                continue
+
+            try:
+                with open(path / "metadata.json") as handle:
+                    contents = json.load(handle)
+            except FileNotFoundError:
+                _module_logger.error(
+                    f"Could not parse 'metadata.json' file "
+                    f"for alignment folder '{path}'."
+                )
+                continue
+
+            try:
+                user_friendly_path = Path(contents["directory_path"])
+            except KeyError:
+                _module_logger.error(
+                    f"Could not retrieve original directory name "
+                    f"for alignment folder '{path}'."
+                )
+                continue
+
+            widget = self._folders_2d_widget.add_folder(user_friendly_path)
+            widget.clicked.connect(lambda: "Clicked")
+            widget.clicked.connect(
+                lambda x=path, y=user_friendly_path: self.open_2d_folder(x, y)
+            )
+
+    def show_2d_folders(self) -> None:
+        self.put_on_stack(self._folders_2d_widget)
+        self.folders_2d_opened.emit()
+
+    def open_2d_folder(
+        self, path: Path, user_friendly_path: Path, should_panic: bool = False
+    ) -> None:
+        widget = ThumbnailsContainerWidget()
+
+        try:
+            with open(path / "metadata.json") as handle:
+                contents = json.load(handle)
+        except FileNotFoundError:
+            _module_logger.error(
+                f"Could not parse 'metadata.json' file "
+                f"for alignment folder '{path}'."
+            )
+            return
+
+        try:
+            slice_order = list(map(Path, contents["slice_paths"]))
+        except KeyError:
+            if should_panic:
+                _module_logger.error(
+                    f"Could not retrieve slices order for alignment folder '{path}' "
+                    f"after a second pass. Aborting."
+                )
+                return
+
+            _module_logger.error(
+                f"Could not retrieve slices order for alignment folder '{path}'. "
+                f"Falling back to arbitrary (`Path.iterdir()`) order."
+            )
+
+            try:
+                workspace = Workspace.load(str(self.project_root))
+            except ValueError:
+                _module_logger.error(
+                    f"Could not load project file '{self.project_root}'. "
+                    f"Aborting folder parsing."
+                )
+                return
+
+            workspace.parse_image_directory(str(user_friendly_path))
+            return self.open_2d_folder(path, original_directory, should_panic=True)
+
+        aligned_paths = []
+        path_index_map = {}
+        for child_path in path.iterdir():
+            if re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, child_path.name) is None:
+                continue
+
+            aligned_paths.append(child_path)
+
+            alignment_settings = load_alignment_settings(child_path)
+            histology_path = alignment_settings.histology_path
+
+            path_index_map[child_path] = slice_order.index(histology_path)
+
+        aligned_paths.sort(key=lambda x: path_index_map[x])
+        for index, path in enumerate(aligned_paths):
+            thumbnail = self._get_thumbnail(path)
+
+            widget.layout().replaceAt(index, thumbnail)
+
+        self.folder_2d_opened.emit(user_friendly_path)
+        self.put_on_stack(widget)
+
+    def parse_3d_files(self) -> None:
+        if self.project_root is None:
+            return
+
+        # TODO: Ensure this is what ends up being the proper path with the volume
+        #       builder GUI.
+        volumes_file_path = self.project_root / "volumes.json"
+
+        try:
+            with open(volumes_file_path) as handle:
+                contents = json.load(handle)
+        except FileNotFoundError:
+            _module_logger.debug("No volumes found.")
+            return
+
+        try:
+            volume_paths = list(map(Path, contents["volumes"]))
+        except KeyError:
+            _module_logger.error(
+                f"Could not parse 'volumes.json' file "
+                f"for project '{self.project_root}'."
+            )
+            return
+
+        for path in volume_paths:
+            try:
+                with open(path.parent.parent / "metadata.json") as handle:
+                    contents = json.load(handle)
+            except FileNotFoundError:
+                _module_logger.error(
+                    f"Could not parse 'metadata.json' file for volume '{path}'."
+                )
+                continue
+
+            try:
+                user_friendly_path = Path(contents["directory_path"])
+            except KeyError:
+                _module_logger.error(
+                    f"Could not retrieve original directory name "
+                    f"for volume '{path}'."
+                )
+                continue
+
+            widget = self._files_3d_widget.add_file(user_friendly_path)
+            widget.clicked.connect(lambda x=path: self.open_volume_requested.emit(x))
+
+    def show_3d_files(self) -> None:
+        self.put_on_stack(self._files_3d_widget)
+        self.files_3d_opened.emit()
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+
+        self.widget().setMaximumWidth(self.viewport().width())
+
+    def _get_thumbnail(self, alignment_path: Path) -> ThumbnailWidget:
+        alignment_settings = load_alignment_settings(alignment_path)
+        histology_path = alignment_settings.histology_path
+
+        # TODO: Thread this in case the thumbnail cache was cleared since registration
+        thumbnail_path = HistologySlice(str(histology_path)).generate_thumbnail(
+            str(alignment_path.parent)
+        )
+
+        widget = ThumbnailWidget(thumbnail_path, histology_path.name)
+
+        widget.double_clicked.connect(
+            lambda: self.open_image_requested.emit(alignment_path)
+        )
+
+        return widget

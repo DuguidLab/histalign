@@ -17,10 +17,10 @@ from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
     BasicApplicationWindow,
     CollapsibleWidgetArea,
+    NavigationWidget,
     VisibleHandleSplitter,
 )
 from histalign.frontend.visualisation.information import InformationWidget
-from histalign.frontend.visualisation.navigation import NavigationWidget
 from histalign.frontend.visualisation.views import SliceViewer, VolumeViewer
 
 
@@ -68,7 +68,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
         left_tools_widget.expanded.connect(self.left_expanded)
 
         left_tools_widget.add_widget(
-            navigation_widget, RESOURCES_ROOT / "icons" / "folder-icon.png"
+            navigation_widget, RESOURCES_ROOT / "icons" / "folders-icon.svg"
         )
 
         self.left_tools_widget = left_tools_widget
@@ -121,10 +121,10 @@ class VisualisationMainWindow(BasicApplicationWindow):
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:
-        project_path = Path(project_file_path).parent
+        path = Path(project_file_path).parent
 
-        self.project_root = project_path
-        self.navigation_widget.set_project_root(project_path)
+        self.project_root = path
+        self.navigation_widget.parse_project(path)
 
     @QtCore.Slot()
     def open_image(self, path: Path) -> None:
