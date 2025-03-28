@@ -2658,80 +2658,110 @@ class BinaryAlphaPixmap(QtGui.QPixmap):
         super().__init__(pixmap)
 
 
-class HoverMixin:
+# noinspection PyPep8Naming
+class HoverMixIn:
+    """A mix-in for QWidgets to allows them to react to mouse hovers by changing colour.
+
+    Args:
+        shift (int | QtGui.QColor, optional):
+            Shift of the background colour or new background colour.
+
+    Attributes:
+        shift (int | QtGui.QColor, optional):
+            Shift of the background colour or new background colour.
+        roles (QtGui.QPalette.ColorRole, optional):
+            Roles to change the colour of. Most widgets are fine with the default
+            (window) but buttons or line edits might need to change this.
+
+        _palette (QtGui.QPalette): Cached palette.
+        _auto_fill_background (bool): Cached auto-fill background property.
+    """
+
+    shift: int | QtGui.QColor
+
+    _palette: QtGui.QPalette
+    _auto_fill_background: bool
+
     def __init__(
-        self,
-        parent: Optional[QtWidgets.QWidget] = None,
-        /,
-        colour_change: int | QtGui.QColor = 20,
+        self: QtWidgets.QWidget,
         *args,
-        roles: Optional[list[QtGui.QPalette.ColorRole]] = None,
+        shift: int | QtGui.QColor = 20,
+        roles: list[QtGui.QPalette.ColorRole] | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(parent, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        #
-        self.colour_change = colour_change
+        self.shift = shift
+        self.roles = roles or [QtGui.QPalette.ColorRole.Window]
 
         self._palette = self.palette()
         self._auto_fill_background = True
 
-        self._roles = roles or [QtGui.QPalette.ColorRole.Window]
-
-        #
         self.setAutoFillBackground(True)
 
-    def changeEvent(self, event: QtCore.QEvent) -> None:
+    def changeEvent(self: QtWidgets.QWidget, event: QtCore.QEvent) -> None:
+        """Handles change events.
+
+        This provides a way to capture enable changes.
+
+        Args:
+            event (QtCore.QEvent): A change event.
+        """
         super().changeEvent(event)
 
+        # Reset changes when getting disabled
         if event.type() == QtCore.QEvent.Type.EnabledChange:
             self.reset_temporary_changes()
 
-    def enterEvent(self, event: QtGui.QEnterEvent) -> None:
+    def enterEvent(self: QtWidgets.QWidget, event: QtCore.QEvent) -> None:
         """Handles enter events.
 
-        On enter, the palette and the background fill are temporarily changed.
+        This changes the palette when the user hovers over the widget.
 
         Args:
-            event (QtGui.QEnterEvent): Event to handle.
+            event (QtCore.QEvent): An enter event.
         """
         super().enterEvent(event)
 
         if not self.isEnabled():
             return
 
+        # Update the palette with a new background colour
         palette = self.palette()
+        new_colour = self.shift
 
-        if isinstance(self.colour_change, int):
-            new_colour = lua_aware_shift(palette.button().color(), self.colour_change)
-        else:
-            new_colour = self.colour_change
+        for role in self.roles:
+            if isinstance(self.shift, int):
+                new_colour = lua_aware_shift(palette.color(role), self.shift)
 
-        for role in self._roles:
             palette.setColor(role, new_colour)
 
         self.setPalette(palette, overwrite=False)
+        self.setAutoFileBackground(True, overwrite=True)
 
-        self.setAutoFillBackground(True, overwrite=False)
-
-    def leaveEvent(self, event: QtCore.QEvent) -> None:
+    def leaveEvent(self: QtWidgets.QWidget, event: QtCore.QEvent) -> None:
         """Handles leave events.
 
-        On leave, any temporary modifications of the palette and background fill are
-        reverted.
+        This resets the temporary changes when the user stops hovering the widget.
+
+        Note that, on some platforms (e.g., WSL), if the widget is close to a window
+        edge and the cursor is quickly moved outside said window, a leave event is not
+        always received and the widget considers it is being hovered until the cursor
+        returns to the window.
 
         Args:
-            event (QtCore.QEvent): Event to handle.
+            event (QtCore.QEvent): A leave event.
         """
         super().leaveEvent(event)
 
+        if not self.isEnabled:
+            return
+
         self.reset_temporary_changes()
 
-    def reset_temporary_changes(self) -> None:
-        self.setAutoFillBackground(self._auto_fill_background)
-        self.setPalette(self._palette)
-
-    def setAutoFillBackground(self, enabled: bool, overwrite: bool = True) -> None:
+    def setAutoFileBackground(
+        self: QtWidgets.QWidget, enabled: bool, overwrite: bool = True
+    ) -> None:
         """Sets the autofill background property.
 
         Args:
@@ -2740,12 +2770,16 @@ class HoverMixin:
                 Whether the new value should overwrite the cache or be considered
                 temporary.
         """
+        super().setAutoFillBackground(enabled)
+
         if overwrite:
             self._auto_fill_background = enabled
 
-        super().setAutoFillBackground(enabled)
-
-    def setPalette(self, palette: QtGui.QPalette, overwrite: bool = True) -> None:
+    def setPalette(
+        self,
+        palette: QtGui.QPalette | QtCore.Qt.GlobalColor | QtGui.QColor,
+        overwrite: bool = True,
+    ) -> None:
         """Sets the palette for this widget.
 
         Args:
@@ -2754,63 +2788,37 @@ class HoverMixin:
                 Whether the new value should overwrite the cache or be considered
                 temporary.
         """
+        super().setPalette(palette)
+
         if overwrite:
             self._palette = palette
 
-        super().setPalette(palette)
+    def reset_temporary_changes(self: QtWidgets.QWidget) -> None:
+        """Resets temporary background and palette changes."""
+        self.setPalette(self._palette)
+        self.setAutoFileBackground(self._auto_fill_background)
 
 
-class HoverButton(HoverMixin, QtWidgets.QPushButton):
+class HoverButton(HoverMixIn, QtWidgets.QPushButton):
     def __init__(
         self,
+        text: str = "",
+        shift: int | QtGui.QColor = 20,
+        icon_path: str | Path = "",
         parent: Optional[QtWidgets.QWidget] = None,
-        /,
-        colour_change: int | QtGui.QColor = 20,
+        *,
         flat: bool = True,
-        icon_path: Optional[str | Path] = None,
-        roles: Optional[list[QtGui.QPalette.ColorRole]] = None,
     ) -> None:
-        """A button that reacts when hovered by changing its background color.
-
-        Args:
-            parent (QtWidgets.QWidget, optional): Parent of this widget.
-            colour_change (int | QtGui.QColor, optional):
-                Shift in the background colour on hover or the hover colour.
-            flat (bool, optional): Whether the button should be flat.
-        """
-        roles = (
-            roles
-            if roles is not None
-            else [
-                QtGui.QPalette.ColorRole.Window,
-                QtGui.QPalette.ColorRole.Button,
-            ]
-        )
-
         super().__init__(
-            parent,
-            colour_change,
-            roles=roles,
+            text,
+            shift=shift,
+            roles=[QtGui.QPalette.ColorRole.Button],
+            parent=parent,
+            flat=flat,
         )
 
-        #
-        self.setFlat(flat)
-
-        self.setAutoFillBackground(True)
-
-        #
-        if icon_path is not None:
+        if icon_path:
             self.setIcon(DynamicThemeIcon(icon_path))
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-
-        icon_dimension = min(
-            *self.contentsRect().size().toTuple()
-        ) - self.style().pixelMetric(QtWidgets.QStyle.PixelMetric.PM_ButtonMargin)
-        icon_size = QtCore.QSize(icon_dimension, icon_dimension)
-
-        self.setIconSize(icon_size)
 
 
 class CollapsibleWidgetArea(QtWidgets.QWidget):
@@ -3102,26 +3110,21 @@ class StackWidget(QtWidgets.QWidget):
         self._index = min(self._index, len(self._widget_stack) - 1)
 
 
-class FileWidget(HoverMixin, QtWidgets.QWidget):
+class FileWidget(HoverMixIn, QtWidgets.QWidget):
     clicked: QtCore.Signal = QtCore.Signal()
     double_clicked: QtCore.Signal = QtCore.Signal()
 
     def __init__(
         self,
-        parent: Optional[QtWidgets.QWidget] = None,
-        /,
-        colour_change: int | QtGui.QColor = 20,
-        path: Path = None,
+        path: str | Path = "",
+        shift: int | QtGui.QColor = 20,
         is_folder: bool = False,
-        *args,
-        **kwargs,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(
-            parent,
-            colour_change,
+            shift=shift,
             roles=[QtGui.QPalette.ColorRole.Window, QtGui.QPalette.ColorRole.Button],
-            *args,
-            **kwargs,
+            parent=parent,
         )
 
         #
