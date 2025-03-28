@@ -3228,3 +3228,190 @@ class CustomDisplayRoleProxy(QtCore.QSortFilterProxyModel):
 
     def override_display_role(self, role: int) -> None:
         self._role = role
+
+
+class ThumbnailWidget(QtWidgets.QFrame):
+    double_clicked: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self,
+        file_path: str | Path,
+        text: str = "",
+        index: int = -1,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        #
+        self.file_path = file_path
+        self.index = index
+
+        self._active = False
+
+        #
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
+
+        self.setObjectName("ThumbnailWidget")
+        self._palette = self.palette()
+        self.set_highlighted(False, False)
+
+        #
+        pixmap_label = ResizablePixmapLabel(file_path)
+
+        self.pixmap_label = pixmap_label
+
+        #
+        text_label = CutOffLabel(text)
+
+        text_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        self.text_label = text_label
+
+        #
+        layout = QtWidgets.QVBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, layout.spacing())
+
+        layout.addWidget(pixmap_label)
+        layout.addWidget(text_label)
+
+        self.setLayout(layout)
+
+    def enterEvent(self, event: QtGui.QEnterEvent) -> None:
+        super().enterEvent(event)
+        self.set_highlighted(True, self.hasFocus() or self._active)
+
+    def focusInEvent(self, event: QtGui.QFocusEvent) -> None:
+        super().focusInEvent(event)
+        self.set_highlighted(True, True)
+
+    def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
+        super().focusOutEvent(event)
+        self.set_highlighted(False, self._active)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            self.clearFocus()
+
+        super().keyPressEvent(event)
+
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        super().leaveEvent(event)
+        self.set_highlighted(self.hasFocus(), self.hasFocus() or self._active)
+
+    def set_active(self, active: bool) -> None:
+        self._active = active
+
+        # Avoid highlighting when activating programmatically
+        highlight = self.rect().contains(
+            self.mapFromGlobal(self.window().cursor().pos())
+        )
+        self.set_highlighted(highlight, active)
+
+    def set_completed(self, completed: bool) -> None:
+        if not completed:
+            self.pixmap_label.setPixmap(QtGui.QPixmap(self.file_path), overwrite=True)
+            self.pixmap_label.resize_pixmap()
+            return
+
+        pixmap = self.pixmap_label._pixmap
+        if pixmap is None:
+            return
+
+        complete_icon_pixmap = QtGui.QPixmap()
+        if not QtGui.QPixmapCache.find(
+            "ThumbnailWidget_complete", complete_icon_pixmap
+        ):
+            complete_icon_pixmap = QtGui.QPixmap(
+                RESOURCES_ROOT / "icons" / "check-mark-square-icon.png"
+            )
+            QtGui.QPixmapCache.insert("ThumbnailWidget_complete", complete_icon_pixmap)
+
+        icon_dimension = pixmap.width() // 7
+        complete_icon_pixmap = complete_icon_pixmap.scaled(
+            icon_dimension, icon_dimension
+        )
+
+        icon_painter = QtGui.QPainter(complete_icon_pixmap)
+
+        icon_painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
+        )
+        icon_painter.setBrush(QtGui.QBrush("#66CC00"))
+        icon_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        icon_painter.drawRect(complete_icon_pixmap.rect())
+
+        icon_painter.end()
+
+        main_painter = QtGui.QPainter(pixmap)
+
+        main_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        main_painter.drawPixmap(
+            QtCore.QPoint(pixmap.width() - icon_dimension - 5, 5),
+            complete_icon_pixmap,
+        )
+
+        main_painter.end()
+
+        self.pixmap_label.setPixmap(pixmap)
+        self.pixmap_label.resize_pixmap()
+
+    def set_highlighted(self, highlighted: bool, selected: bool) -> None:
+        colour = (
+            self._palette.highlight().color()
+            if highlighted
+            else self._palette.window().color()
+        )
+
+        if selected:
+            border_colour = "black"
+            if self._active:
+                border_colour = "blue"
+        else:
+            border_colour = "rgba(0, 0, 0, 0)"
+        border = f"2px solid {border_colour};"
+
+        self.setStyleSheet(
+            f"""
+            #ThumbnailWidget {{
+                background: {colour.name()};
+                border: {border};
+            }}
+            """
+        )
+
+    def setPalette(self, palette: QtGui.QPalette) -> None:
+        super().setPalette(palette)
+        self._palette = palette
+
+    def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
+        self.pixmap_label.setPixmap(pixmap)
+
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseDoubleClickEvent(event)
+
+        self.double_clicked.emit()
+
+
+class ThumbnailsContainerWidget(QtWidgets.QWidget):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        #
+        layout = PixmapFlowLayout()
+
+        self.setLayout(layout)
+
+    def layout(self) -> PixmapFlowLayout:
+        return self._layout
+
+    def setLayout(self, layout: PixmapFlowLayout) -> None:
+        if not isinstance(layout, PixmapFlowLayout):
+            raise ValueError(
+                "_ThumbnailsContainerWidget only accepts PixmapFlowLayout as a layout."
+            )
+
+        self._layout = layout
+        super().setLayout(layout)
