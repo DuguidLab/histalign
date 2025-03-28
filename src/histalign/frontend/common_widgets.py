@@ -2930,7 +2930,8 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
             icon_path=icon_path or RESOURCES_ROOT / "icons" / "add-categories-icon.png"
         )
 
-        icon_button.setFixedSize(self.icon_dimension, self.icon_dimension)
+        icon_button.setFixedSize(self.icon_dimension + 10, self.icon_dimension + 10)
+        icon_button.setIconSize(QtCore.QSize(self.icon_dimension, self.icon_dimension))
 
         icon_button.clicked.connect(lambda: self.toggle_widget(widget))
 
@@ -2970,6 +2971,7 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
         if self.expand_direction in ["left_to_right", "right_to_left"]:
             self.setMaximumWidth(
                 self.icon_dimension
+                + 10
                 + self.contentsMargins().left()
                 + self.contentsMargins().right()
                 + self.layout().contentsMargins().left()
@@ -2978,6 +2980,7 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
         else:
             self.setMaximumHeight(
                 self.icon_dimension
+                + 10
                 + self.contentsMargins().top()
                 + self.contentsMargins().bottom()
                 + self.layout().contentsMargins().top()

@@ -46,6 +46,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
 
         navigation_widget.open_image_requested.connect(self.open_image)
         navigation_widget.open_volume_requested.connect(self.open_volume)
+        navigation_widget.setEnabled(False)
 
         self.navigation_widget = navigation_widget
 
@@ -58,11 +59,12 @@ class VisualisationMainWindow(BasicApplicationWindow):
         information_widget.structures_widget.structure_unchecked.connect(
             central_view.remove_contours
         )
+        information_widget.structures_widget.setEnabled(False)
 
         self.information_widget = information_widget
 
         #
-        left_tools_widget = CollapsibleWidgetArea("left_to_right")
+        left_tools_widget = CollapsibleWidgetArea("left_to_right", icon_dimension=25)
 
         left_tools_widget.collapsed.connect(self.left_collapsed)
         left_tools_widget.expanded.connect(self.left_expanded)
@@ -125,6 +127,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
 
         self.project_root = path
         self.navigation_widget.parse_project(path)
+        self.navigation_widget.setEnabled(True)
 
     @QtCore.Slot()
     def open_image(self, path: Path) -> None:
@@ -140,6 +143,8 @@ class VisualisationMainWindow(BasicApplicationWindow):
             self.central_view = new_view
             self.centralWidget().replaceWidget(1, new_view)
             old_view.deleteLater()
+
+        self.information_widget.structures_widget.setEnabled(True)
 
     @QtCore.Slot()
     def open_volume(self, path: Path) -> None:
@@ -173,6 +178,8 @@ class VisualisationMainWindow(BasicApplicationWindow):
             self.central_view = new_view
             self.centralWidget().replaceWidget(1, new_view)
             old_view.deleteLater()
+
+        self.information_widget.structures_widget.setEnabled(False)
 
     @QtCore.Slot()
     def left_collapsed(self) -> None:
