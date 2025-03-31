@@ -126,7 +126,7 @@ def get_colour_table(colour: str, alpha: int = 255, threshold: int = 1) -> np.nd
 
 
 def lua_aware_shift(
-    colour: QtGui.QColor, shift: int, away: bool = True
+    colour: QtGui.QColor, shift: int = 20, away: bool = True
 ) -> QtGui.QColor:
     """Shifts a colour darker or lighter.
 
