@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 from scipy.ndimage import gaussian_filter
 
 from histalign.backend.ccf.downloads import download_structure_mask
@@ -15,16 +16,17 @@ from histalign.backend.io import load_volume, RESOURCES_ROOT
 from histalign.backend.models import ProjectSettings
 from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
-    BasicApplicationWindow,
     CollapsibleWidgetArea,
     NavigationWidget,
-    VisibleHandleSplitter,
+    PreferentialSplitter,
 )
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.views import SliceViewer, VolumeViewer
 
+_module_logger = logging.getLogger(__name__)
 
-class VisualisationMainWindow(BasicApplicationWindow):
+
+class VisualisationWidget(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -64,10 +66,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
         self.information_widget = information_widget
 
         #
-        left_tools_widget = CollapsibleWidgetArea("left_to_right", icon_dimension=25)
-
-        left_tools_widget.collapsed.connect(self.left_collapsed)
-        left_tools_widget.expanded.connect(self.left_expanded)
+        left_tools_widget = CollapsibleWidgetArea("left_to_right")
 
         left_tools_widget.add_widget(
             navigation_widget, RESOURCES_ROOT / "icons" / "folders-icon.svg"
@@ -78,9 +77,6 @@ class VisualisationMainWindow(BasicApplicationWindow):
         #
         right_tools_widget = CollapsibleWidgetArea("right_to_left")
 
-        right_tools_widget.collapsed.connect(self.right_collapsed)
-        right_tools_widget.expanded.connect(self.right_expanded)
-
         right_tools_widget.add_widget(
             information_widget,
             RESOURCES_ROOT / "icons" / "three-horizontal-lines-icon.png",
@@ -89,40 +85,28 @@ class VisualisationMainWindow(BasicApplicationWindow):
         self.right_tools_widget = right_tools_widget
 
         #
-        splitter = VisibleHandleSplitter()
+        splitter = PreferentialSplitter()
 
-        splitter.addWidget(left_tools_widget)
-        splitter.addWidget(central_view)
-        splitter.addWidget(right_tools_widget)
+        splitter.add_widgets([left_tools_widget, central_view, right_tools_widget])
 
-        self.setCentralWidget(splitter)
+        self.splitter = splitter
+
+        #
+        layout = QtWidgets.QHBoxLayout()
+        layout.addWidget(splitter)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
 
     def get_baseline_splitter_sizes(self) -> list[int]:
         width = (
-            self.centralWidget().width()
-            - self.centralWidget().count() * self.centralWidget().handleWidth()
+            self.splitter.width() - self.splitter.count() * self.splitter.handleWidth()
         )
         unit = width // 5  # Split the view in 1-3-1, i.e. multiples of 5ths
 
         return [unit, 3 * unit, unit]
 
-    def showEvent(self, event: QtGui.QShowEvent) -> None:
-        super().showEvent(event)
-
-        sizes = self.get_baseline_splitter_sizes()
-
-        left_collapsible_width = min(sizes[0], self.left_tools_widget.maximumWidth())
-        right_collapsible_width = min(sizes[2], self.right_tools_widget.maximumWidth())
-
-        difference = (
-            sizes[0] - left_collapsible_width + sizes[2] - right_collapsible_width
-        )
-        sizes[1] += difference
-
-        self.centralWidget().setSizes(sizes)
-
     @QtCore.Slot()
-    def open_project(self, project_file_path: str) -> None:
+    def open_project(self, project_file_path: str | Path) -> None:
         path = Path(project_file_path).parent
 
         self.project_root = path
@@ -141,7 +125,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
 
         if old_view is not new_view:
             self.central_view = new_view
-            self.centralWidget().replaceWidget(1, new_view)
+            self.splitter.replaceWidget(1, new_view)
             old_view.deleteLater()
 
         self.information_widget.structures_widget.setEnabled(True)
@@ -176,53 +160,7 @@ class VisualisationMainWindow(BasicApplicationWindow):
 
         if old_view is not new_view:
             self.central_view = new_view
-            self.centralWidget().replaceWidget(1, new_view)
+            self.splitter.replaceWidget(1, new_view)
             old_view.deleteLater()
 
         self.information_widget.structures_widget.setEnabled(False)
-
-    @QtCore.Slot()
-    def left_collapsed(self) -> None:
-        sizes = self.centralWidget().sizes()
-        self._saved_left_size = sizes[0]
-
-        difference = sizes[0] - self.left_tools_widget.width()
-
-        sizes[0] = self.left_tools_widget.width()
-        sizes[1] += difference
-
-        self.centralWidget().setSizes(sizes)
-
-    @QtCore.Slot()
-    def right_collapsed(self) -> None:
-        sizes = self.centralWidget().sizes()
-        self._saved_right_size = sizes[2]
-
-        difference = sizes[2] - self.right_tools_widget.width()
-
-        sizes[2] = self.right_tools_widget.width()
-        sizes[1] += difference
-
-        self.centralWidget().setSizes(sizes)
-
-    @QtCore.Slot()
-    def left_expanded(self) -> None:
-        sizes = self.centralWidget().sizes()
-
-        difference = self._saved_left_size - sizes[0]
-
-        sizes[0] = self._saved_left_size
-        sizes[1] -= difference
-
-        self.centralWidget().setSizes(sizes)
-
-    @QtCore.Slot()
-    def right_expanded(self) -> None:
-        sizes = self.centralWidget().sizes()
-
-        difference = self._saved_right_size - sizes[2]
-
-        sizes[2] = self._saved_right_size
-        sizes[1] -= difference
-
-        self.centralWidget().setSizes(sizes)

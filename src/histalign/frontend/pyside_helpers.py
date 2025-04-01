@@ -184,3 +184,28 @@ def np_to_qpixmap(
     array: np.ndarray, format: Optional[QtGui.QImage.Format] = None
 ) -> QtGui.QPixmap:
     return QtGui.QPixmap.fromImage(np_to_qimage(array, format))
+
+
+def try_show_status_message(
+    widget: QtWidgets.QWidget, message: str, duration: int = 2_000
+) -> bool:
+    """Tries to show the given message on the widget's status bar.
+
+    Args:
+        widget (QtWidgets.QWidget): Widget to use when trying to get a status bar.
+        message (str): Message to show on the status bar.
+        duration (int, optional):
+            Time in milliseconds for which to show the message. Set to 0 to show message
+            until someone else posts a message.
+
+    Returns:
+        bool: Whether a status bar was found (and hence whether the message was posted).
+    """
+    try:
+        status_bar: QtWidgets.QStatusBar = widget.statusBar()
+    except AttributeError:
+        return False
+
+    status_bar.showMessage(message, duration)
+
+    return True

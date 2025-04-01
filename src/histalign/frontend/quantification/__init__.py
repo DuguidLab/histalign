@@ -2,18 +2,23 @@
 #
 # SPDX-License-Identifier: MIT
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from histalign.frontend.common_widgets import BasicApplicationWindow
-from histalign.frontend.quantification.prepare import PrepareWidget
+from histalign.frontend.quantification.prepare import (
+    PrepareWidget,
+    QuantificationParametersFrame,
+)
 from histalign.frontend.quantification.results import ResultsWidget
 from histalign.frontend.quantification.view import ViewWidget
 
+_module_logger = logging.getLogger(__name__)
 
-class QuantificationMainWindow(BasicApplicationWindow):
+
+class QuantificationWidget(QtWidgets.QWidget):
     project_loaded: bool = False
 
     prepare_tab: PrepareWidget
@@ -55,11 +60,16 @@ class QuantificationMainWindow(BasicApplicationWindow):
         tab_widget.addTab(view_tab, "View")
         view_tab.setAutoFillBackground(True)
 
-        tab_widget.setEnabled(False)
+        self.tab_widget = tab_widget
 
         #
-        self.setCentralWidget(tab_widget)
-        self.tab_widget = tab_widget
+        layout = QtWidgets.QHBoxLayout()
+
+        layout.addWidget(tab_widget)
+
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.setLayout(layout)
 
     @QtCore.Slot()
     def open_project(self, project_file_path: str) -> None:

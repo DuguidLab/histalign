@@ -3,108 +3,447 @@
 # SPDX-License-Identifier: MIT
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.frontend.centralised import CentralisedWindow
-from histalign.frontend.preprocessing import PreprocessingMainWindow
-from histalign.frontend.qa import QAMainWindow
-from histalign.frontend.quantification import QuantificationMainWindow
-from histalign.frontend.registration import RegistrationMainWindow
-from histalign.frontend.visualisation import VisualisationMainWindow
+from histalign.backend.io import clear_directory, ICONS_ROOT
+from histalign.backend.models import ProjectSettings
+from histalign.backend.workspace import Workspace
+from histalign.frontend.common_widgets import DynamicThemeIcon
+from histalign.frontend.dialogs import (
+    InvalidProjectFileDialog,
+    NewProjectDialog,
+    OpenImagesFolderDialog,
+    OpenProjectDialog,
+    SaveProjectConfirmationDialog,
+)
+from histalign.frontend.pyside_helpers import lua_aware_shift
+from histalign.frontend.quantification import QuantificationWidget
+from histalign.frontend.registration import RegistrationWidget
+from histalign.frontend.visualisation import VisualisationWidget
+from histalign.frontend.volume_builder import VolumeBuilderWidget
 
 _module_logger = logging.getLogger(__name__)
 
 
-PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
+class HistalignMainWindow(QtWidgets.QMainWindow):
+    project_opened: QtCore.Signal = QtCore.Signal()
+    project_closed: QtCore.Signal = QtCore.Signal()
 
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
 
-class ApplicationWidget(QtWidgets.QWidget):
-    main_window: QtWidgets.QWidget
+        self.workspace = None
+        self.workspace_is_dirty = False
 
-    def __init__(self, fullscreen: bool = False) -> None:
-        super().__init__(None)
+        self.build_menu_bar()
+        self.build_status_bar()
 
-        main_window = QtWidgets.QWidget()
-        self.main_window = main_window
+        # Registration
+        registration_tab = RegistrationWidget()
+        self.project_opened.connect(registration_tab.project_opened.emit)
+        self.project_closed.connect(registration_tab.project_closed.emit)
+        self.registration_tab = registration_tab
+        # Volume builder
+        volume_builder_tab = VolumeBuilderWidget()
+        self.volume_builder_tab = volume_builder_tab
+        # Quantification
+        quantification_tab = QuantificationWidget()
+        self.quantification_tab = quantification_tab
+        # Visualisation
+        visualisation_tab = VisualisationWidget()
+        self.visualisation_tab = visualisation_tab
 
-        layout = QtWidgets.QVBoxLayout()
-        layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(main_window)
-        self.setLayout(layout)
+        tab_widget = QtWidgets.QTabWidget()
+        tab_widget.addTab(registration_tab, "Registration")
+        tab_widget.addTab(volume_builder_tab, "Volume builder")
+        tab_widget.addTab(quantification_tab, "Quantification")
+        tab_widget.addTab(visualisation_tab, "Visualisation")
 
-        if fullscreen:
-            self.showMaximized()
+        self.setCentralWidget(tab_widget)
+
+    def build_menu_bar(self) -> None:
+        menu_bar = self.menuBar()
+
+        project_required_group = []
+
+        # File menu
+        file_menu = menu_bar.addMenu("&File")
+
+        # Project actions
+        new_project_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "add-note-icon.png"),
+            "New Project",
+            shortcut=QtGui.QKeySequence("CTRL+N"),
+            statusTip="Create a new project",
+            parent=file_menu,
+        )
+        new_project_action.triggered.connect(self.create_project)
+        open_project_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "desktop-file-import-icon.png"),
+            "Open Project",
+            shortcut=QtGui.QKeySequence("CTRL+O"),
+            statusTip="Open an existing project",
+            parent=file_menu,
+        )
+        open_project_action.triggered.connect(self.open_project)
+        save_project_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "download-to-storage-icon.png"),
+            "Save Project",
+            enabled=False,
+            shortcut=QtGui.QKeySequence("CTRL+S"),
+            statusTip="Save the current project",
+            parent=file_menu,
+        )
+        save_project_action.triggered.connect(self.save_project)
+        project_required_group.append(save_project_action)
+        close_project_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "close-square-line-icon.png"),
+            "Close Project",
+            enabled=False,
+            shortcut=QtGui.QKeySequence("CTRL+W"),
+            statusTip="Close the current project",
+            parent=file_menu,
+        )
+        close_project_action.triggered.connect(self.close_project)
+        project_required_group.append(close_project_action)
+
+        file_menu.addActions(
+            [
+                new_project_action,
+                open_project_action,
+                save_project_action,
+                close_project_action,
+            ]
+        )
+        file_menu.addSeparator()
+
+        # Images actions
+        open_images_folder_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "folders-icon.png"),
+            "Open images folder",
+            enabled=False,
+            shortcut=QtGui.QKeySequence("CTRL+SHIFT+O"),
+            statusTip="Open a folder of images for alignment",
+            parent=file_menu,
+        )
+        open_images_folder_action.triggered.connect(self.open_images_folder)
+        project_required_group.append(open_images_folder_action)
+
+        file_menu.addAction(open_images_folder_action)
+        file_menu.addSeparator()
+
+        # Application actions
+        quit_application_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "logout-line-icon.png"),
+            "Quit",
+            shortcut=QtGui.QKeySequence("CTRL+Q"),
+            statusTip="Quit the application",
+            parent=file_menu,
+        )
+        quit_application_action.triggered.connect(self.quit)
+
+        file_menu.addAction(quit_application_action)
+
+        # View menu
+        view_menu = menu_bar.addMenu("&View")
+
+        # LUT - LookUp Table
+        lut_menu = view_menu.addMenu("&LUT")
+        lut_menu.setIcon(DynamicThemeIcon(ICONS_ROOT / "paint-roller-icon.png"))
+        lut_menu.menuAction().setStatusTip("Change the histology lookup table")
+        lut_menu.setEnabled(False)
+        project_required_group.append(lut_menu)
+
+        lut_action_group = QtGui.QActionGroup(view_menu)
+
+        grey_lut_action = QtGui.QAction(
+            "Grey",
+            statusTip="Change the histology lookup table to grey",
+            checkable=True,
+            checked=True,
+            parent=view_menu,
+        )
+        red_lut_action = QtGui.QAction(
+            "Red",
+            statusTip="Change the histology lookup table to red",
+            checkable=True,
+            parent=view_menu,
+        )
+        green_lut_action = QtGui.QAction(
+            "Green",
+            statusTip="Change the histology lookup table to green",
+            checkable=True,
+            parent=view_menu,
+        )
+        blue_lut_action = QtGui.QAction(
+            "Blue",
+            statusTip="Change the histology lookup table to blue",
+            checkable=True,
+            parent=view_menu,
+        )
+        cyan_lut_action = QtGui.QAction(
+            "Cyan",
+            statusTip="Change the histology lookup table to cyan",
+            checkable=True,
+            parent=view_menu,
+        )
+        magenta_lut_action = QtGui.QAction(
+            "Magenta",
+            statusTip="Change the histology lookup table to magenta",
+            checkable=True,
+            parent=view_menu,
+        )
+        yellow_lut_action = QtGui.QAction(
+            "Yellow",
+            statusTip="Change the histology lookup table to yellow",
+            checkable=True,
+            parent=view_menu,
+        )
+
+        lut_action_group.addAction(grey_lut_action)
+        lut_action_group.addAction(red_lut_action)
+        lut_action_group.addAction(green_lut_action)
+        lut_action_group.addAction(blue_lut_action)
+        lut_action_group.addAction(cyan_lut_action)
+        lut_action_group.addAction(magenta_lut_action)
+        lut_action_group.addAction(yellow_lut_action)
+
+        lut_menu.addActions(
+            [
+                grey_lut_action,
+                red_lut_action,
+                green_lut_action,
+                blue_lut_action,
+                cyan_lut_action,
+                magenta_lut_action,
+                yellow_lut_action,
+            ]
+        )
+
+        # Connect enable/disable logic
+        self.project_opened.connect(
+            lambda: list(map(lambda x: x.setEnabled(True), project_required_group))
+        )
+        self.project_closed.connect(
+            lambda: list(map(lambda x: x.setEnabled(False), project_required_group))
+        )
+
+    def build_status_bar(self) -> None:
+        status_bar = self.statusBar()
+
+        # Style it with a top border
+        border_colour = lua_aware_shift(status_bar.palette().window().color()).getRgb()
+        status_bar.setStyleSheet(
+            f"""
+            QStatusBar {{ 
+                border-top: 1px solid rgba{border_colour};
+                margin-top: -1px;
+            }}
+            """
+        )
+
+    def save_guard_project(self) -> bool:
+        if not self.workspace_is_dirty:
+            return True
+
+        match SaveProjectConfirmationDialog(self).exec():
+            case QtWidgets.QMessageBox.StandardButton.Save:
+                self.save_project()
+                return True
+            case QtWidgets.QMessageBox.StandardButton.Discard:
+                return True
+            case QtWidgets.QMessageBox.StandardButton.Cancel:
+                return False
+            case other:
+                _module_logger.error(
+                    f"Received unexpected result from SaveProjectConfirmationDialog: "
+                    f"'{other}'."
+                )
+                return False
+
+    def prepare_gui_for_new_project(self) -> None:
+        # Update the registration tab
+        tab = self.registration_tab
+
+        tab.alignment_widget.reset_volume()
+        tab.alignment_widget.reset_histology()
+
+    def switch_workspace(self) -> None:
+        # Clear most of the GUI
+        self.prepare_gui_for_new_project()
+
+        # Share the workspace with all of the GUI
+        self.propagate_workspace()
+
+        # Begin generating thumbnails
+        self.workspace.start_thumbnail_generation()
+
+        # Update the registration tab
+        tab = self.registration_tab
+
+        tab.load_atlas()
+
+    def propagate_workspace(self) -> None:
+        self.registration_tab.update_workspace(self.workspace)
+
+    # Event handlers
+    def closeEvent(self, event: QtGui.QShowEvent) -> None:
+        if self.close_project():
+            event.accept()
         else:
-            self.resize(self.get_startup_size())
-            self.show()
+            event.ignore()
 
-    def open_centralised_window(self) -> None:
-        self.set_main_window(CentralisedWindow())
+    # Menu bar actions
+    @QtCore.Slot()
+    def create_project(self) -> None:
+        _module_logger.debug("Project creation initiated.")
 
-    def open_registration_window(self) -> None:
-        self.set_main_window(RegistrationMainWindow())
-        self.main_window.project_closed.connect(self.main_window.close)
-        self.main_window.project_closed.connect(self.open_centralised_window)
+        # Ensure project is saved/changes discarded or action is cancelled
+        if not self.save_guard_project():
+            _module_logger.debug("Project closing cancelled by user.")
+            return
 
-    def open_qa_window(self) -> None:
-        self.set_main_window(QAMainWindow())
+        # Build dialog pop-up to gather project settings
+        dialog = NewProjectDialog(self)
+        dialog.submitted.connect(self._create_project)
+        dialog.rejected.connect(
+            lambda: _module_logger.debug("Project creation cancelled.")
+        )
+        dialog.open()
 
-    def open_preprocessing_window(self) -> None:
-        self.set_main_window(PreprocessingMainWindow())
+    @QtCore.Slot()
+    def _create_project(self, settings: ProjectSettings) -> None:
+        _module_logger.debug(
+            f"Creating project from settings: {settings.model_dump_json()}"
+        )
 
-    def open_quantification_window(self) -> None:
-        self.set_main_window(QuantificationMainWindow())
+        # Ensure any previous workspace is no longer in use
+        _module_logger.debug("Attempting to close previous project.")
+        self.close_project()
 
-    def open_visualisation_window(self) -> None:
-        self.set_main_window(VisualisationMainWindow())
+        # Ensure the project directory is empty
+        clear_directory(settings.project_path)
 
-    def set_main_window(self, window: QtWidgets.QWidget) -> None:
-        old_main_window = self.layout().takeAt(0).widget()
+        # Initialise a new workspace
+        self.workspace = Workspace(settings)
+        self.switch_workspace()
 
-        window.setParent(self)
-        self.layout().addWidget(window)
-        self.main_window = window
+        # Update workspace state
+        self.workspace_is_dirty = True
 
-        old_main_window.deleteLater()
+        self.project_opened.emit()
 
-        if isinstance(window, CentralisedWindow):
-            title = "Histalign"
-        elif isinstance(window, RegistrationMainWindow):
-            title = "Histalign - Registration"
-        elif isinstance(window, PreprocessingMainWindow):
-            title = "Histalign - Preprocessing"
-        elif isinstance(window, QAMainWindow):
-            title = "Histalign - QA"
-        elif isinstance(window, QuantificationMainWindow):
-            title = "Histalign - Quantification"
-        elif isinstance(window, VisualisationMainWindow):
-            title = "Histalign - Visualisation"
-        else:
-            title = "Histalign"
-            _module_logger.warning(
-                f"Could not set custom title for window type '{type(window)}'."
-            )
+    @QtCore.Slot()
+    def open_project(self) -> None:
+        _module_logger.debug("Project opening initiated.")
 
-        self.setWindowTitle(title)
+        # Ensure project is saved/changes discarded or action is cancelled
+        if not self.save_guard_project():
+            _module_logger.debug("Project closing cancelled by user.")
+            return
 
-    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        """Delegates closing event to current main window."""
-        self.main_window.closeEvent(event)
+        # Build dialog pop-up to get project path
+        dialog = OpenProjectDialog(self)
+        dialog.submitted.connect(self._open_project)
+        dialog.rejected.connect(
+            lambda: _module_logger.debug("Project opening cancelled.")
+        )
+        dialog.open()
 
-    @staticmethod
-    def get_startup_size() -> QtCore.QSize:
-        screen = QtWidgets.QApplication.screens()[0]
+    @QtCore.Slot()
+    def _open_project(self, path: str | Path) -> None:
+        _module_logger.debug(f"Opening project at: {path}")
 
-        if (
-            screen.size().width() > PREFERRED_STARTUP_SIZE.width()
-            and screen.size().height() > PREFERRED_STARTUP_SIZE.height()
-        ):
-            return PREFERRED_STARTUP_SIZE
-        else:
-            return QtCore.QSize(
-                round(screen.size().width() * 0.75),
-                round(screen.size().height() * 0.75),
-            )
+        # Ensure any previous workspace is no longer in use
+        _module_logger.debug("Attempting to close previous project.")
+        self.close_project()
+
+        # Initialise a new workspace
+        try:
+            self.workspace = Workspace.load(path)
+        except ValueError as e:
+            _module_logger.error(f"Failed to load project from '{path}': {e}")
+            return InvalidProjectFileDialog(self).open()
+        self.switch_workspace()
+
+        # Restore registration saved state
+        tab = self.registration_tab
+
+        if self.workspace.current_aligner_image_hash is not None:
+            tab.open_image_in_aligner(self.workspace.current_aligner_image_index)
+
+        # Synchronise with the visualisation tab
+        self.visualisation_tab.open_project(path)
+
+        self.project_opened.emit()
+
+    @QtCore.Slot()
+    def save_project(self) -> None:
+        _module_logger.debug("Saving project")
+
+        self.workspace.save()
+        self.workspace_is_dirty = False
+
+    @QtCore.Slot()
+    def close_project(self) -> bool:
+        _module_logger.debug("Project closing initiated.")
+
+        # Ensure project is saved/changes discarded or action is cancelled
+        if not self.save_guard_project():
+            _module_logger.debug("Project closing cancelled by user.")
+            return False
+
+        # Cancel ongoing work
+        self.workspace.stop_thumbnail_generation() if self.workspace else None
+        self.workspace_is_dirty = False
+
+        # Clear registration tab
+        tab = self.registration_tab
+
+        tab.clear_histology_state()
+        tab.clear_volume_state()
+
+        _module_logger.debug("Project closed.")
+        self.project_closed.emit()
+        return True
+
+    @QtCore.Slot()
+    def open_images_folder(self) -> None:
+        _module_logger.debug("Images folder opening initiated by user.")
+
+        # Ensure project is saved/changes discarded or action is cancelled
+        if not self.save_guard_project():
+            return
+
+        # Build dialog pop-up to get images folder path
+        dialog = OpenImagesFolderDialog(self)
+        dialog.submitted.connect(self._open_images_folder)
+        dialog.rejected.connect(
+            lambda: _module_logger.debug("Images folder opening cancelled by user.")
+        )
+        dialog.open()
+
+    @QtCore.Slot()
+    def _open_images_folder(self, path: str | Path) -> None:
+        _module_logger.debug(f"Opening images folder at: {path}.")
+
+        # Clear the registration tab
+        self.registration_tab.clear_histology_state()
+
+        # Process new images
+        self.workspace.parse_image_directory(path)
+        self.workspace.start_thumbnail_generation()
+
+        # Update workspace state
+        self.workspace_is_dirty = True
+
+    @QtCore.Slot()
+    def quit(self) -> None:
+        _module_logger.debug("Quitting initiated by user.")
+
+        self.close()
+
+        _module_logger.debug("Quitting application.")

@@ -90,6 +90,19 @@ class AtlasProgressDialog(QtWidgets.QProgressDialog):
         self.setMaximum(0)
         self.setCancelButton(None)  # type: ignore[arg-type]
 
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        # Ugly but not all platforms support having a frame and no close button
+        event.ignore()
+        return
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            # Disable closing dialog with Escape
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
+
 
 class InvalidProjectFileDialog(QtWidgets.QMessageBox):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -287,8 +300,30 @@ class NewProjectDialog(QtWidgets.QDialog):
         self.resolution_label.setPalette(pallete)
 
 
-class OpenProjectDialog(QtWidgets.QWidget):
+class OpenImagesFolderDialog(QtWidgets.QFileDialog):
     submitted: QtCore.Signal = QtCore.Signal(str)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent, "Select an image directory", os.getcwd())
+
+        self.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)
+        self.setOption(QtWidgets.QFileDialog.Option.DontUseNativeDialog, True)
+
+        self.accepted.connect(lambda: self.submitted.emit(self.selectedFiles()[0]))
+
+
+class OpenProjectDialog(QtWidgets.QFileDialog):
+    submitted: QtCore.Signal = QtCore.Signal(str)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(
+            parent, "Select project file", os.getcwd(), "Project (project.json)"
+        )
+
+        self.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+        self.setOption(QtWidgets.QFileDialog.Option.DontUseNativeDialog, True)
+
+        self.accepted.connect(lambda: self.submitted.emit(self.selectedFiles()[0]))
 
     def exec(self) -> None:
         project_file, _ = QtWidgets.QFileDialog.getOpenFileName(

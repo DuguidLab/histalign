@@ -30,9 +30,16 @@ from histalign.backend.io import (
 )
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
+from histalign.frontend.events import (
+    AboutToCollapseEvent,
+    CollapsedEvent,
+    ExpandedEvent,
+    UserEventType,
+)
 from histalign.frontend.pyside_helpers import (
     connect_single_shot_slot,
     FakeQtABC,
+    find_parent,
     lua_aware_shift,
 )
 from histalign.frontend.themes import is_light_colour
@@ -1213,10 +1220,27 @@ class ShortcutAwarePushButton(QtWidgets.QPushButton):
 
 
 class ShortcutAwareToolButton(QtWidgets.QToolButton):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(
+        self,
+        *,
+        enabled: bool = True,
+        icon_path: str | Path = "",
+        shortcut: Optional[QtGui.QKeySequence] = None,
+        tool_tip: str = "",
+        status_tip: str = "",
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
         super().__init__(parent)
+        self.setEnabled(enabled)
 
-        #
+        if icon_path:
+            self.setIcon(DynamicThemeIcon(icon_path))
+
+        if shortcut is not None:
+            self.setShortcut(shortcut)
+        self.setToolTip(tool_tip)
+        self.setStatusTip(status_tip or tool_tip)
+
         self.installEventFilter(ShortcutAwareFilter(self))
 
 
@@ -2829,9 +2853,6 @@ class HoverButton(HoverMixIn, QtWidgets.QPushButton):
 
 
 class CollapsibleWidgetArea(QtWidgets.QWidget):
-    collapsed: QtCore.Signal = QtCore.Signal()
-    expanded: QtCore.Signal = QtCore.Signal()
-
     def __init__(
         self,
         expand_direction: Literal[
@@ -2842,102 +2863,113 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        #
         self.expand_direction = expand_direction
         self.icon_dimension = icon_dimension
 
-        self._icons = []
-        self._widgets = []
-        self._expanded_widget = None
+        self._expanded_widget: QtWidgets.QWidget | None = None
 
-        #
-        icon_widget = QtWidgets.QWidget(self)
-        icon_widget.setObjectName("IconWidget")
+        self.icon_widget, self.icon_layout = self.build_icon_widget()
 
-        frame_colour = lua_aware_shift(
-            icon_widget.palette().window().color(), 10
-        ).getRgb()
+        widget_layout = QtWidgets.QVBoxLayout()
+        widget_layout.setContentsMargins(0, 0, 0, 0)
+        self.widget_layout = widget_layout
+
+        self.setLayout(self.build_layout())
+
+    def build_icon_widget(self) -> tuple[QtWidgets.QWidget, QtWidgets.QLayout]:
+        icon_widget = QtWidgets.QWidget()
+        expand_direction = self.expand_direction
 
         if expand_direction == "left_to_right":
             icon_layout = QtWidgets.QVBoxLayout()
-            icon_layout.setContentsMargins(0, 5, 3, 5)
+            icon_layout.setContentsMargins(3, 5, 3, 5)
+            icon_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
             border = "right"
         elif expand_direction == "right_to_left":
             icon_layout = QtWidgets.QVBoxLayout()
-            icon_layout.setContentsMargins(3, 5, 0, 5)
+            icon_layout.setContentsMargins(3, 5, 3, 5)
+            icon_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
             border = "left"
         elif expand_direction == "top_to_bottom":
             icon_layout = QtWidgets.QHBoxLayout()
-            icon_layout.setContentsMargins(5, 0, 5, 3)
+            icon_layout.setContentsMargins(5, 3, 5, 3)
+            icon_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
             border = "bottom"
         elif expand_direction == "bottom_to_top":
             icon_layout = QtWidgets.QHBoxLayout()
-            icon_layout.setContentsMargins(5, 3, 5, 0)
+            icon_layout.setContentsMargins(5, 3, 5, 3)
+            icon_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
             border = "top"
         else:
-            raise Exception("ASSERT NOT REACHED")
+            raise ValueError("Invalid expand direction.")
 
-        stylesheet = (
-            "#IconWidget {{ border-{}: 1px solid rgba({}, {}, {}, {}); }}".format(
-                border, *frame_colour
-            )
+        icon_widget.setObjectName("IconWidget")
+        frame_colour = lua_aware_shift(icon_widget.palette().base().color())
+        icon_widget.setStyleSheet(
+            f"#IconWidget {{ border-{border}: 1px solid rgba{frame_colour.getRgb()}; }}"
         )
-        icon_widget.setStyleSheet(stylesheet)
 
-        icon_layout.addStretch(1)
+        if expand_direction in ["left_to_right", "right_to_left"]:
+            icon_widget.setMaximumWidth(
+                self.icon_dimension
+                + icon_layout.contentsMargins().left()
+                + icon_layout.contentsMargins().right()
+            )
+        else:
+            icon_widget.setMaximumHeight(
+                self.icon_dimension
+                + icon_layout.contentsMargins().top()
+                + icon_layout.contentsMargins().bottom()
+            )
 
         icon_widget.setLayout(icon_layout)
 
-        self.icon_layout = icon_layout
+        return icon_widget, icon_layout
 
-        #
-        widget_layout = QtWidgets.QVBoxLayout()
+    def build_layout(self) -> QtWidgets.QLayout:
+        expand_direction = self.expand_direction
 
-        widget_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.widget_layout = widget_layout
-
-        #
         if expand_direction in ["left_to_right", "right_to_left"]:
             layout = QtWidgets.QHBoxLayout()
         else:
             layout = QtWidgets.QVBoxLayout()
 
-        layout.setContentsMargins(0, 0, 0, 0)
-
         if expand_direction in ["left_to_right", "top_to_bottom"]:
-            layout.addWidget(icon_widget)
-            layout.addLayout(widget_layout)
+            layout.addWidget(self.icon_widget)
+            layout.addLayout(self.widget_layout)
         else:
-            layout.addLayout(widget_layout)
-            layout.addWidget(icon_widget)
+            layout.addLayout(self.widget_layout)
+            layout.addWidget(self.icon_widget)
 
-        self.setLayout(layout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        #
-        self.set_maximum_dimension()
+        return layout
 
-    def add_widget(
-        self, widget: QtWidgets.QWidget, icon_path: str | None = None
-    ) -> None:
-        widget.hide()
-
-        self._widgets.append(widget)
-
-        icon_button = HoverButton(
-            icon_path=icon_path or RESOURCES_ROOT / "icons" / "add-categories-icon.png"
+    def add_widget(self, widget: QtWidgets.QWidget, icon_path: str | Path = "") -> None:
+        icon_path = (
+            Path(icon_path)
+            if icon_path
+            else RESOURCES_ROOT / "icons" / "three-horizontal-lines-icon.png"
         )
 
-        icon_button.setFixedSize(self.icon_dimension + 10, self.icon_dimension + 10)
-        icon_button.setIconSize(QtCore.QSize(self.icon_dimension, self.icon_dimension))
-
+        icon_button = HoverButton(icon_path=icon_path)
+        icon_button.setFixedSize(QtCore.QSize(self.icon_dimension, self.icon_dimension))
+        icon_button.setIconSize(
+            QtCore.QSize(self.icon_dimension - 4, self.icon_dimension - 4)
+        )
         icon_button.clicked.connect(lambda: self.toggle_widget(widget))
+        self.icon_layout.addWidget(icon_button)
 
-        self._icons.append(icon_button)
+        self.widget_layout.addWidget(widget)
 
-        self.icon_layout.insertWidget(len(self._widgets) - 1, icon_button)
+        if self._expanded_widget is None:
+            self._expanded_widget = widget
+        else:
+            widget.hide()
 
     def collapse(self, widget: QtWidgets.QWidget | None = None) -> None:
+        QtWidgets.QApplication.instance().postEvent(self, AboutToCollapseEvent())
         if self._expanded_widget is not None:
             self.widget_layout.removeWidget(self._expanded_widget)
 
@@ -2947,7 +2979,7 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
             widget.hide()
         self._expanded_widget = None
 
-        self.collapsed.emit()
+        QtWidgets.QApplication.instance().postEvent(self, CollapsedEvent())
 
     def expand(self, widget: QtWidgets.QWidget) -> None:
         self.reset_maximum_dimension()
@@ -2957,7 +2989,7 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
         self._expanded_widget = widget
         widget.show()
 
-        self.expanded.emit()
+        QtWidgets.QApplication.instance().postEvent(self, ExpandedEvent())
 
     def reset_maximum_dimension(self) -> None:
         if self.expand_direction in ["left_to_right", "right_to_left"]:
@@ -2969,27 +3001,15 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
         if self.expand_direction in ["left_to_right", "right_to_left"]:
             self.setMaximumWidth(
                 self.icon_dimension
-                + 10
-                + self.contentsMargins().left()
-                + self.contentsMargins().right()
-                + self.layout().contentsMargins().left()
-                + self.layout().contentsMargins().right()
+                + self.icon_layout.contentsMargins().left()
+                + self.icon_layout.contentsMargins().right()
             )
         else:
             self.setMaximumHeight(
                 self.icon_dimension
-                + 10
-                + self.contentsMargins().top()
-                + self.contentsMargins().bottom()
-                + self.layout().contentsMargins().top()
-                + self.layout().contentsMargins().bottom()
+                + self.icon_layout.contentsMargins().top()
+                + self.icon_layout.contentsMargins().bottom()
             )
-
-    def showEvent(self, event: QtGui.QShowEvent) -> None:
-        super().showEvent(event)
-
-        if len(self._widgets):
-            self.expand(self._widgets[0])
 
     @QtCore.Slot()
     def toggle_widget(self, widget: QtWidgets.QWidget) -> None:
@@ -3853,3 +3873,176 @@ class NavigationArea(QtWidgets.QScrollArea):
         )
 
         return widget
+
+
+class PreferentialSplitter(QtWidgets.QSplitter):
+    """A splitter that applies all non-splitter size changes to the central widget.
+
+    Note that this widget is meant to work with three widget, either laid out
+    horizontally or vertically. The second widget added will be considered the central
+    widget and will be the one to be resized when the window is resized or when a
+    CollapsibleWidgetArea is collapsed/expanded.
+    """
+
+    _resize_index: int = 0
+
+    def __init__(
+        self,
+        orientation: QtCore.Qt.Orientation = QtCore.Qt.Orientation.Horizontal,
+        ratios: tuple[int, int, int] = (1, 3, 1),
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(orientation, parent)
+
+        self._ratios = ratios
+
+        self._widgets: Optional[list[QtWidgets.QWidget]] = None
+        self._collapse_snapshot: list[int] = [-1, -1, -1]
+
+    def compute_baseline_sizes(self) -> list[int]:
+        """Computes starting sizes based on ratios provided at construction.
+
+        Returns:
+            list[int]: The baseline sizes weighed by the ratios.
+        """
+        if self.orientation() == QtCore.Qt.Orientation.Horizontal:
+            dimension = self.width()
+        else:
+            dimension = self.height()
+        dimension -= self.handleWidth() * (self.count() - 1)
+
+        sizes = []
+        total = sum(self._ratios)
+        for ratio in self._ratios:
+            sizes.append(round(ratio / total * dimension))
+
+        return sizes
+
+    def addWidget(self, _: Never) -> None:
+        """N/A
+
+        Do not use this function. Instead, use `add_widgets()` to add all three widgets
+        at the same time.
+        """
+        raise NotImplementedError("Use `add_widgets` instead.")
+
+    def add_widgets(self, widgets: list[QtWidgets.QWidget]) -> None:
+        """Adds widgets to this splitter.
+
+        Args:
+            widgets (list[QtWidgets.QWidget):
+                The three widgets to add to this splitter. The first widget should be
+                the left/top widget, the second the central one, and the third the
+                right/bottom one.
+
+        Raises:
+            ValueError: When not providing exactly 3 widgets.
+        """
+        if len(widgets) != 3:
+            raise ValueError(
+                f"{self.__class__.__qualname__} only supports exactly 3 widgets."
+            )
+
+        for widget in widgets:
+            super().addWidget(widget)
+            widget.installEventFilter(self)
+
+        # Set stretch factors so super implementation will only resize central widget
+        # when window is resized.
+        self.setStretchFactor(0, 0)
+        self.setStretchFactor(1, 1)
+        self.setStretchFactor(2, 0)
+
+        self._widgets = widgets
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        """Handles resize events.
+
+        The first one or two resize events are used to set the baseline sizes given the
+        ratios passed at construction.
+
+        Args:
+            event (QtGui.QResizeEvent): Event to handle.
+        """
+        super().resizeEvent(event)
+
+        # If outside of a QTabWidget, set baseline sizes on first resize only. If inside
+        # a QTabWidget, set baseline sizes second resize as well. Otherwise, the sizes
+        # are set on an incorrect total size. The actual size o the widget is either
+        # known on the first resize when the widget is outside of a QTabWidget, or on
+        # the second when inside of one.
+        if self._resize_index == 0 or (
+            self._resize_index == 1
+            and isinstance(
+                find_parent(self, QtWidgets.QTabWidget), QtWidgets.QTabWidget
+            )
+        ):
+            self._resize_index += 1
+            self.setSizes(self.compute_baseline_sizes())
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        """Filters events on a watched object.
+
+        This filter is meant to be automatically installed on split widgets and will not
+        have any effect on other objects or widgets.
+
+        Args:
+            watched (QtCore.QObject): A watched object.
+            event (QtCore.QEvent): Event to filter.
+
+        Returns:
+            bool: Whether the event was handled.
+        """
+        if (
+            self._widgets is None
+            or not isinstance(watched, QtWidgets.QWidget)
+            or watched not in self._widgets
+        ):
+            return super().eventFilter(watched, event)
+
+        if event.type() == UserEventType.AboutToCollapse.value:
+            # Snapshot sizes before collapsing since widgets are not resized in time
+            # when expanding and we need their target size to restore it.
+            index = self._widgets.index(watched)
+            self._collapse_snapshot[index] = self.sizes()[index]
+        elif event.type() == UserEventType.Collapsed.value:
+            # self.sizes() still has the old values before collapsing so we can adjust
+            # them to only grow the central widget.
+            index = self._widgets.index(watched)
+
+            # Compute widget size decrease. We can trust its size as it has already been
+            # resized.
+            current_size = self.sizes()[index]
+            if self.orientation() == QtCore.Qt.Orientation.Horizontal:
+                size_decrease = current_size - watched.width()
+            else:
+                size_decrease = current_size - watched.height()
+
+            # Compute correct sizes
+            sizes = self.sizes()
+            sizes[1] += size_decrease  # Add newly available space to central widget
+            sizes[index] -= size_decrease  # Remove space from collapsed widget
+
+            self.setSizes(sizes)
+        elif event.type() == UserEventType.Expanded.value:
+            # self.sizes() still has the old values before expanding so we can adjust
+            # them to only shrink the central widget.
+            index = self._widgets.index(watched)
+
+            # Retrieve snapshot of widget size before expansion.
+            # We can't trust widget.size() because it has not been resized to
+            # accommodate expanded widget.
+            target_size = self._collapse_snapshot[index]
+            current_size = self.sizes()[index]
+
+            # Compute widget size increase
+            size_increase = target_size - current_size
+
+            # Compute correct sizes
+            sizes = self.sizes()
+            sizes[1] -= size_increase  # Remove expanded space from central widget
+            sizes[index] += size_increase  # Restore space to target size
+
+            self.setSizes(sizes)
+
+        return super().eventFilter(watched, event)
