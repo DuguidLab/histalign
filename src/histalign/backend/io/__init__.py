@@ -4,6 +4,7 @@
 
 import importlib.resources
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -31,6 +32,8 @@ del data_directories
 RESOURCES_ROOT = importlib.resources.files("histalign.resources")
 
 ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
+
+_module_logger = logging.getLogger(__name__)
 
 
 def load_image(
@@ -164,6 +167,8 @@ def load_alignment_settings(path: str | Path) -> AlignmentSettings:
 
 
 def clear_directory(directory_path: str | Path) -> None:
+    _module_logger.debug(f"Clearing directory at: {directory_path}")
+
     if isinstance(directory_path, str):
         directory_path = Path(directory_path)
 
