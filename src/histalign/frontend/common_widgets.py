@@ -2704,9 +2704,7 @@ class HoverMixIn:
         self.roles = roles or [QtGui.QPalette.ColorRole.Window]
 
         self._palette = self.palette()
-        self._auto_fill_background = True
-
-        self.setAutoFillBackground(True)
+        self._auto_fill_background = self.autoFillBackground()
 
     def changeEvent(self: QtWidgets.QWidget, event: QtCore.QEvent) -> None:
         """Handles change events.
@@ -2746,7 +2744,7 @@ class HoverMixIn:
             palette.setColor(role, new_colour)
 
         self.setPalette(palette, overwrite=False)
-        self.setAutoFileBackground(True, overwrite=True)
+        self.setAutoFileBackground(True, overwrite=False)
 
     def leaveEvent(self: QtWidgets.QWidget, event: QtCore.QEvent) -> None:
         """Handles leave events.
