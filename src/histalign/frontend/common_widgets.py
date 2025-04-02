@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Sequence
 import itertools
 import json
 import logging
@@ -2620,44 +2621,96 @@ class PixmapFlowLayout(QtWidgets.QLayout):
 
 
 class CutOffLabel(QtWidgets.QLabel):
+    """A label that truncates its text automatically when resized.
+
+    The original text is truncated character per character until it fits inside the
+    available space.
+    Note that because the truncation is indicated by "...", the first truncation removes
+    the first four characters.
+
+    Args:
+        text (str): Text to set on the label.
+        parent (Optional[QtWidgets.QWidget], optional): Parent of this widget.
+    """
+
+    _text: str
+
     def __init__(self, text: str, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
-        self._text = ""
+        self.update_minimum_size()
+
+        self._text = text
         self.setText(text)
 
     def truncate_text_if_needed(self) -> None:
+        """Truncates original text until it fits in the contents rect."""
         rect = self.contentsRect()
-        if rect.width() < 1:
+        if not rect.isValid():
             return
 
+        # Truncate text one character at a time until it fits in the available space
         text = self._text
-
-        if rect.width() > QtGui.QFontMetrics(self.font()).boundingRect(text).width():
-            self.setToolTip("")
-            self.setText(text, overwrite=False)
-            return
-
-        text += "..."
-        while not (
-            rect.width() > QtGui.QFontMetrics(self.font()).boundingRect(text).width()
-        ):
+        font_metrics = self.fontMetrics()
+        while rect.width() < font_metrics.horizontalAdvance(text) and text != "...":
             text = text[:-4] + "..."
 
-        self.setToolTip(self._text)
+        # Set tool tip when text has been cut off
+        if text != self._text:
+            self.setToolTip(self._text)
         self.setText(text, overwrite=False)
 
+    def update_minimum_size(self) -> None:
+        """Updates the minimum size of the widget to allow shrinking down to "..."."""
+        self.setMinimumSize(
+            self.fontMetrics().horizontalAdvance("..."), super().minimumHeight()
+        )
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        """Handles resize events.
+
+        Args:
+            event (QtGui.QResizeEvent): Event to handle.
+        """
+        super().resizeEvent(event)
+
+        self.truncate_text_if_needed()
+
+    def setFont(self, font: QtGui.QFont | str | Sequence[str]) -> None:
+        """Sets the font on this label.
+
+        Args:
+            font (QtGui.QFont | str | Sequence[str]): Font to set on this label.
+        """
+        super().setFont(font)
+
+        self.update_minimum_size()
+
     def setText(self, text: str, overwrite: bool = True) -> None:
+        """Sets the text on this label.
+
+        Args:
+            text (str): Text to set on this label.
+            overwrite (bool, optional):
+                Whether the text provided should overwrite that base text. This is meant
+                to be user internally when truncating.
+        """
         if overwrite:
             self._text = text
             return self.truncate_text_if_needed()
 
         super().setText(text)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
+    def sizeHint(self) -> QtCore.QSize:
+        """Returns the size hint for this widget.
 
-        self.truncate_text_if_needed()
+        Returns:
+            QtCore.QSize: The size hint for this widget.
+        """
+        return QtCore.QSize(
+            self.fontMetrics().horizontalAdvance(self._text),
+            super().sizeHint().height(),
+        )
 
 
 class BinaryAlphaPixmap(QtGui.QPixmap):
