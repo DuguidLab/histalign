@@ -48,6 +48,8 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.registration_tab = registration_tab
         # Volume builder
         volume_builder_tab = VolumeBuilderWidget()
+        self.project_opened.connect(volume_builder_tab.project_opened.emit)
+        self.project_closed.connect(volume_builder_tab.project_closed.emit)
         self.volume_builder_tab = volume_builder_tab
         # Quantification
         quantification_tab = QuantificationWidget()
@@ -376,6 +378,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             tab.open_image_in_aligner(self.workspace.current_aligner_image_index)
 
         # Synchronise with the visualisation tab
+        self.volume_builder_tab.open_project(path)
         self.visualisation_tab.open_project(path)
 
         self.project_opened.emit()

@@ -32,7 +32,7 @@ from histalign.backend.quantification.quantification_methods import (
 )
 from histalign.backend.registration import Registrator
 from histalign.backend.registration.alignment import (
-    build_aligned_volume,
+    build_aligned_array,
     interpolate_sparse_3d_array,
 )
 from histalign.frontend.pyside_helpers import FakeQtABC
@@ -179,7 +179,7 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
         ) as handle:
             project_settings = ProjectSettings(**json.load(handle)["project_settings"])
 
-        alignment_array, cache_path = build_aligned_volume(
+        alignment_array, cache_path = build_aligned_array(
             self.quantification_settings.alignment_directory,
             return_raw_array=True,
             channel_index=self.quantification_settings.channel_index,

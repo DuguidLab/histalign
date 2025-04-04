@@ -208,3 +208,23 @@ class QuantificationResults(BaseModel, validate_assignment=True):
     @field_serializer("timestamp")
     def serialise_timestamp(self, value: datetime) -> str:
         return value.isoformat()
+
+
+class VolumeBuildingSettings(BaseModel, validate_assignment=True):
+    alignment_directory: DirectoryPath
+    original_directory: DirectoryPath
+    resolution: Resolution
+    z_stack_regex: str
+    channel_regex: str
+    channel_index: str
+
+    @field_validator("channel_index")
+    @classmethod
+    def validate_regex(cls, value: str | int) -> str:
+        try:
+            value = int(value)
+        except ValueError:
+            if value != "":
+                raise ValueError("could not interpret input as an integer") from None
+
+        return str(value)

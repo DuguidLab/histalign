@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
+from collections.abc import Sequence
 import hashlib
 import logging
 import math
@@ -50,50 +51,38 @@ Projection = np.ndarray
 _module_logger = logging.getLogger(__name__)
 
 
-def build_aligned_volume(
+def build_aligned_array(
     alignment_directory: str | Path,
-    allow_cache_load: bool = True,
-    allow_cache_save: bool = True,
-    return_raw_array: bool = False,
-    channel_index: Optional[int] = None,
-    channel_regex: Optional[str] = None,
-    projection_regex: Optional[str] = None,
-    misc_regexes: Optional[str | list[str]] = None,
-    misc_subs: Optional[str | list[str]] = None,
-) -> tuple[np.ndarray | vedo.Volume, Path]:
-    """Builds an aligned volume from alignment settings.
+    channel_index: str,
+    channel_regex: str,
+    projection_regex: str,
+    misc_regexes: Sequence[str] = (),
+    misc_subs: Sequence[str] = (),
+) -> None:
+    """Builds a 3D aligned array from alignment settings.
 
     Args:
         alignment_directory (str | Path):
-        allow_cache_load (bool, optional):
-            Whether to use the cache for loading. If `False`, the entire volume is
-            guaranteed to be build from scratch. If `True`, the cache will be queried
-            for an existing volume created with the same alignment paths. If one exists,
-            it is returned. Otherwise, the volume is built as normal.
-        allow_cache_save (bool, optional):
-            Whether to save the built volume to the cache.
-        return_raw_array (bool, optional):
-            Whether to return a numpy array (`True`) or a vedo volume (`False`).
-        channel_index (Optional[int], optional):
-            Channel index to use when retrieving the original files.
-        channel_regex (Optional[str], optional):
-            Channel regex identifying the channel part of alignment paths' names found
-            in `alignment_directory`.
-        projection_regex (Optional[str], optional):
-            Projection regex identifying the projection part of alignment paths' names
-            found in `alignment_directory`.
-        misc_regexes (Optional[list[str]], optional):
-            Miscellaneous regexes identifying extra parts of alignment paths found in
-            `alignment_directory`.
-        misc_subs (Optional[list[str]], optional):
-            Substitutions to replace `misc_regexes` with. This should have as many
-            elements as `misc_regexes`.
-
-    Returns:
-        tuple[np.ndarray | vedo.Volume, Path]:
-            The aligned volume or 3D array, and the path to the potential cache.
+            Path to the directory containing the alignment settings of the images to use
+            to build the array.
+        channel_index (str):
+            Channel index to use in the returned path.
+        channel_regex (str):
+            Channel regex identifying the channel part of `path`'s name.
+        projection_regex (str):
+            Projection regex identifying the projection part of `path`'s name.
+        misc_regexes (Sequence[str], optional):
+            Miscellaneous regex identifying extra parts of alignment paths found in
+            `alignment_directory`. Use in conjunction with `misc_subs` to replace
+            arbitrary parts of the path. The shortest of the two argument dictates how
+            many elements are replaced. Unlike channel and projection arguments, this
+            can replace any part of the path, now just the name.
+        misc_subs (Sequence[str], optional):
+            Miscellaneous substitutions to replace in `alignment_directory`. Use in
+            conjunction with `misc_regexes` to replace arbitrary parts of the path.
+            The shortest of the two argument dictates how many elements are replaced.
     """
-    _module_logger.debug("Starting build of aligned volume.")
+    _module_logger.debug("Starting build of aligned array.")
 
     if channel_regex is not None and channel_index is None:
         _module_logger.warning(
@@ -106,8 +95,7 @@ def build_aligned_volume(
             "volume using the same channel as was used for alignment."
         )
 
-    if isinstance(alignment_directory, str):
-        alignment_directory = Path(alignment_directory)
+    alignment_directory = Path(alignment_directory)
 
     alignment_paths = gather_alignment_paths(alignment_directory)
     if not alignment_paths:
@@ -122,19 +110,9 @@ def build_aligned_volume(
         misc_subs,
     )
 
-    alignment_hash = generate_hash_from_targets(
-        [settings.histology_path for settings in alignment_settings_list]
-    )
-
-    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_hash}.h5"
-    if cache_path.exists() and allow_cache_load:
-        _module_logger.debug("Found cached aligned volume. Loading from file.")
-
-        with h5py.File(cache_path, "r") as handle:
-            array = handle["array"][:]
-        if return_raw_array:
-            return array, cache_path
-        return vedo.Volume(array), cache_path
+    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_directory.name}.h5"
+    if cache_path.exists():
+        return
 
     reference_shape = alignment_settings_list[0].volume_settings.shape
 
@@ -147,15 +125,10 @@ def build_aligned_volume(
     insert_aligned_planes_into_array(aligned_array, planes)
     aligned_volume.modified()  # Probably unnecessary but good practice
 
-    if allow_cache_save:
-        _module_logger.debug("Caching volume to file as a NumPy array.")
-        os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
-        with h5py.File(cache_path, "w") as handle:
-            handle.create_dataset(name="array", data=aligned_array, compression="gzip")
-
-    if return_raw_array:
-        return aligned_array, cache_path
-    return aligned_volume, cache_path
+    _module_logger.debug("Caching volume to file as a NumPy array.")
+    os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
+    with h5py.File(cache_path, "w") as handle:
+        handle.create_dataset(name="array", data=aligned_array, compression="gzip")
 
 
 def insert_aligned_planes_into_array(
@@ -528,164 +501,103 @@ def get_normal_line_points(
 
 def interpolate_sparse_3d_array(
     array: np.ndarray,
-    reference_mask: Optional[np.ndarray] = None,
-    pre_masked: bool = False,
+    resolution: Resolution,
+    base_hash: str,
+    mask_name: str = "root",
+    only_mask: bool = True,
     kernel: str = "multiquadric",
     neighbours: int = 27,
     epsilon: int = 1,
     degree: Optional[int] = None,
     chunk_size: Optional[int] = 1_000_000,
-    recursive: bool = False,
-    use_cache: bool = False,
-    aligned_volume_hash: str = "",
-    mask_name: str = "",
-) -> tuple[np.ndarray, Path]:
+) -> np.ndarray:
     start_time = time.perf_counter()
 
-    if use_cache and not aligned_volume_hash:
-        raise ValueError("Cannot use cache without a starting 'aligned_volume_hash'.")
-    if use_cache and reference_mask is not None and not mask_name:
-        raise ValueError(
-            "Cannot use cache with reference mask but no 'mask_name' "
-            "identifying information."
-        )
-
-    if reference_mask is not None and (array_shape := array.shape) != (
-        reference_shape := reference_mask.shape
-    ):
-        raise ValueError(
-            f"Array and reference mask have different shapes "
-            f"({array_shape} vs {reference_shape})."
-        )
-
-    # Mask the array if necessary
-    if reference_mask is not None and not pre_masked:
-        array = np.where(reference_mask, array, 0)
-
-    mask_name = "-".join(mask_name.split(" ")).lower()
-    if mask_name:
-        mask_name = "_" + mask_name
-
+    # Inspect cache and return if exists
+    _mask_name = "_" + "-".join(mask_name.split(" ")).lower()
     cache_path = (
-        INTERPOLATED_VOLUMES_CACHE_DIRECTORY / f"{aligned_volume_hash}{mask_name}"
-        f"_{kernel}_{neighbours}_{epsilon}_{degree or 0}_{int(recursive)}.h5"
+        INTERPOLATED_VOLUMES_CACHE_DIRECTORY
+        / f"{base_hash}{_mask_name}_{kernel}_{neighbours}_{epsilon}_{degree or 0}.h5"
     )
-    if cache_path.exists() and use_cache:
+    if cache_path.exists():
         _module_logger.debug("Found cached array. Loading from file.")
         with h5py.File(cache_path, "r") as handle:
             array = handle["array"][:]
-        return array, cache_path
+        return array
 
-    interpolated_array = array.copy()
-    interpolated_array = interpolated_array.astype(np.float64)
+    # Load the mask
+    mask_path = get_structure_mask_path(mask_name, resolution)
+    if not Path(mask_path).exists():
+        download_structure_mask(mask_path, resolution=resolution)
+    mask_array = load_volume(mask_path, return_raw_array=True)
 
-    if reference_mask is None:
-        # Interpolate the whole grid
-        target_coordinates = tuple(
-            array.flatten().astype(int)
-            for array in np.meshgrid(
-                np.linspace(
-                    0, interpolated_array.shape[0] - 1, interpolated_array.shape[0]
-                ),
-                np.linspace(
-                    0, interpolated_array.shape[1] - 1, interpolated_array.shape[1]
-                ),
-                np.linspace(
-                    0, interpolated_array.shape[2] - 1, interpolated_array.shape[2]
-                ),
-                indexing="ij",
-            )
-        )
-    else:
+    # Compute interpolation target coordinates
+    if only_mask:
         # Interpolate only non-zero coordinates of mask
-        target_coordinates = np.nonzero(reference_mask)
+        target_coordinates = np.nonzero(mask_array)
+    else:
+        # Interpolate the whole grid
+        ii = np.linspace(0, mask_array.shape[0] - 1, mask_array.shape[0], dtype=int)
+        jj = np.linspace(0, mask_array.shape[1] - 1, mask_array.shape[1], dtype=int)
+        kk = np.linspace(0, mask_array.shape[2] - 1, mask_array.shape[2], dtype=int)
+
+        target_coordinates = tuple(
+            coordinates_array.flatten()
+            for coordinates_array in np.meshgrid(ii, jj, kk, indexing="ij")
+        )
     target_points = np.array(target_coordinates).T
 
-    if chunk_size is None:
-        chunk_size = target_points.shape[0]
-
-    _module_logger.info(
+    # Start the interpolation
+    _module_logger.debug(
         f"Starting interpolation with parameters "
         f"{{"
         f"kernel: {kernel}, "
         f"neighbours: {neighbours}, "
         f"epsilon: {epsilon}, "
         f"degree: {degree}, "
-        f"chunk size: {chunk_size:,}, "
-        f"recursive: {recursive}"
+        f"chunk size: {chunk_size:,}"
         f"}}."
     )
 
-    failed_chunks = []
-    previous_target_size = target_points.shape[0]
-    while True:
-        known_coordinates = np.nonzero(interpolated_array)
-        known_points = np.array(known_coordinates).T
+    interpolated_array = np.zeros_like(array, dtype=np.float64)
 
-        known_values = array[known_coordinates]
+    known_coordinates = np.nonzero(array)
+    known_points = np.array(known_coordinates).T
+    known_values = array[known_coordinates]  # Sparse input data
 
-        interpolator = RBFInterpolator(
-            known_points,
-            known_values,
-            kernel=kernel,
-            neighbors=neighbours,
-            epsilon=epsilon,
-            degree=degree,
+    interpolator = RBFInterpolator(
+        known_points,
+        known_values,
+        kernel=kernel,
+        neighbors=neighbours,
+        epsilon=epsilon,
+        degree=degree,
+    )
+
+    # Split the work into chunks to break down the computation to provide feedback of
+    # the progress.
+    chunk_start = 0
+    chunk_end = chunk_size
+    chunk_index = 1  # Used exclusively for logging, 1-based numbering
+    chunk_count = math.ceil(target_points.shape[0] / chunk_size)
+    while chunk_start < target_points.shape[0]:
+        _module_logger.debug(
+            f"Interpolating chunk {chunk_index}/{chunk_count} "
+            f"({chunk_index / chunk_count:.0%})."
         )
 
-        chunk_start = 0
-        chunk_end = chunk_size
-        chunk_index = 1
-        chunk_count = math.ceil(target_points.shape[0] / chunk_size)
-        while chunk_start < target_points.shape[0]:
-            _module_logger.info(
-                f"Interpolating chunk {chunk_index}/{chunk_count} "
-                f"({chunk_index / chunk_count:.0%})."
-            )
-
-            chunk_coordinates = tuple(
-                coordinate[chunk_start:chunk_end] for coordinate in target_coordinates
-            )
-            chunk_points = target_points[chunk_start:chunk_end]
-
-            try:
-                interpolated_array[chunk_coordinates] = interpolator(chunk_points)
-            except np.linalg.LinAlgError:
-                failed_chunks.append([chunk_start, chunk_end])
-                _module_logger.info(f"Failed to interpolate chunk {chunk_index}.")
-
-            chunk_start += chunk_size
-            chunk_end += chunk_size
-            chunk_index += 1
-
-        if not recursive or len(failed_chunks) == 0:
-            break
-
-        # Prepare the next loop
-        target_coordinates = tuple(
-            np.concatenate(
-                [target_coordinate[start:end] for start, end in failed_chunks]
-            )
-            for target_coordinate in target_coordinates
+        chunk_coordinates = tuple(
+            coordinate[chunk_start:chunk_end] for coordinate in target_coordinates
         )
-        target_points = np.array(target_coordinates).T
-        failed_chunks = []
+        chunk_points = target_points[chunk_start:chunk_end]
 
-        # Avoid infinitely looping
-        if previous_target_size == target_points.shape[0]:
-            _module_logger.error(
-                f"Interpolation is not fully solvable with current combination of "
-                f"kernel, neighbours parameter and chunk size. "
-                f"Returning current result."
-            )
-            break
-        previous_target_size = target_points.shape[0]
+        interpolated_array[chunk_coordinates] = interpolator(chunk_points)
 
-        _module_logger.info(
-            f"There were {len(failed_chunks)} failed chunks of size {chunk_size}. "
-            f"Recursing with newly interpolated data."
-        )
+        chunk_start += chunk_size
+        chunk_end += chunk_size
+        chunk_index += 1
 
+    # Report interpolation time
     total_time = time.perf_counter() - start_time
     total_hours, remaining_time = divmod(total_time, 3600)
     total_minutes, total_seconds = divmod(remaining_time, 60)
@@ -694,17 +606,15 @@ def interpolate_sparse_3d_array(
         f"{f'{total_minutes:>2.0f}m' if total_minutes else ''}"
         f"{total_seconds:>2.0f}s"
     )
-    _module_logger.info(f"Finished interpolation in {time_string}.")
+    _module_logger.debug(f"Finished interpolation in {time_string}.")
 
-    if use_cache:
-        _module_logger.debug("Caching interpolated array to file.")
-        os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
-        with h5py.File(cache_path, "w") as handle:
-            handle.create_dataset(
-                name="array", data=interpolated_array, compression="gzip"
-            )
+    # Cache output
+    _module_logger.debug(f"Caching interpolated array to '{cache_path}'.")
+    os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
+    with h5py.File(cache_path, "w") as handle:
+        handle.create_dataset(name="array", data=interpolated_array, compression="gzip")
 
-    return interpolated_array, cache_path
+    return interpolated_array
 
 
 def mask_off_structure(
@@ -721,11 +631,11 @@ def mask_off_structure(
 
 def convert_alignment_histology_paths(
     alignment_paths: list[Path],
-    channel_index: Optional[int] = None,
-    channel_regex: Optional[str] = None,
-    projection_regex: Optional[str] = None,
-    misc_regexes: Optional[list[str]] = None,
-    misc_subs: Optional[list[str]] = None,
+    channel_index: str,
+    channel_regex: str,
+    projection_regex: str,
+    misc_regexes: Sequence[str] = (),
+    misc_subs: Sequence[str] = (),
 ) -> list[AlignmentSettings]:
     alignment_settings_list = []
     for alignment_path in alignment_paths:
@@ -755,31 +665,36 @@ def convert_alignment_histology_paths(
 
 def replace_path_parts(
     path: Path,
-    channel_index: Optional[int] = None,
-    channel_regex: Optional[str] = None,
-    projection_regex: Optional[str] = None,
-    misc_regexes: Optional[list[str]] = None,
-    misc_subs: Optional[list[str]] = None,
+    channel_index: str,
+    channel_regex: str,
+    projection_regex: str,
+    misc_regexes: Sequence[str] = (),
+    misc_subs: Sequence[str] = (),
 ) -> Path:
     """Extracts the original file name given the channel, Z indices, and optional parts.
 
     Careful not to trust the output of this function blindly if obtained from external
-    input as `misc_regexes` and `misc_subs` can potentially replace the whole path.
+    input as `misc_regexes` and `misc_subs` can potentially replace any portion of the
+    path.
 
     Args:
         path (Path): Path to remove parts on.
-        channel_index (Optional[int], optional):
+        channel_index (str):
             Channel index to use in the returned path.
-        channel_regex (Optional[str], optional):
+        channel_regex (str):
             Channel regex identifying the channel part of `path`'s name.
-        projection_regex (Optional[str], optional):
+        projection_regex (str):
             Projection regex identifying the projection part of `path`'s name.
-        misc_regexes (Optional[list[str]], optional):
-            Miscellaneous regex identifying an extra part of alignment paths found in
-            `alignment_directory`.
-        misc_subs (Optional[list[str]], optional):
-            Substitutions to replace `misc_regexes` with. This should have as many
-            elements as `misc_regexes`.
+        misc_regexes (Sequence[str], optional):
+            Miscellaneous regex identifying extra parts of alignment paths found in
+            `alignment_directory`. Use in conjunction with `misc_subs` to replace
+            arbitrary parts of the path. The shortest of the two argument dictates how
+            many elements are replaced. Unlike channel and projection arguments, this
+            can replace any part of the path, now just the name.
+        misc_subs (Sequence[str], optional):
+            Miscellaneous substitutions to replace in `alignment_directory`. Use in
+            conjunction with `misc_regexes` to replace arbitrary parts of the path.
+            The shortest of the two argument dictates how many elements are replaced.
 
     Returns:
         Path: The path with the parts removed.
@@ -789,35 +704,28 @@ def replace_path_parts(
         Path('/data/filename_C0.h5')
     """
     # Replace the channel index
-    if channel_regex is not None:
-        if channel_index is not None:
-            path = path.with_name(
-                re.sub(
-                    channel_regex,
-                    channel_regex.replace(r"\d", str(channel_index)),
-                    path.name,
-                    count=1,
-                )
-            )
+    path = path.with_name(
+        re.sub(
+            channel_regex,
+            channel_regex.replace(r"\d", str(channel_index)),
+            path.name,
+            count=1,
+        )
+    )
 
     # Remove part of the file name that indicates the projection
-    if projection_regex is not None:
-        path = path.with_name(
-            re.sub(projection_regex, "", path.name, count=1),
-        )
+    path = path.with_name(
+        re.sub(
+            projection_regex,
+            "",
+            path.name,
+            count=1,
+        ),
+    )
 
     # Replace the miscellaneous parts
-    if misc_regexes is not None and misc_subs is not None:
-        if (len1 := len(misc_regexes)) != (len2 := len(misc_subs)):
-            _module_logger.error(
-                f"Received different numbers of misc regex and subs "
-                f"({len1} vs {len2}). Skipping miscellaneous replacement."
-            )
-        else:
-            for i in range(len(misc_regexes)):
-                path = Path(
-                    re.sub(misc_regexes[i], misc_subs[i], str(path)),
-                )
+    for regex, sub in zip(misc_regexes, misc_subs):
+        path = Path(re.sub(regex, sub, str(path)))
 
     return path
 
