@@ -11,7 +11,6 @@ from PySide6 import QtCore
 from histalign.backend.io import load_volume
 from histalign.backend.models import VolumeBuildingSettings
 from histalign.backend.registration.alignment import (
-    ALIGNMENT_VOLUMES_CACHE_DIRECTORY,
     build_aligned_array,
     interpolate_sparse_3d_array,
 )
@@ -72,7 +71,9 @@ class VolumeInterpolatorThread(QtCore.QThread):
 
         # Check the 3D array already exists
         aligned_array_path = (
-            ALIGNMENT_VOLUMES_CACHE_DIRECTORY
+            settings.alignment_directory
+            / "volumes"
+            / "aligned"
             / f"{settings.alignment_directory.name}.h5"
         )
         if not aligned_array_path.exists():
@@ -104,7 +105,7 @@ class VolumeInterpolatorThread(QtCore.QThread):
         #       to user. Alternatively, add a callback parameter for reporting.
         interpolate_sparse_3d_array(
             aligned_array,
-            base_hash=settings.alignment_directory.name,
+            alignment_directory=settings.alignment_directory,
             resolution=settings.resolution,
         )
 

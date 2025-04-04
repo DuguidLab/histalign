@@ -3871,7 +3871,7 @@ class NavigationArea(QtWidgets.QScrollArea):
             return
 
         try:
-            volume_paths = list(map(Path, contents["volumes"]))
+            volume_paths = list(map(Path, contents["interpolated"]))
         except KeyError:
             _module_logger.error(
                 f"Could not parse 'volumes.json' file "
@@ -3881,7 +3881,7 @@ class NavigationArea(QtWidgets.QScrollArea):
 
         for path in volume_paths:
             try:
-                with open(path.parent.parent / "metadata.json") as handle:
+                with open(path.parent.parent.parent / "metadata.json") as handle:
                     contents = json.load(handle)
             except FileNotFoundError:
                 _module_logger.error(

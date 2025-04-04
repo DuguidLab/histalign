@@ -4,13 +4,14 @@
 
 from collections.abc import Sequence
 import hashlib
+import json
 import logging
 import math
 import os
 from pathlib import Path
 import re
 import time
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import h5py
 import numpy as np
@@ -110,7 +111,9 @@ def build_aligned_array(
         misc_subs,
     )
 
-    cache_path = ALIGNMENT_VOLUMES_CACHE_DIRECTORY / f"{alignment_directory.name}.h5"
+    cache_directory = alignment_directory / "volumes" / "aligned"
+    os.makedirs(cache_directory, exist_ok=True)
+    cache_path = cache_directory / f"{alignment_directory.name}.h5"
     if cache_path.exists():
         return
 
@@ -129,6 +132,7 @@ def build_aligned_array(
     os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
     with h5py.File(cache_path, "w") as handle:
         handle.create_dataset(name="array", data=aligned_array, compression="gzip")
+    append_volume(alignment_directory, cache_path, "aligned")
 
 
 def insert_aligned_planes_into_array(
@@ -502,7 +506,7 @@ def get_normal_line_points(
 def interpolate_sparse_3d_array(
     array: np.ndarray,
     resolution: Resolution,
-    base_hash: str,
+    alignment_directory: Path,
     mask_name: str = "root",
     only_mask: bool = True,
     kernel: str = "multiquadric",
@@ -515,9 +519,12 @@ def interpolate_sparse_3d_array(
 
     # Inspect cache and return if exists
     _mask_name = "_" + "-".join(mask_name.split(" ")).lower()
+    cache_directory = alignment_directory / "volumes" / "interpolated"
+    os.makedirs(cache_directory, exist_ok=True)
     cache_path = (
-        INTERPOLATED_VOLUMES_CACHE_DIRECTORY
-        / f"{base_hash}{_mask_name}_{kernel}_{neighbours}_{epsilon}_{degree or 0}.h5"
+        cache_directory
+        / f"{alignment_directory.name}{_mask_name}_{kernel}_{neighbours}_{epsilon}_"
+        f"{degree or 0}.h5"
     )
     if cache_path.exists():
         _module_logger.debug("Found cached array. Loading from file.")
@@ -613,6 +620,7 @@ def interpolate_sparse_3d_array(
     os.makedirs(INTERPOLATED_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
     with h5py.File(cache_path, "w") as handle:
         handle.create_dataset(name="array", data=interpolated_array, compression="gzip")
+    append_volume(alignment_directory, cache_path, "interpolated")
 
     return interpolated_array
 
@@ -736,3 +744,26 @@ def generate_hash_from_targets(targets: list[Path]) -> str:
 
 def generate_hash_from_aligned_volume_settings(settings: list[Any]) -> str:
     return hashlib.md5("".join(map(str, settings)).encode("UTF-8")).hexdigest()
+
+
+def append_volume(
+    alignment_directory: Path,
+    volume_path: Path,
+    type_: Literal["aligned", "interpolated"],
+) -> None:
+    try:
+        with open(alignment_directory.parent / "volumes.json") as handle:
+            contents = json.load(handle)
+    except FileNotFoundError:
+        contents = {}
+    except json.JSONDecodeError:
+        _module_logger.error(
+            f"Could not parse 'volumes.json' file for alignment directory "
+            f"'{alignment_directory}'."
+        )
+        return
+
+    contents[type_] = contents.get(type_, []) + [str(volume_path)]
+
+    with open(alignment_directory.parent / "volumes.json", "w") as handle:
+        json.dump(contents, handle)
