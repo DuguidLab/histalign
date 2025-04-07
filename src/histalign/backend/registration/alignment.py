@@ -59,6 +59,7 @@ def build_aligned_array(
     projection_regex: str,
     misc_regexes: Sequence[str] = (),
     misc_subs: Sequence[str] = (),
+    force: bool = False,
 ) -> None:
     """Builds a 3D aligned array from alignment settings.
 
@@ -82,6 +83,7 @@ def build_aligned_array(
             Miscellaneous substitutions to replace in `alignment_directory`. Use in
             conjunction with `misc_regexes` to replace arbitrary parts of the path.
             The shortest of the two argument dictates how many elements are replaced.
+        force (bool, optional): Whether to force building if cache already exists.
     """
     _module_logger.debug("Starting build of aligned array.")
 
@@ -114,7 +116,7 @@ def build_aligned_array(
     cache_directory = alignment_directory / "volumes" / "aligned"
     os.makedirs(cache_directory, exist_ok=True)
     cache_path = cache_directory / f"{alignment_directory.name}.h5"
-    if cache_path.exists():
+    if cache_path.exists() and not force:
         return
 
     reference_shape = alignment_settings_list[0].volume_settings.shape
@@ -514,6 +516,7 @@ def interpolate_sparse_3d_array(
     epsilon: int = 1,
     degree: Optional[int] = None,
     chunk_size: Optional[int] = 1_000_000,
+    force: bool = False,
 ) -> np.ndarray:
     start_time = time.perf_counter()
 
@@ -526,7 +529,7 @@ def interpolate_sparse_3d_array(
         / f"{alignment_directory.name}{_mask_name}_{kernel}_{neighbours}_{epsilon}_"
         f"{degree or 0}.h5"
     )
-    if cache_path.exists():
+    if cache_path.exists() and not force:
         _module_logger.debug("Found cached array. Loading from file.")
         with h5py.File(cache_path, "r") as handle:
             array = handle["array"][:]

@@ -43,6 +43,7 @@ class VolumeBuilderThread(QtCore.QThread):
             projection_regex=settings.z_stack_regex,
             channel_regex=settings.channel_regex,
             channel_index=settings.channel_index,
+            force=True,
         )
 
         # Log here instead of QThread.finished as we are only now in the new thread
@@ -107,6 +108,7 @@ class VolumeInterpolatorThread(QtCore.QThread):
             aligned_array,
             alignment_directory=settings.alignment_directory,
             resolution=settings.resolution,
+            force=True,
         )
 
         # Log here instead of QThread.finished as we are only now in the new thread
