@@ -304,8 +304,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         _module_logger.debug("Project creation initiated.")
 
         # Ensure project is saved/changes discarded or action is cancelled
-        if not self.save_guard_project():
-            _module_logger.debug("Project closing cancelled by user.")
+        _module_logger.debug("Attempting to close previous project.")
+        if not self.close_project():
+            _module_logger.debug("Project creation cancelled.")
             return
 
         # Build dialog pop-up to gather project settings
@@ -321,10 +322,6 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         _module_logger.debug(
             f"Creating project from settings: {settings.model_dump_json()}"
         )
-
-        # Ensure any previous workspace is no longer in use
-        _module_logger.debug("Attempting to close previous project.")
-        self.close_project()
 
         # Ensure the project directory is empty
         clear_directory(settings.project_path)
@@ -344,7 +341,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
         # Ensure project is saved/changes discarded or action is cancelled
         if not self.save_guard_project():
-            _module_logger.debug("Project closing cancelled by user.")
+            _module_logger.debug("Project closing cancelled.")
             return
 
         # Build dialog pop-up to get project path
@@ -396,7 +393,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
         # Ensure project is saved/changes discarded or action is cancelled
         if not self.save_guard_project():
-            _module_logger.debug("Project closing cancelled by user.")
+            _module_logger.debug("Project closing cancelled.")
             return False
 
         # Cancel ongoing work
@@ -415,17 +412,13 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_images_folder(self) -> None:
-        _module_logger.debug("Images folder opening initiated by user.")
-
-        # Ensure project is saved/changes discarded or action is cancelled
-        if not self.save_guard_project():
-            return
+        _module_logger.debug("Images folder opening initiated.")
 
         # Build dialog pop-up to get images folder path
         dialog = OpenImagesFolderDialog(self)
         dialog.submitted.connect(self._open_images_folder)
         dialog.rejected.connect(
-            lambda: _module_logger.debug("Images folder opening cancelled by user.")
+            lambda: _module_logger.debug("Images folder opening cancelled.")
         )
         dialog.open()
 
@@ -445,7 +438,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def quit(self) -> None:
-        _module_logger.debug("Quitting initiated by user.")
+        _module_logger.debug("Quitting initiated.")
 
         self.close()
 

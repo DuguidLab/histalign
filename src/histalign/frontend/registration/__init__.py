@@ -523,13 +523,13 @@ class RegistrationWidget(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def delete_alignment(self) -> None:
-        _module_logger.debug("Alignment deletion initiated by user.")
+        _module_logger.debug("Alignment deletion initiated.")
 
         # Build dialog pop-up to ask for confirmation
         dialog = ConfirmDeleteDialog(self)
         dialog.accepted.connect(self._delete_alignment)
         dialog.rejected.connect(
-            lambda: _module_logger.debug("Alignment deletion cancelled by user.")
+            lambda: _module_logger.debug("Alignment deletion cancelled.")
         )
         dialog.open()
 
