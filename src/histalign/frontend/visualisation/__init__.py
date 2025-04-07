@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-import json
 import logging
 from pathlib import Path
 
@@ -13,7 +12,7 @@ from scipy.ndimage import gaussian_filter
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
 from histalign.backend.io import load_volume, RESOURCES_ROOT
-from histalign.backend.models import ProjectSettings
+from histalign.backend.models import Resolution
 from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
     CollapsibleWidgetArea,
@@ -32,6 +31,7 @@ class VisualisationWidget(QtWidgets.QWidget):
 
         #
         self.project_root = None
+        self.resolution = None
 
         self._saved_left_size = -1
         self._saved_right_size = -1
@@ -106,10 +106,13 @@ class VisualisationWidget(QtWidgets.QWidget):
         return [unit, 3 * unit, unit]
 
     @QtCore.Slot()
-    def open_project(self, project_file_path: str | Path) -> None:
-        path = Path(project_file_path).parent
+    def open_project(
+        self, project_root: str | Path, resolution: Resolution, *args, **kwargs
+    ) -> None:
+        path = Path(project_root)
 
         self.project_root = path
+        self.resolution = resolution
         self.navigation_widget.parse_project(path)
         self.navigation_widget.setEnabled(True)
 
@@ -135,10 +138,6 @@ class VisualisationWidget(QtWidgets.QWidget):
         old_view = self.central_view
         new_view = old_view
 
-        with open(self.project_root / "project.json") as handle:
-            settings = ProjectSettings(**json.load(handle)["project_settings"])
-            resolution = settings.resolution
-
         volume = load_volume(path, normalise_dtype=np.uint16, return_raw_array=True)
 
         # Preprocessing would have been done beforehand
@@ -147,16 +146,16 @@ class VisualisationWidget(QtWidgets.QWidget):
         volume = np.digitize(volume, np.linspace(0, 255, 25)).astype(np.uint8)
         volume = normalise_array(volume, dtype=np.uint16)
 
-        mask_path = get_structure_mask_path("root", resolution)
+        mask_path = get_structure_mask_path("root", self.resolution)
         if not Path(mask_path).exists():
-            download_structure_mask("root", resolution)
+            download_structure_mask("root", self.resolution)
         mask = load_volume(mask_path, return_raw_array=True)
         volume = np.where(mask, volume, 0)
 
         if isinstance(old_view, VolumeViewer):
             new_view.set_overlay_volume(volume)
         else:
-            new_view = VolumeViewer(resolution=resolution, overlay_volume=volume)
+            new_view = VolumeViewer(resolution=self.resolution, overlay_volume=volume)
 
         if old_view is not new_view:
             self.central_view = new_view

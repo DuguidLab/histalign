@@ -63,6 +63,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         tab_widget.addTab(volume_builder_tab, "Volume builder")
         tab_widget.addTab(quantification_tab, "Quantification")
         tab_widget.addTab(visualisation_tab, "Visualisation")
+        tab_widget.currentChanged.connect(self.reload_project)
 
         self.setCentralWidget(tab_widget)
 
@@ -375,8 +376,14 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             tab.open_image_in_aligner(self.workspace.current_aligner_image_index)
 
         # Synchronise with the visualisation tab
-        self.volume_builder_tab.open_project(path)
-        self.visualisation_tab.open_project(path)
+        self.volume_builder_tab.open_project(
+            self.workspace.project_settings.project_path,
+            self.workspace.project_settings.resolution,
+        )
+        self.visualisation_tab.open_project(
+            self.workspace.project_settings.project_path,
+            self.workspace.project_settings.resolution,
+        )
 
         self.project_opened.emit()
 
@@ -443,3 +450,23 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.close()
 
         _module_logger.debug("Quitting application.")
+
+    # Miscellaneous slots
+    @QtCore.Slot()
+    def reload_project(self, index: int) -> None:
+        if index < 1 or self.workspace is None:
+            return
+
+        if index == 1:
+            tab = self.volume_builder_tab
+        elif index == 2:
+            tab = self.quantification_tab
+        elif index == 3:
+            tab = self.visualisation_tab
+        else:
+            return
+
+        tab.open_project(
+            self.workspace.project_settings.project_path,
+            resolution=self.workspace.project_settings.resolution,
+        )

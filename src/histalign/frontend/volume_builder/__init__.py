@@ -4,17 +4,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Optional
 
-import pydantic
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.io import ICONS_ROOT
 from histalign.backend.models import (
-    ProjectSettings,
     Resolution,
     VolumeBuildingSettings,
 )
@@ -166,23 +163,15 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
         self.jobs_started.connect(lambda: self.set_running_state(True))
         self.jobs_finished.connect(lambda: self.set_running_state(False))
 
-    def open_project(self, project_file_path: str | Path) -> None:
-        path = Path(project_file_path)
+    def open_project(
+        self, project_root: str | Path, resolution: Resolution, *args, **kwargs
+    ) -> None:
+        path = Path(project_root)
 
-        with open(path) as handle:
-            contents = json.load(handle)
-        try:
-            project_settings = ProjectSettings(**contents["project_settings"])
-        except (KeyError, pydantic.ValidationError):
-            _module_logger.error(
-                f"Could not load project settings from project file at: {path}."
-            )
-            # TODO: Let main GUI know this failed
-            return
-        self.resolution = project_settings.resolution
+        self.resolution = resolution
 
-        self.project_root = path.parent
-        self.parameters_frame.directory_widget.parse_project(path.parent)
+        self.project_root = path
+        self.parameters_frame.directory_widget.parse_project(path)
 
     def set_running_state(self, enabled: bool) -> None:
         self.running = enabled

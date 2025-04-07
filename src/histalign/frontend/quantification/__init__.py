@@ -72,8 +72,8 @@ class QuantificationWidget(QtWidgets.QWidget):
         self.setLayout(layout)
 
     @QtCore.Slot()
-    def open_project(self, project_file_path: str) -> None:
-        project_directory = Path(project_file_path).parent
+    def open_project(self, project_root: str | Path, *args, **kwargs) -> None:
+        project_directory = Path(project_root)
 
         self.prepare_tab.parse_project(project_directory)
         self.results_tab.parse_project(project_directory)
