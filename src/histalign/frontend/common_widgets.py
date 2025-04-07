@@ -2643,6 +2643,10 @@ class CutOffLabel(QtWidgets.QLabel):
         self._text = text
         self.setText(text)
 
+    @property
+    def full_text(self) -> str:
+        return self._text
+
     def truncate_text_if_needed(self) -> None:
         """Truncates original text until it fits in the contents rect."""
         rect = self.contentsRect()
@@ -3470,6 +3474,7 @@ class FileWidget(HoverMixIn, DoubleClickMixIn, QtWidgets.QWidget):
         icon.setIconSize(QtCore.QSize(20, 20))
 
         label = CutOffLabel(text)
+        self.label = label
 
         layout = QtWidgets.QHBoxLayout()
         layout.addWidget(icon)
@@ -3495,6 +3500,15 @@ class FileListWidget(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
+    @property
+    def path_list(self) -> list[str]:
+        path_list = []
+        for widget in self.children():
+            if isinstance(widget, FileWidget):
+                path_list.append(widget.label.full_text)
+
+        return path_list
+
     def add_file(self, path: str | Path) -> FileWidget:
         widget = FileWidget(str(path), icon_path=self.file_icon_path)
         self.layout().addWidget(widget)
@@ -3505,7 +3519,6 @@ class FileListWidget(QtWidgets.QWidget):
         widget = FileWidget(str(path), is_folder=True, icon_path=self.folder_icon_path)
         self.layout().addWidget(widget)
 
-        widget.clicked.emit()
         return widget
 
 
@@ -3758,6 +3771,7 @@ class NavigationArea(QtWidgets.QScrollArea):
         if self.project_root is None:
             return
 
+        path_list = self._folders_2d_widget.path_list
         for path in self.project_root.iterdir():
             if re.fullmatch(HASHED_DIRECTORY_NAME_PATTERN, path.name) is None:
                 continue
@@ -3779,6 +3793,10 @@ class NavigationArea(QtWidgets.QScrollArea):
                     f"Could not retrieve original directory name "
                     f"for alignment folder '{path}'."
                 )
+                continue
+
+            # Only add new paths
+            if str(user_friendly_path) in path_list:
                 continue
 
             widget = self._folders_2d_widget.add_folder(user_friendly_path)
@@ -3859,8 +3877,6 @@ class NavigationArea(QtWidgets.QScrollArea):
         if self.project_root is None:
             return
 
-        # TODO: Ensure this is what ends up being the proper path with the volume
-        #       builder GUI.
         volumes_file_path = self.project_root / "volumes.json"
 
         try:
@@ -3879,6 +3895,7 @@ class NavigationArea(QtWidgets.QScrollArea):
             )
             return
 
+        path_list = self._files_3d_widget.path_list
         for path in volume_paths:
             try:
                 with open(path.parent.parent.parent / "metadata.json") as handle:
@@ -3896,6 +3913,10 @@ class NavigationArea(QtWidgets.QScrollArea):
                     f"Could not retrieve original directory name "
                     f"for volume '{path}'."
                 )
+                continue
+
+            # Only add new paths
+            if str(user_friendly_path) in path_list:
                 continue
 
             widget = self._files_3d_widget.add_file(user_friendly_path)
