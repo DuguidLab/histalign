@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 
 from collections.abc import Sequence
-import hashlib
 import json
 import logging
 import math
@@ -11,12 +10,13 @@ import os
 from pathlib import Path
 import re
 import time
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 import h5py
 import numpy as np
 import pydantic
 from scipy.interpolate import RBFInterpolator
+from scipy.spatial.distance import euclidean
 import vedo
 
 from histalign.backend.ccf.downloads import download_structure_mask
@@ -24,19 +24,22 @@ from histalign.backend.ccf.paths import get_structure_mask_path
 from histalign.backend.io import (
     DATA_ROOT,
     gather_alignment_paths,
-    load_alignment_settings,
     load_image,
     load_volume,
 )
 from histalign.backend.maths import (
+    apply_rotation,
     compute_centre,
     compute_normal,
     compute_normal_from_raw,
     compute_origin,
 )
-from histalign.backend.models import AlignmentSettings, Orientation, Resolution
+from histalign.backend.models import (
+    AlignmentSettings,
+    Resolution,
+    VolumeSettings,
+)
 from histalign.backend.registration import Registrator
-from histalign.backend.workspace import Volume, VolumeSlicer
 
 ALIGNMENT_VOLUMES_CACHE_DIRECTORY = DATA_ROOT / "alignment_volumes"
 os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
@@ -54,39 +57,59 @@ _module_logger = logging.getLogger(__name__)
 
 def build_aligned_array(
     alignment_directory: str | Path,
-    channel_index: str,
-    channel_regex: str,
-    projection_regex: str,
+    channel_index: str = "",
+    channel_regex: str = "",
+    projection_regex: str = "",
     misc_regexes: Sequence[str] = (),
     misc_subs: Sequence[str] = (),
-    force: bool = False,
+    force: bool = True,
 ) -> None:
     """Builds a 3D aligned array from alignment settings.
+
+    In order to build the array, the following steps are followed:
+    1. List all the alignment paths (settings file ending in .json).
+    2. Loop over the paths.
+        1. Load the alignment settings.
+        2. Apply regex substitution to the histology path.
+        3. Load the image array (can be 2D or 3D).
+        4. Compute the origin and normal as described by the alignment settings.
+        5. Check the dimensionality of the image array.
+            1. If 3D, compute the origin of each slice.
+        6. Generate a point cloud for each origin/image pair (only 1 when
+           dimensionality is 2D, multiple when 3D).
+        7. Insert images data into their respective point cloud.
+        8. Interpolate the point clouds onto the regular grid of the CCF.
+    3. Cache the result.
 
     Args:
         alignment_directory (str | Path):
             Path to the directory containing the alignment settings of the images to use
             to build the array.
-        channel_index (str):
-            Channel index to use in the returned path.
-        channel_regex (str):
-            Channel regex identifying the channel part of `path`'s name.
-        projection_regex (str):
+        channel_index (str, optional):
+            Channel index to use for building. Leave empty to use alignment channel. Use
+            in conjunction with `channel_regex`.
+        channel_regex (str, optional):
+            Channel regex identifying the channel part of `path`'s name. Use in
+            conjunction with `channel_index`.
+        projection_regex (str, optional):
             Projection regex identifying the projection part of `path`'s name.
         misc_regexes (Sequence[str], optional):
             Miscellaneous regex identifying extra parts of alignment paths found in
             `alignment_directory`. Use in conjunction with `misc_subs` to replace
             arbitrary parts of the path. The shortest of the two argument dictates how
             many elements are replaced. Unlike channel and projection arguments, this
-            can replace any part of the path, now just the name.
+            can replace any part of the path, not just the name.
         misc_subs (Sequence[str], optional):
             Miscellaneous substitutions to replace in `alignment_directory`. Use in
             conjunction with `misc_regexes` to replace arbitrary parts of the path.
             The shortest of the two argument dictates how many elements are replaced.
         force (bool, optional): Whether to force building if cache already exists.
     """
-    _module_logger.debug("Starting build of aligned array.")
+    _module_logger.debug(
+        f"Building alignment volume for directory '{alignment_directory}'."
+    )
 
+    # Validate arguments
     if channel_regex is not None and channel_index is None:
         _module_logger.warning(
             "Received channel regex but no channel index. Building alignment "
@@ -98,411 +121,170 @@ def build_aligned_array(
             "volume using the same channel as was used for alignment."
         )
 
-    alignment_directory = Path(alignment_directory)
-
+    # Gather all the alignment settings paths
     alignment_paths = gather_alignment_paths(alignment_directory)
     if not alignment_paths:
-        raise ValueError("Cannot build aligned volume from empty alignment directory.")
+        _module_logger.error(
+            f"No alignments found for directory '{alignment_directory}'."
+        )
+        return
 
-    alignment_settings_list = convert_alignment_histology_paths(
-        alignment_paths,
-        channel_index,
-        channel_regex,
-        projection_regex,
-        misc_regexes,
-        misc_subs,
-    )
+    _module_logger.debug(f"Found {len(alignment_paths)} alignments.")
 
+    # Inspect cache
+    # TODO: Improve cache path so that it takes into account regexes
     cache_directory = alignment_directory / "volumes" / "aligned"
     os.makedirs(cache_directory, exist_ok=True)
     cache_path = cache_directory / f"{alignment_directory.name}.h5"
     if cache_path.exists() and not force:
         return
+    # Array inside which to store interpolated data from alignment point clouds
+    alignment_array = None
+    # Dummy volume used to query the grid coordinates when interpolating
+    query_volume = None
+    for progress_index, alignment_path in enumerate(alignment_paths):
+        if (progress := progress_index + 1) % 5 == 0:
+            _module_logger.debug(
+                f"Gathered {progress}/{len(alignment_paths)} slices "
+                f"({progress / len(alignment_paths):.0%})."
+            )
 
-    reference_shape = alignment_settings_list[0].volume_settings.shape
+        # Load the alignment settings
+        settings = AlignmentSettings(**json.load(alignment_path.open()))
 
-    # Volume needs to be created before array as vedo makes a copy
-    aligned_volume = vedo.Volume(np.zeros(shape=reference_shape, dtype=np.uint16))
-    aligned_array = aligned_volume.tonumpy()
+        # Apply regex substitution to the histology path
+        substituted_path = replace_path_parts(
+            settings.histology_path,
+            channel_index,
+            channel_regex,
+            projection_regex,
+            misc_regexes,
+            misc_subs,
+        )
+        try:
+            settings.histology_path = substituted_path
+        except pydantic.ValidationError:
+            _module_logger.warning(
+                f"Histology path after regex substitution does not exist for "
+                f"'{settings.histology_path}' (substituted: '{substituted_path}'). "
+                f"Using the same projected image as was used during registration."
+            )
 
-    planes = generate_aligned_planes(aligned_volume, alignment_settings_list)
+        # Load the image array (allowed to be 2D or 3D)
+        array = load_image(settings.histology_path, allow_stack=True)
+        if len(array.shape) not in [2, 3]:
+            _module_logger.error(
+                "Only image arrays with 2 and 3 dimensions (XY and XYZ) are allowed."
+            )
+            continue
 
-    insert_aligned_planes_into_array(aligned_array, planes)
-    aligned_volume.modified()  # Probably unnecessary but good practice
+        # Compute the origin and normal as described by the alignment
+        alignment_origin = compute_origin(
+            compute_centre(settings.volume_settings.shape), settings.volume_settings
+        )
+        alignment_normal = compute_normal(settings.volume_settings)
 
-    _module_logger.debug("Caching volume to file as a NumPy array.")
-    os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)
+        # List all the 2D images along their origins
+        images = []
+        origins = []
+        # If 2D, only one image and origin
+        if len(array.shape) == 2:
+            images = [array]
+            origins = [alignment_origin]
+        # If 3D, extract each image and compute its origin
+        else:
+            slice_: list[int | slice] = [slice(None)] * len(array.shape)
+            # Assume the Z-dimension is the smallest one
+            z_dimension_index = array.shape.index(min(array.shape))
+            z_count = array.shape[z_dimension_index]
+
+            # Loop over each Z-index to extract the images
+            for index in range(z_count):
+                slice_[z_dimension_index] = index
+                images.append(array[tuple(slice_)])
+
+            # Loop over multiple of the normal to get origins
+            for i in range(-int(z_count / 2) + (z_count % 2 == 0), z_count // 2 + 1):
+                # TODO: Scale multiple by the real Z-spacing (currently assuming same as
+                #       resolution).
+                origins.append(alignment_origin + i * alignment_normal)
+
+        # Register each image
+        registrator = Registrator()
+        for index, origin in enumerate(origins):
+            image = registrator.get_forwarded_image(
+                images[index], settings, origin.tolist()
+            )
+            images[index] = image
+
+        # Loop over each image and generate its 3D point cloud
+        point_clouds = []
+        for image, origin in zip(images, origins):
+            cloud = build_point_cloud(origin, image.shape, settings.volume_settings)
+
+            # Insert point data from registered image
+            cloud.pointdata["ImageScalars"] = image.flatten()
+
+            point_clouds.append(cloud)
+
+        # Interpolate the point clouds
+        if alignment_array is None:
+            alignment_array = np.zeros(settings.volume_settings.shape, dtype=np.uint16)
+            query_volume = vedo.Volume(alignment_array)
+
+        for points in point_clouds:
+            # Interpolate and store the result in a temporary array
+            tmp_array = query_volume.interpolate_data_from(points, radius=1).tonumpy()
+            tmp_array = np.round(tmp_array).astype(np.uint16)
+
+            # TODO: Might be worth thinking of another way to merge. Using the maximum
+            #       works fine when working with non-overlapping slices but a mean or
+            #       something more robust might make more sense when tmp_array and
+            #       alignment_array have common, non-zero points.
+            # Merge the new plane into the master array
+            alignment_array[:] = np.maximum(alignment_array, tmp_array)
+
+    _module_logger.debug(
+        f"Finished gathering slices. Caching result to '{cache_path}'."
+    )
     with h5py.File(cache_path, "w") as handle:
-        handle.create_dataset(name="array", data=aligned_array, compression="gzip")
+        handle.create_dataset(name="array", data=alignment_array, compression="gzip")
     append_volume(alignment_directory, cache_path, "aligned")
 
 
-def insert_aligned_planes_into_array(
-    array: np.ndarray,
-    planes: list[vedo.Points],
-    inplace: bool = True,
-) -> np.ndarray:
-    """Inserts aligned planes into a 3D numpy array.
-
-    Args:
-        array (np.ndarray): Array to insert into.
-        planes (list[vedo.Mesh]): Planes to insert.
-        inplace (bool, optional): Whether to modify `array` in-place.
-
-    Returns:
-        np.ndarray:
-            `array` if `inplace` is `True`, else a copy, with the planes inserted.
-    """
-    _module_logger.debug(
-        f"Starting insertion of {len(planes)} planes into alignment array."
-    )
-
-    if not inplace:
-        array = array.copy()
-
-    for index, plane in enumerate(planes):
-        if index > 0 and index % 5 == 0:
-            _module_logger.debug(f"Inserted {index} planes into alignment array...")
-
-        temporary_volume = vedo.Volume(np.zeros_like(array))
-        temporary_volume.interpolate_data_from(plane, radius=1)
-
-        temporary_array = temporary_volume.tonumpy()
-        temporary_array = np.round(temporary_array).astype(np.uint16)
-
-        array[:] = np.maximum(array, temporary_array)
-
-    _module_logger.debug(
-        f"Finished inserting all {len(planes)} planes into alignment array."
-    )
-
-    return array
-
-
-def generate_aligned_planes(
-    alignment_volume: Volume | vedo.Volume,
-    alignment_settings: list[AlignmentSettings],
-) -> list[vedo.Points]:
-    """Generates aligned planes for each image (2D or 3D) from the alignment paths.
-
-    Args:
-        alignment_volume (Volume | vedo.Volume): Volume to generate planes for.
-        alignment_settings (list[AlignmentSettings):
-            List of alignment settings to use to generate planes.
-
-    Returns:
-        list[vedo.Mesh]:
-            A list of all the aligned planes obtained from the alignment paths.
-    """
-    _module_logger.debug(f"Starting generation of aligned planes.")
-
-    planes = []
-    slicer = VolumeSlicer(volume=alignment_volume)
-
-    for index, alignment_settings in enumerate(alignment_settings):
-        if index > 0 and index % 5 == 0:
-            _module_logger.debug(
-                f"Generating plane(s) for {alignment_settings.histology_path.name}..."
-            )
-
-        image_array = load_image(alignment_settings.histology_path, allow_stack=True)
-
-        projections_map = snap_array_to_grid(image_array, alignment_settings)
-        for origin, projection in projections_map.items():
-            planes.append(
-                get_plane_from_2d_image(
-                    projection, alignment_settings, origin=list(origin), slicer=slicer
-                )
-            )
-
-    _module_logger.debug(f"Finished generating all aligned planes.")
-    return planes
-
-
-def get_plane_from_2d_image(
-    image: np.ndarray,
-    alignment_settings: AlignmentSettings,
-    slicer: VolumeSlicer,
-    origin: Optional[list[float]] = None,
+def build_point_cloud(
+    origin: Sequence[float], shape: Sequence[int], settings: VolumeSettings
 ) -> vedo.Points:
-    """Creates a plane-like points object from an image and its alignment settings.
-
-    Args:
-        image (np.ndarray): Scalar information for the plane.
-        alignment_settings (AlignmentSettings): Settings used for the alignment.
-        slicer (VolumeSlicer): Volume slicer from which to obtain the plane.
-        origin (Optional[list[float]], optional):
-            Origin to use when slicing the volume slicer. If not provided, the centre
-            of the volume along the non-orientation axes is used (e.g., centre along YZ
-            when working coronally).
-
-    Returns:
-        vedo.Mesh:
-            The plane with scalar point data filled with the values of `image`.
-    """
-    registrator = Registrator(True, True)
-    registered_slice = registrator.get_forwarded_image(
-        image, alignment_settings, origin
+    # Build a plane assuming no rotations
+    plane = vedo.Plane(
+        normal=compute_normal_from_raw(0, 0, settings.orientation), s=shape
     )
 
-    display_plane = slicer.slice(
-        alignment_settings.volume_settings, origin=origin, return_display_plane=True
+    # Extract three of the four corners of the plane
+    p0, p1, _, p3 = plane.points
+
+    # Compute the normals of two orthogonal edges
+    normal1 = (p0 - p1) / euclidean(p1, p0)
+    normal2 = (p3 - p1) / euclidean(p1, p3)
+
+    # Apply alignment rotation on normals
+    normal1 = apply_rotation(normal1, settings)
+    normal2 = apply_rotation(normal2, settings)
+
+    # Generate a grid of coordinates the same size as the plane
+    xs, ys = np.meshgrid(
+        np.linspace(0, round(euclidean(p1, p0)), round(euclidean(p1, p0))),
+        np.linspace(0, round(euclidean(p1, p3)), round(euclidean(p1, p3))),
     )
-    data_points = generate_points_for_plane(display_plane, registered_slice.shape)
+    points = np.vstack([xs.ravel(), ys.ravel()])
 
-    data_points.pointdata["ImageScalars"] = registered_slice.flatten()
-
-    return data_points
-
-
-def generate_points_for_plane(plane: vedo.Plane, shape: tuple[int, ...]) -> vedo.Points:
-    origin = plane.points[1]
-
-    normal1 = (plane.points[0] - plane.points[1]) / shape[0]
-    normal2 = (plane.points[3] - plane.points[1]) / shape[1]
-
-    xi, yi = np.meshgrid(
-        np.linspace(0, shape[0], shape[0]), np.linspace(0, shape[1], shape[1])
-    )
-
-    points = np.vstack([xi.ravel(), yi.ravel()])
+    # Apply alignment rotation on the points
     points = np.dot(np.vstack((normal1, normal2)).T, points).T
 
-    points = origin + points
+    # Translate the grid origin to the alignment origin
+    points += -vedo.Points(points).center_of_mass() + origin
 
     return vedo.Points(points)
-
-
-def snap_array_to_grid(
-    image_array: np.ndarray, alignment_settings: AlignmentSettings
-) -> dict[CoordinatesTuple, Projection]:
-    """Snaps a 2D or 3D array to a grid.
-
-    Args:
-        image_array (np.ndarray): Array to snap. This can be a single image (2D) or a stack (3D).
-        alignment_settings (AlignmentSettings): Settings used for the alignment.
-
-    Returns:
-        dict[CoordinatesTuple, Projection]:
-            A dictionary mapping grid coordinates to a sub-projection. In the case of a 2D image,
-            the dictionary has one key and one value. In the case of a stack, each image of the
-            stack is snapped to the closest grid coordinate. When multiple images are snapped
-            to the same grid point, their maximum intensity projection is taken.
-    """
-    dimension_count = len(image_array.shape)
-    if dimension_count < 2 or dimension_count > 3:
-        raise ValueError(
-            f"Unexpected shape of image array. Expected 2 or 3 dimensions, "
-            f"got {dimension_count}."
-        )
-
-    if dimension_count == 3:
-        # Z-stacks require a lot more work
-        return _snap_stack_to_grid(image_array, alignment_settings)
-
-    alignment_origin = compute_origin(
-        compute_centre(alignment_settings.volume_settings.shape),
-        alignment_settings.volume_settings,
-    )
-    alignment_origin = tuple(map(float, alignment_origin))
-
-    return {alignment_origin: image_array}
-
-
-def _snap_stack_to_grid(
-    image_stack: np.ndarray, alignment_settings: AlignmentSettings
-) -> dict[CoordinatesTuple, Projection]:
-    """Snaps a Z stack to a grid through sub-projections.
-
-    Args:
-        image_stack (np.ndarray):
-            Image array of the stack. The first dimension should be the stack index.
-        alignment_settings (AlignmentSettings): Settings used for the alignment.
-
-    Returns:
-        dict[CoordinatesTuple, Projection]:
-            A dictionary mapping grid coordinates to a sub-projection.
-    """
-    match alignment_settings.volume_settings.orientation:
-        case Orientation.CORONAL:
-            orientation_axis_length = alignment_settings.volume_settings.shape[0]
-        case Orientation.HORIZONTAL:
-            orientation_axis_length = alignment_settings.volume_settings.shape[1]
-        case Orientation.SAGITTAL:
-            orientation_axis_length = alignment_settings.volume_settings.shape[2]
-        case other:
-            raise Exception(f"ASSERT NOT REACHED ({other})")
-
-    # Normal as-if no pitch or yaw are applied
-    flat_normal = compute_normal_from_raw(
-        0, 0, alignment_settings.volume_settings.orientation
-    )
-
-    # Points describing the normal using the aligned pitch and yaw
-    normal_line_points = get_normal_line_points(alignment_settings)
-    # Origin of the aligned image based on the offset
-    alignment_origin = compute_origin(
-        compute_centre(alignment_settings.volume_settings.shape),
-        alignment_settings.volume_settings,
-    )
-    # Normal of the plane used for alignment
-    alignment_normal = compute_normal(alignment_settings.volume_settings)
-
-    # Intersection of the normal line and every plane orthogonal to flat normal
-    free_floating_intersections = [
-        vedo.Plane(
-            pos=i * np.abs(flat_normal),
-            normal=flat_normal,
-            s=(1_000_000, 1_000_000),
-        ).intersect_with_line(
-            np.squeeze(normal_line_points[0]),
-            np.squeeze(normal_line_points[1]),
-        )
-        for i in range(orientation_axis_length)
-    ]
-    # Intersections snapped to the closest grid point of the volume
-    snapped_intersections = [
-        snap_coordinates(point) for point in free_floating_intersections
-    ]
-
-    # Mock up a plane for each snapped intersection
-    snapped_planes = [
-        vedo.Plane(
-            pos=np.squeeze(point), normal=alignment_normal, s=(1_000_000, 1_000_000)
-        )
-        for point in snapped_intersections
-    ]
-
-    # Mock up a plane for each Z-index of the stack
-    # TODO: Obtain the real spacing
-    z_distance = alignment_settings.volume_settings.resolution.value
-    stack_spacing = z_distance / alignment_settings.volume_settings.resolution.value
-    stack_planes = [
-        vedo.Plane(
-            pos=alignment_origin + i * alignment_normal * stack_spacing,
-            normal=alignment_normal,
-            s=(1_000_000, 1_000_000),
-        )
-        for i in range(-image_stack.shape[0] // 2 + 1, image_stack.shape[0] // 2 + 1)
-    ]
-
-    # Group Z-indices based on closest snapped intersection
-    groups = compute_closest_plane(stack_planes, snapped_planes)
-
-    # Find the coordinates of the Z indices
-    coordinates = np.array(snapped_intersections)
-    sub_projection_coordinates = []
-    previous_group = None
-    for index, group in enumerate(groups):
-        if group == previous_group:
-            continue
-        previous_group = group
-
-        sub_projection_coordinates.append(coordinates[group])
-
-    # Sub-project
-    # TODO: Translate the sub-projections so that their centre is moved away from the
-    #       snapped points, back to where the alignment normal predicted them.
-    #       This could be done using the intersections of the snapped planes and the
-    #       normal line.
-    sub_projections = sub_project_image_stack(image_stack, groups)
-
-    return {
-        tuple(np.squeeze(sub_projection_coordinates[i])): sub_projections[i]
-        for i in range(len(sub_projection_coordinates))
-    }
-
-
-def compute_closest_plane(
-    target_planes: list[vedo.Plane], fixed_planes: list[vedo.Plane]
-) -> list[int]:
-    """Computes the index of the closest fixed plane for each target plane.
-
-    Args:
-        target_planes (list[vedo.Plane]): Planes to compute the distances for.
-        fixed_planes (list[vedo.Plane]): Planes to compute the distances with.
-
-    Returns:
-        list[int]: Indices of the closest fixed plane for each target plane.
-    """
-    groups = []
-    for plane in target_planes:
-        distances = list(map(plane.distance_to, fixed_planes))
-        distances = list(map(np.max, distances))
-        groups.append(distances.index(min(distances)))
-
-    return groups
-
-
-def snap_coordinates(coordinates: Coordinates) -> Coordinates:
-    """Snaps float coordinates to an integer grid by rounding.
-
-    Args:
-        coordinates (Coordinates): Float coordinates to snap.
-
-    Returns:
-        Coordinates: The coordinates snapped to the grid.
-    """
-    return np.round(coordinates)
-
-
-def sub_project_image_stack(
-    image_stack: np.ndarray, groups: list[int]
-) -> list[np.ndarray]:
-    """Projects arrays based on their group.
-
-    Each group will have a projection of all the images than belong to that group.
-
-    Args:
-        image_stack (np.ndarray):
-            Image array to sub-project. This must be a 3D array whose first dimension is
-            the Z index.
-        groups (list[int]): Groups each index in the stack belongs to.
-
-    Returns:
-        list[np.ndarray]:
-            The list of sub-projections. Each unique group ID will have a single
-            projection. The projections are returned in the order of encountered groups.
-    """
-    sub_projections = []
-
-    previous_group = None
-    for group in groups:
-        if group == previous_group:
-            continue
-        previous_group = group
-
-        sub_stack = image_stack[np.where(np.array(groups) == group)]
-        # TODO: Get projection type from user
-        sub_projection = np.max(sub_stack, axis=0)
-        sub_projections.append(sub_projection)
-
-    return sub_projections
-
-
-def get_normal_line_points(
-    alignment_settings: AlignmentSettings,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Compute points describing normal passing through volume centre.
-
-    Args:
-        alignment_settings (AlignmentSettings):
-            Settings used for the alignment.
-
-    Returns:
-
-    """
-    alignment_normal = compute_normal(alignment_settings.volume_settings)
-
-    alignment_origin = compute_origin(
-        compute_centre(alignment_settings.volume_settings.shape),
-        alignment_settings.volume_settings,
-    )
-    intersection_line_coordinates = (
-        alignment_origin - 1_000_000 * alignment_normal,
-        alignment_origin + 1_000_000 * alignment_normal,
-    )
-    return intersection_line_coordinates
 
 
 def interpolate_sparse_3d_array(
@@ -628,52 +410,6 @@ def interpolate_sparse_3d_array(
     return interpolated_array
 
 
-def mask_off_structure(
-    volume: vedo.Volume, structure_name: str, resolution: Resolution
-) -> vedo.Volume:
-    mask_path = get_structure_mask_path(structure_name, Resolution(resolution))
-    if not Path(mask_path).exists():
-        download_structure_mask(structure_name, resolution)
-
-    mask_volume = load_volume(mask_path)
-
-    return vedo.Volume(np.where(mask_volume.tonumpy() > 0, volume.tonumpy(), 0))
-
-
-def convert_alignment_histology_paths(
-    alignment_paths: list[Path],
-    channel_index: str,
-    channel_regex: str,
-    projection_regex: str,
-    misc_regexes: Sequence[str] = (),
-    misc_subs: Sequence[str] = (),
-) -> list[AlignmentSettings]:
-    alignment_settings_list = []
-    for alignment_path in alignment_paths:
-        alignment_settings = load_alignment_settings(alignment_path)
-
-        histology_path = replace_path_parts(
-            alignment_settings.histology_path,
-            channel_index,
-            channel_regex,
-            projection_regex,
-            misc_regexes,
-            misc_subs,
-        )
-
-        try:
-            alignment_settings.histology_path = histology_path
-            alignment_settings_list.append(alignment_settings)
-        except pydantic.ValidationError:
-            _module_logger.warning(
-                f"Converted path does not exist. "
-                f"Original: '{alignment_settings.histology_path}'. "
-                f"Converted: '{histology_path}'."
-            )
-
-    return alignment_settings_list
-
-
 def replace_path_parts(
     path: Path,
     channel_index: str,
@@ -739,14 +475,6 @@ def replace_path_parts(
         path = Path(re.sub(regex, sub, str(path)))
 
     return path
-
-
-def generate_hash_from_targets(targets: list[Path]) -> str:
-    return hashlib.md5("".join(map(str, targets)).encode("UTF-8")).hexdigest()
-
-
-def generate_hash_from_aligned_volume_settings(settings: list[Any]) -> str:
-    return hashlib.md5("".join(map(str, settings)).encode("UTF-8")).hexdigest()
 
 
 def append_volume(
