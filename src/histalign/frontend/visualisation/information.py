@@ -131,3 +131,4 @@ class StructuresWidget(QtWidgets.QWidget):
         search_regex = ".*".join(search_regex)
 
         self._sorted_list_model.setFilterRegularExpression(rf".*{search_regex}.*")
+        self._sorted_list_model.sort(0)
