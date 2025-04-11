@@ -112,12 +112,15 @@ class SliceViewer(QtWidgets.QWidget):
             self._histology_item.pixmap().size(),
             QtGui.QImage.Format.Format_ARGB32,
         )
+        image.fill(0)
 
         pixmap = QtGui.QPixmap(image)
 
         painter = QtGui.QPainter(pixmap)
 
-        painter.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, 10))
+        width = 1
+        width *= 100 / self._alignment_settings.volume_settings.resolution.value
+        painter.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, width))
 
         for contour in contours:
             for i in range(contour.shape[0]):
