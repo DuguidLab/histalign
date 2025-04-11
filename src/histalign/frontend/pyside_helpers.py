@@ -209,3 +209,27 @@ def try_show_status_message(
     status_bar.showMessage(message, duration)
 
     return True
+
+
+def try_show_permanent_status_message(
+    widget: QtWidgets.QWidget, message: str, index: int = 0
+) -> Optional[QtWidgets.QLabel]:
+    """Tries to show the given permanent message on the widget's status bar.
+
+    Args:
+        widget (QtWidgets.QWidget): Widget to use when trying to get a status bar.
+        message (str): Permanent message to show on the status bar.
+        index (int, optional): Index of the permanent widget.
+
+    Returns:
+        Optional[QtWidgets.QLabel]: Permanent widget or None if no status bar found.
+    """
+    try:
+        status_bar: QtWidgets.QStatusBar = widget.statusBar()
+    except AttributeError:
+        return None
+
+    message_widget = QtWidgets.QLabel(message)
+    status_bar.insertPermanentWidget(index, message_widget)
+
+    return message_widget

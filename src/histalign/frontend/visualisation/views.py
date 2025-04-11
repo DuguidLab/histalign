@@ -21,7 +21,10 @@ from histalign.backend.io import (
 from histalign.backend.registration import ContourGeneratorThread
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.common_widgets import BinaryAlphaPixmap, ZoomAndPanView
-from histalign.frontend.pyside_helpers import np_to_qpixmap
+from histalign.frontend.pyside_helpers import (
+    np_to_qpixmap,
+    try_show_permanent_status_message,
+)
 
 _module_logger = logging.getLogger(__name__)
 
@@ -37,6 +40,9 @@ class SliceViewer(QtWidgets.QWidget):
         self._contours = {}
         self._contours_threads = {}
         self._contours_item = None
+
+        self._processing_count = 0
+        self._status_bar_label = None
 
         #
         scene = QtWidgets.QGraphicsScene(-100_000, -100_000, 200_000, 200_000, self)
@@ -74,6 +80,20 @@ class SliceViewer(QtWidgets.QWidget):
         self.view.set_focus_rect(pixmap_item.sceneBoundingRect())
         self._histology_item = pixmap_item
 
+    def update_status_bar(self) -> None:
+        if self._status_bar_label is not None:
+            self._status_bar_label.deleteLater()
+
+        if self._processing_count <= 0:
+            self._status_bar_label = None
+            return
+
+        self._status_bar_label = try_show_permanent_status_message(
+            self.window(),
+            f"Processing {self._processing_count} "
+            f"contour{'' if self._processing_count == 1 else 's'}...",
+        )
+
     @QtCore.Slot()
     def open_image(self, alignment_path: Path) -> None:
         alignment_settings = load_alignment_settings(alignment_path)
@@ -96,7 +116,9 @@ class SliceViewer(QtWidgets.QWidget):
 
         thread = ContourGeneratorThread(structure, self._alignment_settings)
 
+        thread.started.connect(self.increment_processing_count)
         thread.contours_ready.connect(lambda x: self.add_contours(structure, x))
+        thread.finished.connect(self.decrement_processing_count)
         thread.finished.connect(thread.deleteLater)
 
         thread.start()
@@ -144,6 +166,16 @@ class SliceViewer(QtWidgets.QWidget):
         item = self._contours.pop(structure, None)
         if item is not None:
             self.scene.removeItem(item)
+
+    @QtCore.Slot()
+    def increment_processing_count(self) -> None:
+        self._processing_count += 1
+        self.update_status_bar()
+
+    @QtCore.Slot()
+    def decrement_processing_count(self) -> None:
+        self._processing_count -= 1
+        self.update_status_bar()
 
 
 class VolumeViewer(QtWidgets.QWidget):
