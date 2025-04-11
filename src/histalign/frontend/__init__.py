@@ -38,9 +38,6 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.workspace = None
         self.workspace_is_dirty = False
 
-        self.build_menu_bar()
-        self.build_status_bar()
-
         # Registration
         registration_tab = RegistrationWidget()
         self.project_opened.connect(registration_tab.project_opened.emit)
@@ -66,6 +63,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         tab_widget.currentChanged.connect(self.reload_project)
 
         self.setCentralWidget(tab_widget)
+
+        self.build_menu_bar()
+        self.build_status_bar()
 
     def build_menu_bar(self) -> None:
         menu_bar = self.menuBar()
@@ -161,6 +161,11 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         project_required_group.append(lut_menu)
 
         lut_action_group = QtGui.QActionGroup(view_menu)
+        lut_action_group.triggered.connect(
+            lambda x: self.registration_tab.alignment_widget.update_lut(
+                x.text().lower()
+            )
+        )
 
         grey_lut_action = QtGui.QAction(
             "Grey",
