@@ -42,8 +42,12 @@ def apply_rotation_from_raw(
     return rotation.apply(vector)
 
 
-def compute_centre(shape: Sequence[int]) -> tuple[int, ...]:
-    return tuple((np.array(shape) - 1) // 2)
+def compute_centre(shape: Sequence[int], floor: bool = True) -> tuple[int | float, ...]:
+    centre = tuple((np.array(shape) - 1) / 2)
+    if floor:
+        return tuple(map(int, centre))
+
+    return centre
 
 
 def compute_mesh_centre(mesh: vedo.Mesh) -> np.ndarray:
