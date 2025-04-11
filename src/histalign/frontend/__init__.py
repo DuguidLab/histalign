@@ -312,8 +312,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         _module_logger.debug("Project creation initiated.")
 
         # Ensure project is saved/changes discarded or action is cancelled
-        _module_logger.debug("Attempting to close previous project.")
-        if not self.close_project():
+        if not self.save_guard_project():
             _module_logger.debug("Project creation cancelled.")
             return
 
@@ -323,6 +322,10 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         dialog.rejected.connect(
             lambda: _module_logger.debug("Project creation cancelled.")
         )
+        dialog.rejected.connect(
+            lambda x=self.workspace_is_dirty: setattr(self, "workspace_is_dirty", x)
+        )
+        self.workspace_is_dirty = False
         dialog.open()
 
     @QtCore.Slot()
@@ -330,6 +333,10 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         _module_logger.debug(
             f"Creating project from settings: {settings.model_dump_json()}"
         )
+
+        # Ensure any previous workspace is no longer in use
+        _module_logger.debug("Attempting to close previous project.")
+        self.close_project()
 
         # Ensure the project directory is empty
         clear_directory(settings.project_path)
@@ -349,7 +356,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
         # Ensure project is saved/changes discarded or action is cancelled
         if not self.save_guard_project():
-            _module_logger.debug("Project closing cancelled.")
+            _module_logger.debug("Project opening cancelled.")
             return
 
         # Build dialog pop-up to get project path
@@ -358,6 +365,10 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         dialog.rejected.connect(
             lambda: _module_logger.debug("Project opening cancelled.")
         )
+        dialog.rejected.connect(
+            lambda x=self.workspace_is_dirty: setattr(self, "workspace_is_dirty", x)
+        )
+        self.workspace_is_dirty = False
         dialog.open()
 
     @QtCore.Slot()
