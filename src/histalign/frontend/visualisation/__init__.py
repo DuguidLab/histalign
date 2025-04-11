@@ -26,6 +26,10 @@ _module_logger = logging.getLogger(__name__)
 
 
 class VisualisationWidget(QtWidgets.QWidget):
+    project_opened: QtCore.Signal = QtCore.Signal()
+    project_closed: QtCore.Signal = QtCore.Signal()
+    image_opened: QtCore.Signal = QtCore.Signal()
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -97,6 +101,19 @@ class VisualisationWidget(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
+        #
+        self.project_opened.connect(lambda: self.navigation_widget.setEnabled(True))
+        self.project_closed.connect(self.reset)
+        self.project_closed.connect(lambda: self.navigation_widget.setEnabled(False))
+        self.project_closed.connect(
+            lambda: self.information_widget.structures_widget.setEnabled(False)
+        )
+
+        self.image_opened.connect(
+            lambda: self.information_widget.structures_widget.setEnabled(True)
+        )
+        self.image_opened.connect(lambda: print("Enabling"))
+
     def get_baseline_splitter_sizes(self) -> list[int]:
         width = (
             self.splitter.width() - self.splitter.count() * self.splitter.handleWidth()
@@ -114,7 +131,6 @@ class VisualisationWidget(QtWidgets.QWidget):
         self.project_root = path
         self.resolution = resolution
         self.navigation_widget.parse_project(path)
-        self.navigation_widget.setEnabled(True)
 
     @QtCore.Slot()
     def open_image(self, path: Path) -> None:
@@ -125,13 +141,14 @@ class VisualisationWidget(QtWidgets.QWidget):
             new_view.open_image(path)
         else:
             new_view = SliceViewer()
+        self.information_widget.structures_widget.reset()
 
         if old_view is not new_view:
             self.central_view = new_view
             self.splitter.replaceWidget(1, new_view)
             old_view.deleteLater()
 
-        self.information_widget.structures_widget.setEnabled(True)
+        self.image_opened.emit()
 
     @QtCore.Slot()
     def open_volume(self, path: Path) -> None:
@@ -163,3 +180,9 @@ class VisualisationWidget(QtWidgets.QWidget):
             old_view.deleteLater()
 
         self.information_widget.structures_widget.setEnabled(False)
+
+    @QtCore.Slot()
+    def reset(self) -> None:
+        self.central_view.reset()
+        self.navigation_widget.reset()
+        self.information_widget.reset()

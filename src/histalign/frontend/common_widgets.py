@@ -3570,6 +3570,11 @@ class NavigationWidget(QtWidgets.QWidget):
         self.project_root = path
         self.area.parse_project(path)
 
+    def reset(self) -> None:
+        self.area.reset()
+        self.header.reset()
+        self.header.put_on_stack("Pick dimensionality")
+
 
 class NavigationHeader(QtWidgets.QWidget):
     back_button: QtWidgets.QPushButton
@@ -3660,6 +3665,13 @@ class NavigationHeader(QtWidgets.QWidget):
     def minimumSizeHint(self) -> QtCore.QSize:
         return QtCore.QSize(300, 40)
 
+    def reset(self) -> None:
+        self._stack_index = -1
+        self._title_stack = []
+
+        self.back_button.setEnabled(False)
+        self.forward_button.setEnabled(False)
+
 
 class NavigationArea(QtWidgets.QScrollArea):
     _widget_stack: list[QtWidgets.QWidget]
@@ -3678,13 +3690,8 @@ class NavigationArea(QtWidgets.QScrollArea):
         self.project_root = None
 
         self._dimension_picker_widget = None
-        self._folders_2d_widget = FileListWidget(parent=self)
-        self._folders_2d_widget.hide()
-        self._files_3d_widget = FileListWidget(
-            file_icon_path=RESOURCES_ROOT / "icons" / "innovative-brain-icon.svg",
-            parent=self,
-        )
-        self._files_3d_widget.hide()
+        self._folders_2d_widget = None
+        self._files_3d_widget = None
 
         self._visible_widget = None
         self._stack_index = -1
@@ -3716,10 +3723,21 @@ class NavigationArea(QtWidgets.QScrollArea):
         self._dimension_picker_widget = widget
         self.put_on_stack(widget)
 
+        self.initialise_widgets()
+
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         self.setAutoFillBackground(True)
         self.setPalette(lua_aware_shift(self.palette().window().color(), 10))
         self.setWidgetResizable(True)
+
+    def initialise_widgets(self) -> None:
+        self._folders_2d_widget = FileListWidget(parent=self)
+        self._folders_2d_widget.hide()
+        self._files_3d_widget = FileListWidget(
+            file_icon_path=RESOURCES_ROOT / "icons" / "innovative-brain-icon.svg",
+            parent=self,
+        )
+        self._files_3d_widget.hide()
 
     def parse_project(self, path: Path) -> None:
         self.project_root = path
@@ -3873,6 +3891,13 @@ class NavigationArea(QtWidgets.QScrollArea):
 
         self.folder_2d_opened.emit(user_friendly_path)
         self.put_on_stack(widget)
+
+    def reset(self) -> None:
+        self._folders_2d_widget.deleteLater()
+        self._files_3d_widget.deleteLater()
+
+        self.put_on_stack(self._dimension_picker_widget)
+        self.initialise_widgets()
 
     def parse_3d_files(self) -> None:
         if self.project_root is None:

@@ -53,6 +53,8 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.quantification_tab = quantification_tab
         # Visualisation
         visualisation_tab = VisualisationWidget()
+        self.project_opened.connect(visualisation_tab.project_opened.emit)
+        self.project_closed.connect(visualisation_tab.project_closed.emit)
         self.visualisation_tab = visualisation_tab
 
         tab_widget = QtWidgets.QTabWidget()

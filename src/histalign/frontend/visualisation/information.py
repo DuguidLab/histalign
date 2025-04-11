@@ -39,6 +39,9 @@ class InformationWidget(QtWidgets.QTabWidget):
         self.addTab(tab2, "PLACEHOLDER")
         self.addTab(tab3, "PLACEHOLDER")
 
+    def reset(self) -> None:
+        self.structures_widget.reset()
+
 
 class StructuresWidget(QtWidgets.QWidget):
     structure_checked: QtCore.Signal = QtCore.Signal(str)
@@ -107,6 +110,19 @@ class StructuresWidget(QtWidgets.QWidget):
         layout.addWidget(table_view, stretch=1)
 
         self.setLayout(layout)
+
+    def reset(self) -> None:
+        for i in range(self.list_model.rowCount()):
+            index = self.list_model.index(i, 1)
+            if (
+                self.list_model.data(index, QtCore.Qt.ItemDataRole.CheckStateRole)
+                == QtCore.Qt.CheckState.Checked
+            ):
+                self.list_model.setData(
+                    index,
+                    QtCore.Qt.CheckState.Unchecked,
+                    QtCore.Qt.ItemDataRole.CheckStateRole,
+                )
 
     @QtCore.Slot()
     def filter_model(self, regex: str) -> None:

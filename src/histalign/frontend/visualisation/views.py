@@ -39,7 +39,6 @@ class SliceViewer(QtWidgets.QWidget):
 
         self._contours = {}
         self._contours_threads = {}
-        self._contours_item = None
 
         self._processing_count = 0
         self._status_bar_label = None
@@ -67,8 +66,12 @@ class SliceViewer(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def clear_contours(self) -> None:
-        for structure in self._contours.keys():
+        for structure in list(self._contours.keys()):
             self.remove_contours(structure)
+
+    def reset(self) -> None:
+        self.clear_contours()
+        self.set_pixmap(QtGui.QPixmap())
 
     def set_pixmap(self, pixmap: QtGui.QPixmap) -> None:
         if self._histology_item is not None:
