@@ -8,15 +8,20 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.models import HistologySettings, Orientation, VolumeSettings
-from histalign.frontend.common_widgets import DynamicThemeIcon, Icon
+from histalign.frontend.common_widgets import (
+    DraggableDoubleSpinBox,
+    DraggableSpinBox,
+    DynamicThemeIcon,
+    Icon,
+)
 
 
 class VolumeSettingsWidget(QtWidgets.QWidget):
     settings: Optional[VolumeSettings] = None
 
-    offset_spin_box: QtWidgets.QSpinBox
-    pitch_spin_box: QtWidgets.QSpinBox
-    yaw_spin_box: QtWidgets.QSpinBox
+    offset_spin_box: DraggableSpinBox
+    pitch_spin_box: DraggableSpinBox
+    yaw_spin_box: DraggableSpinBox
 
     values_changed: QtCore.Signal = QtCore.Signal()
 
@@ -34,19 +39,19 @@ class VolumeSettingsWidget(QtWidgets.QWidget):
         separator.setFrameShape(QtWidgets.QFrame.HLine)
 
         #
-        offset_spin_box = QtWidgets.QSpinBox()
+        offset_spin_box = DraggableSpinBox()
         offset_spin_box.valueChanged.connect(self.update_offset)
         self.offset_spin_box = offset_spin_box
 
         #
-        pitch_spin_box = QtWidgets.QSpinBox()
+        pitch_spin_box = DraggableSpinBox()
         pitch_spin_box.setMinimum(-90)
         pitch_spin_box.setMaximum(90)
         pitch_spin_box.valueChanged.connect(self.update_pitch)
         self.pitch_spin_box = pitch_spin_box
 
         #
-        yaw_spin_box = QtWidgets.QSpinBox()
+        yaw_spin_box = DraggableSpinBox()
         yaw_spin_box.setMinimum(-90)
         yaw_spin_box.setMaximum(90)
         yaw_spin_box.valueChanged.connect(self.update_yaw)
@@ -115,13 +120,13 @@ class HistologySettingsWidget(QtWidgets.QWidget):
     scaling_linked: bool = True
     scaling_ratio: float = 1.0
 
-    rotation_spin_box: QtWidgets.QDoubleSpinBox
-    translation_x_spin_box: QtWidgets.QSpinBox
-    translation_y_spin_box: QtWidgets.QSpinBox
-    scale_x_spin_box: QtWidgets.QDoubleSpinBox
-    scale_y_spin_box: QtWidgets.QDoubleSpinBox
-    shear_x_spin_box: QtWidgets.QDoubleSpinBox
-    shear_y_spin_box: QtWidgets.QDoubleSpinBox
+    rotation_spin_box: DraggableDoubleSpinBox
+    translation_x_spin_box: DraggableSpinBox
+    translation_y_spin_box: DraggableSpinBox
+    scale_x_spin_box: DraggableDoubleSpinBox
+    scale_y_spin_box: DraggableDoubleSpinBox
+    shear_x_spin_box: DraggableDoubleSpinBox
+    shear_y_spin_box: DraggableDoubleSpinBox
     scale_link_button = QtWidgets.QPushButton
 
     values_changed: QtCore.Signal = QtCore.Signal()
@@ -139,7 +144,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         separator = QtWidgets.QFrame()
         separator.setFrameShape(QtWidgets.QFrame.HLine)
 
-        rotation_spin_box = QtWidgets.QDoubleSpinBox()
+        rotation_spin_box = DraggableDoubleSpinBox()
         rotation_spin_box.setMinimum(-90.0)
         rotation_spin_box.setMaximum(90.0)
         rotation_spin_box.setSingleStep(0.1)
@@ -147,21 +152,21 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         rotation_spin_box.installEventFilter(self)
         self.rotation_spin_box = rotation_spin_box
 
-        translation_x_spin_box = QtWidgets.QSpinBox()
+        translation_x_spin_box = DraggableSpinBox()
         translation_x_spin_box.setMinimum(-5000)
         translation_x_spin_box.setMaximum(5000)
         translation_x_spin_box.valueChanged.connect(self.update_translation_x)
         translation_x_spin_box.installEventFilter(self)
         self.translation_x_spin_box = translation_x_spin_box
 
-        translation_y_spin_box = QtWidgets.QSpinBox()
+        translation_y_spin_box = DraggableSpinBox()
         translation_y_spin_box.setMinimum(-5000)
         translation_y_spin_box.setMaximum(5000)
         translation_y_spin_box.valueChanged.connect(self.update_translation_y)
         translation_y_spin_box.installEventFilter(self)
         self.translation_y_spin_box = translation_y_spin_box
 
-        scale_x_spin_box = QtWidgets.QDoubleSpinBox()
+        scale_x_spin_box = DraggableDoubleSpinBox()
         scale_x_spin_box.setMinimum(0.01)
         scale_x_spin_box.setMaximum(3.0)
         scale_x_spin_box.setValue(1.0)
@@ -170,7 +175,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         scale_x_spin_box.installEventFilter(self)
         self.scale_x_spin_box = scale_x_spin_box
 
-        scale_y_spin_box = QtWidgets.QDoubleSpinBox()
+        scale_y_spin_box = DraggableDoubleSpinBox()
         scale_y_spin_box.setMinimum(0.01)
         scale_y_spin_box.setMaximum(3.0)
         scale_y_spin_box.setValue(1.0)
@@ -179,7 +184,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         scale_y_spin_box.installEventFilter(self)
         self.scale_y_spin_box = scale_y_spin_box
 
-        shear_x_spin_box = QtWidgets.QDoubleSpinBox()
+        shear_x_spin_box = DraggableDoubleSpinBox()
         shear_x_spin_box.setMinimum(-1.0)
         shear_x_spin_box.setMaximum(1.0)
         shear_x_spin_box.setValue(0.0)
@@ -188,7 +193,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         shear_x_spin_box.installEventFilter(self)
         self.shear_x_spin_box = shear_x_spin_box
 
-        shear_y_spin_box = QtWidgets.QDoubleSpinBox()
+        shear_y_spin_box = DraggableDoubleSpinBox()
         shear_y_spin_box.setMinimum(-1.0)
         shear_y_spin_box.setMaximum(1.0)
         shear_y_spin_box.setValue(0.0)

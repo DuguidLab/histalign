@@ -17,6 +17,7 @@ from histalign.backend.models import Orientation
 from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace
 from histalign.frontend.common_widgets import (
     CollapsibleWidgetArea,
+    DraggableSpinBox,
     MouseTrackingFilter,
     PreferentialSplitter,
     ShortcutAwareToolButton,
@@ -45,7 +46,7 @@ class RegistrationWidget(QtWidgets.QWidget):
     thumbnails_widget: ThumbnailsWidget
     settings_widget: SettingsWidget
     alpha_widget: AlphaWidget
-    background_alpha_spin_box: QtWidgets.QSpinBox
+    background_alpha_spin_box: DraggableSpinBox
 
     project_opened: QtCore.Signal = QtCore.Signal()
     project_closed: QtCore.Signal = QtCore.Signal()
@@ -285,7 +286,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         )
         tool_bar.addWidget(background_alpha_spin_box_icon)
 
-        background_alpha_spin_box = QtWidgets.QSpinBox(minimum=0, maximum=255, value=0)
+        background_alpha_spin_box = DraggableSpinBox(minimum=0, maximum=255, value=0)
         background_alpha_spin_box.valueChanged.connect(
             self.alignment_widget.update_background_alpha
         )

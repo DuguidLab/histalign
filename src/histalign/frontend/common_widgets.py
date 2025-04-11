@@ -4120,3 +4120,85 @@ class PreferentialSplitter(QtWidgets.QSplitter):
             self.setSizes(sizes)
 
         return super().eventFilter(watched, event)
+
+
+# noinspection PyPep8Naming
+class DraggableSpinBoxMixIn:
+    """A mix-in for spin boxes to enable them to change their value by dragging."""
+
+    def __init__(self: QtWidgets.QAbstractSpinBox, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._pixel_step_size = 1
+        self._dragging = False
+        self._initial_drag_value = None
+        self._initial_drag_y = None
+
+        self.lineEdit().installEventFilter(self)
+
+    def set_pixel_step_size(self: QtWidgets.QAbstractSpinBox, value: int) -> None:
+        self._pixel_step_size = value
+
+    def eventFilter(
+        self: QtWidgets.QAbstractSpinBox, watched: QtCore.QObject, event: QtCore.QEvent
+    ) -> bool:
+        """Filters events on a watched object.
+
+        Only events of the line edit have custom handling.
+
+        Args:
+            watched (QtCore.QObject): A watched object.
+            event (QtCore.QEvent): Event to filter
+
+        Returns:
+            bool: Whether the event was handled.
+        """
+        if watched is not self.lineEdit() or not watched.isEnabled():
+            return super().eventFilter(watched, event)
+
+        # Prime dragging
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            self._initial_drag_value = self.value()
+            self._initial_drag_y = QtGui.QCursor.pos().y()
+        # Un-prime/disable dragging
+        elif event.type() == QtCore.QEvent.Type.MouseButtonRelease:
+            if self._dragging:
+                QtWidgets.QApplication.restoreOverrideCursor()
+            self._dragging = False
+            self._initial_drag_value = None
+            self._initial_drag_y = None
+        # Potentially drag
+        elif event.type() == QtCore.QEvent.Type.MouseMove:
+            # If movement is while left button down, we should drag
+            if self._initial_drag_y:
+                # Change cursor on first drag event
+                if not self._dragging:
+                    cursor = QtGui.QCursor()
+                    cursor.setShape(QtCore.Qt.CursorShape.SizeVerCursor)
+                    QtWidgets.QApplication.setOverrideCursor(cursor)
+
+                    self._dragging = True
+
+                # Compute total pixel delta since start of drag
+                y = QtGui.QCursor.pos().y()
+                pixel_delta = self._initial_drag_y - y
+
+                # Compute total value change since start of drag
+                value = (
+                    self._initial_drag_value
+                    + round(pixel_delta / self._pixel_step_size) * self.singleStep()
+                )
+                self.setValue(value)
+
+                self.selectAll()
+                return True
+
+        return super().eventFilter(watched, event)
+
+
+class DraggableSpinBox(DraggableSpinBoxMixIn, QtWidgets.QSpinBox):
+    """A draggable spin box."""
+
+
+class DraggableDoubleSpinBox(DraggableSpinBoxMixIn, QtWidgets.QDoubleSpinBox):
+    """A draggable double-precision spin box."""
