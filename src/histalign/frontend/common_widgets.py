@@ -41,6 +41,7 @@ from histalign.frontend.pyside_helpers import (
     connect_single_shot_slot,
     FakeQtABC,
     find_parent,
+    get_actual_background_colour,
     lua_aware_shift,
 )
 from histalign.frontend.themes import is_light_colour
@@ -2146,9 +2147,9 @@ class TitleFrame(QtWidgets.QFrame):
         if "win" in sys.platform:
             text_rect.translate(0, painter.fontMetrics().xHeight())
 
-        erase_rect = QtCore.QRectF(text_rect)
-        erase_rect.adjust(-5, 0, 5, 0)
-        painter.eraseRect(erase_rect)
+        overpaint_rect = QtCore.QRectF(text_rect)
+        overpaint_rect.adjust(-5, 0, 5, 0)
+        painter.fillRect(overpaint_rect, get_actual_background_colour(self))
 
         painter.drawText(text_rect, self.title, text_option)
 

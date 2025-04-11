@@ -59,6 +59,28 @@ class FakeQtABC:
             )
 
 
+def count_parents(
+    widget: QtWidgets.QWidget, parent_type: type[QtWidgets.QWidget] = QtWidgets.QWidget
+) -> int:
+    """Counts how many parent of type `parent_type` `widget` has.
+
+    Args:
+        widget (QtWidgets.QWidget): Widget leaf to climb the tree from.
+        parent_type (type[QtWidgets.QWidget): Type of the parent to count.
+
+    Returns:
+        int:
+            How many parents of type `parent_type` exist in `widget`'s parent hierarchy.
+    """
+    count = 0
+    parent = widget
+    while (parent := parent.parent()) is not None:
+        if isinstance(parent, parent_type):
+            count += 1
+
+    return count
+
+
 def connect_single_shot_slot(signal: object, slot: object) -> None:
     """Set up a single-use signal.
 
@@ -93,6 +115,50 @@ def find_parent(widget: QtWidgets.QWidget, parent_type: type[_T]) -> Optional[_T
     return parent
 
 
+def get_actual_background_colour(widget: QtWidgets.QWidget) -> QtGui.QColor:
+    """Computes the real background colour (without autofill) for a widget.
+
+    Most of the time, this is not necessary as widgets paint themselves properly.
+    However, when override `QtWidgets.QWidget.paintEvent()`, the custom behaviour
+    sometimes needs access to this value. When a widget is a descendant of QTabWidget
+    without any QScrollArea in between, the background colour is not easily available.
+    This function uses a heuristic to try and determine what the background colour
+    of the widget is.
+
+    Args:
+        widget (QtWidgets.QWidget): Widget to find the background of.
+
+    Returns:
+        QtGui.QColor: The background colour of the widget.
+    """
+
+    tab_widget_distance = get_parent_distance(widget, QtWidgets.QTabWidget)
+    tab_widget_count = count_parents(widget, QtWidgets.QTabWidget)
+
+    scroll_area_distance = get_parent_distance(widget, QtWidgets.QScrollArea)
+
+    should_adjust_for_tab_widget = (
+        False
+        if tab_widget_count % 2 == 0
+        else tab_widget_distance < scroll_area_distance
+    )
+
+    if not should_adjust_for_tab_widget:
+        return widget.palette().color(QtGui.QPalette.ColorRole.Window)
+
+    colour = widget.palette().color(QtGui.QPalette.ColorRole.Button)
+    is_light_theme = not is_light_colour(
+        widget.palette().color(QtGui.QPalette.ColorRole.Text)
+    )
+    # Magic values obtained through trial and error by observing tab widget behaviour
+    if is_light_theme:
+        colour = colour.lighter(105)
+    else:
+        colour = colour.lighter(125)
+
+    return colour
+
+
 def get_colour_table(colour: str, alpha: int = 255, threshold: int = 1) -> np.ndarray:
     if colour not in _available_colour_tables:
         raise ValueError(
@@ -123,6 +189,30 @@ def get_colour_table(colour: str, alpha: int = 255, threshold: int = 1) -> np.nd
     colour_table[:threshold] = 0
 
     return colour_table
+
+
+def get_parent_distance(
+    widget: QtWidgets.QWidget, parent_type: type[QtWidgets.QWidget]
+) -> int:
+    """Computes the distance from `widget` to its closest parent of type `parent_type`.
+
+    Args:
+        widget (QtWidgets.QWidget): Widget leaf to climb the tree from.
+        parent_type (type[QtWidgets.QWidget): Type of the parent to find.
+
+    Returns:
+        int:
+            How many layers to step up in the widget tree to reach a parent of
+            `parent_type`, or 9999 if no parent of that type exist.
+    """
+    distance = 0
+    parent = widget
+    while (parent := parent.parent()) is not None:
+        if isinstance(parent, parent_type):
+            return distance
+        distance += 1
+
+    return 9999
 
 
 def lua_aware_shift(
