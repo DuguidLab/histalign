@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2024-present Olivier Delrée <olivierdelree@protonmail.com>
 #
 # SPDX-License-Identifier: MIT
-"""A module to extend the functionality of NumPy with a few helper functions."""
+
+"""This module extends the functionality of NumPy with a few helper functions."""
 
 import numpy as np
 
