@@ -26,6 +26,9 @@ class QuantificationWidget(QtWidgets.QWidget):
     view_tab: ViewWidget
     tab_widget: QtWidgets.QTabWidget
 
+    project_opened: QtCore.Signal = QtCore.Signal()
+    project_closed: QtCore.Signal = QtCore.Signal()
+
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
@@ -70,6 +73,12 @@ class QuantificationWidget(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.setLayout(layout)
+
+        #
+        tab_widget.setEnabled(False)
+
+        self.project_opened.connect(lambda: tab_widget.setEnabled(True))
+        self.project_closed.connect(lambda: tab_widget.setEnabled(False))
 
     @QtCore.Slot()
     def open_project(self, project_root: str | Path, *args, **kwargs) -> None:
