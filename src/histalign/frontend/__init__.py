@@ -29,6 +29,16 @@ _module_logger = logging.getLogger(__name__)
 
 
 class HistalignMainWindow(QtWidgets.QMainWindow):
+    """The main application window.
+
+    Args:
+        parent (Optional[QtWidgets.QWidget], optional): Parent of this widget.
+
+    Signals:
+        project_opened: Emitted when a project has been opened.
+        project_closed: Emitted when the current project has been closed.
+    """
+
     project_opened: QtCore.Signal = QtCore.Signal()
     project_closed: QtCore.Signal = QtCore.Signal()
 
@@ -70,6 +80,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.build_status_bar()
 
     def build_menu_bar(self) -> None:
+        """Builds the menu bar for this window."""
         menu_bar = self.menuBar()
 
         project_required_group = []
@@ -242,6 +253,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         )
 
     def build_status_bar(self) -> None:
+        """Builds the status bar for this window."""
         status_bar = self.statusBar()
 
         # Style it with a top border
@@ -256,6 +268,14 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         )
 
     def save_guard_project(self) -> bool:
+        """Prompts the user for a save/discard/cancel action on closing the project.
+
+        Note the dialog is only shown if the user has modified the workspace (e.g.,
+        calling this right after opening a project will always return True).
+
+        Returns:
+            bool: True if the user saved/discarded, False if they cancelled.
+        """
         if not self.workspace_is_dirty:
             return True
 
@@ -275,6 +295,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
                 return False
 
     def prepare_gui_for_new_project(self) -> None:
+        """Prepares the GUI for a new project by clearing states."""
         # Update the registration tab
         tab = self.registration_tab
 
@@ -282,6 +303,11 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         tab.alignment_widget.reset_histology()
 
     def switch_workspace(self) -> None:
+        """Handles a change in the current workspace.
+
+        Note that when this function is called, the workspace should already have been
+        changed.
+        """
         # Clear most of the GUI
         self.prepare_gui_for_new_project()
 
@@ -297,10 +323,19 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         tab.load_atlas()
 
     def propagate_workspace(self) -> None:
+        """Ensures workspace models are properly shared with all that rely on it."""
         self.registration_tab.update_workspace(self.workspace)
 
     # Event handlers
     def closeEvent(self, event: QtGui.QShowEvent) -> None:
+        """Handles close events.
+
+        This ensures the user is prompted for a save/discard/cancel action when
+        attempting to close the GUI while the workspace is dirty.
+
+        Args:
+            event (QtGui.QCloseEvent): Event to handle.
+        """
         if self.close_project():
             event.accept()
         else:
@@ -309,6 +344,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
     # Menu bar actions
     @QtCore.Slot()
     def create_project(self) -> None:
+        """Starts the project creation process."""
         _module_logger.debug("Project creation initiated.")
 
         # Ensure project is saved/changes discarded or action is cancelled
@@ -352,6 +388,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_project(self) -> None:
+        """Starts the project opening process."""
         _module_logger.debug("Project opening initiated.")
 
         # Ensure project is saved/changes discarded or action is cancelled
@@ -407,6 +444,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def save_project(self) -> None:
+        """Saves the current project and marks the workspace as clean."""
         _module_logger.debug("Saving project")
 
         self.workspace.save()
@@ -414,6 +452,11 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def close_project(self) -> bool:
+        """Starts the project closing process.
+
+        Returns:
+            bool: True if the user saved/discarded the project, False if they cancelled.
+        """
         _module_logger.debug("Project closing initiated.")
 
         # Ensure project is saved/changes discarded or action is cancelled
@@ -437,6 +480,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def open_images_folder(self) -> None:
+        """Starts the image directory opening process."""
         _module_logger.debug("Images folder opening initiated.")
 
         # Build dialog pop-up to get images folder path
@@ -463,6 +507,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def quit(self) -> None:
+        """Starts the application closing process."""
         _module_logger.debug("Quitting initiated.")
 
         self.close()
@@ -472,6 +517,13 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
     # Miscellaneous slots
     @QtCore.Slot()
     def reload_project(self, index: int) -> None:
+        """Reloads the current project for a given tab.
+
+        This is necessary to notify tabs of new alignments, volumes, etc.
+
+        Args:
+            index (int): Index of the tab to reload.
+        """
         if index < 1 or self.workspace is None:
             return
 
