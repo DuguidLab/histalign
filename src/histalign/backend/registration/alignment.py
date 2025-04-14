@@ -419,7 +419,7 @@ def replace_path_parts(
     misc_regexes: Sequence[str] = (),
     misc_subs: Sequence[str] = (),
 ) -> Path:
-    """Extracts the original file name given the channel, Z indices, and optional parts.
+    r"""Extracts the original file name given the channel, Z indices, and optional parts.
 
     Careful not to trust the output of this function blindly if obtained from external
     input as `misc_regexes` and `misc_subs` can potentially replace any portion of the

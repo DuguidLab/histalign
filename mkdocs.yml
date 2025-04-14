@@ -1,0 +1,67 @@
+site_name: Histalign
+repo_url: https://github.com/Duguidlab/histalign
+repo_name: DuguidLab/histalign
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Montserrat
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      schema: slate
+      primary: deep-orange
+      accent: purple
+      toggle:
+        icon: material/moon-waxing-crescent
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep-orange
+      accent: purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - gen-files:
+      scripts:
+        - scripts/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+  - search
+
+markdown_extensions:
+  - mkdocs-click
+
+copyright: Copyright &copy; 2024-Present Olivier Delrée
+
+nav:
+  - Getting started:
+      - Installation: index.md
+      - Typical workflow: typical-workflow.md
+  - Tutorials:
+      - Overview: tutorials/index.md
+      - Data preparation: tutorials/data-preparation.md
+      - Registration to the CCF: tutorials/registration.md
+      - Building a 3D volume: tutorials/volume-building.md
+      - Quantifying: tutorials/quantifying.md
+      - Visualisation: tutorials/visualisation.md
+  - Reference:
+      - Overview: reference/

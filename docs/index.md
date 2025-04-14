@@ -1,0 +1,80 @@
+# Getting started
+
+[`histalign`](https://github.com/DuguidLab/histalign) is an open-source package that facilitates the registration of two-dimensional histological slices to the [Allen Institute's Common Coordinate Framework](https://www.sciencedirect.com/science/article/pii/S0092867420304025?via%3Dihub) (CCF) for 2D and 3D quantification and visualisation. It provides a graphical user interface (GUI) to permit the user to apply any combination of [affine transformations](https://en.wikipedia.org/wiki/Affine_transformation#Image_transformation) to images obtained through experiments in order to register them to the Allen Institute's Mouse Brain Atlas.
+
+## Prerequisites
+`histalign` is meant to work with [HDF5 files](https://www.hdfgroup.org/solutions/hdf5/) (.h5). Future  support might be added for other formats such as TIFF but alignment is limited to HDF5 for the time being.  
+
+In order to carry out alignment, single-channel, two-dimensional images are needed. See [data preparation](tutorials/data-preparation.md) for more details.
+
+## Installation
+`histalign` is being developed with all major platforms in mind (Linux, macOS, Windows). However, due to hardware issues, testing on MacOS is limited. 
+
+The recommended way to install `histalign` is to use [`pipx`](https://pipx.pypa.io/latest/). These instructions will guide you through installing both `pipx` and `histalign`.  
+
+If you run into troubles when trying to install `pipx`, refer to the latest documentation from their [website](https://pipx.pypa.io/latest/installation/#installing-pipx) to see if it fixes the problem. If you run into troubles when trying to install `histalign` itself, have a look at the [open and closed issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue%20state%3Aclosed) on the package's GitHub. If you do not find an answer after looking through those, feel free to [open a new one](https://github.com/DuguidLab/histalign/issues/new), detailing your problem as best you can.
+
+### Installing `pipx`
+
+#### On Linux
+
+##### Ubuntu 23.04 or above
+
+```shell
+sudo apt update
+sudo apt install pipx
+pipx ensurepath
+```
+
+##### Fedora
+
+```shell
+sudo dnf install pipx
+pipx ensurepath
+```
+##### Other distributions (using `pip`)
+
+```shell
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+
+#### On macOS
+
+```shell
+brew install pipx
+pipx ensurepath
+```
+
+#### On Windows
+
+On Windows, the recommended way to run `histalign` is using the [Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/install) (WSL). If you do not have it enabled and do not wish to do so, you can follow the rest of these instructions. If you wish to continue with WSL, install `pipx` using the [Linux instructions](#on-linux) above.
+
+The recommended way to install `pipx` on Windows is using [Scoop](https://scoop.sh/). Once Scoop is installed, run the following commands.
+
+```shell
+scoop install pipx
+pipx ensurepath
+```
+
+However, you can also install it using `pip`:
+
+```shell
+python3 -m pip install --user pipx
+```
+
+### Installing `histalign`
+
+Once `pipx` has been installed, run the following command:
+
+```shell
+pipx install histalign
+```
+
+And that should be you sorted! From there, running `histalign` from the command line should start the application GUI.
+
+## What's next?
+
+For more information on how the GUI works, see the [typical workflow](typical-workflow.md) tutorial which gives you an overview of how data goes through `histalign`.  
+
+For more in-depth guides to each step of the workflow, see the [tutorials](tutorials/index.md)
