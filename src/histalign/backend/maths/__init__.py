@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This modules handles most of the math-centered operations of the package."""
+
 from collections.abc import Sequence
 import math
 
@@ -19,6 +21,15 @@ from histalign.backend.models.errors import InvalidOrientationError
 
 
 def apply_rotation(vector: np.ndarray, settings: VolumeSettings) -> np.ndarray:
+    """Rotates a 3D vector by the recreating the rotation from alignment settings.
+
+    Args:
+        vector (np.ndarray): 3D vector to rotate.
+        settings (VolumeSettings): Alignment settings to use.
+
+    Returns:
+        np.ndarray: The rotated vector.
+    """
     pitch = settings.pitch
     yaw = settings.yaw
     orientation = settings.orientation
@@ -29,6 +40,17 @@ def apply_rotation(vector: np.ndarray, settings: VolumeSettings) -> np.ndarray:
 def apply_rotation_from_raw(
     vector: np.ndarray, pitch: int, yaw: int, orientation: Orientation
 ) -> np.ndarray:
+    """Rotates a 3D vector using the provided pitch, yaw, and orientation.
+
+    Args:
+        vector (np.ndarray): 3D vector to rotate.
+        pitch (int): Pitch of the view.
+        yaw (int): Yaw of the view.
+        orientation (Orientation): Orientation of the view.
+
+    Returns:
+        np.ndarray: The rotated vector.
+    """
     match orientation:
         case Orientation.CORONAL:
             rotation = Rotation.from_euler("ZY", [pitch, yaw], degrees=True)
@@ -43,6 +65,15 @@ def apply_rotation_from_raw(
 
 
 def compute_centre(shape: Sequence[int], floor: bool = True) -> tuple[int | float, ...]:
+    """Computes the centre coordinate of a array given its shape.
+
+    Args:
+        shape (Sequence[int]): Shape of the array.
+        floor (bool, optional): Whether to return an integer centre or keep it as float.
+
+    Returns:
+        tuple[int | float, ...: The centre coordinate of the array.
+    """
     centre = tuple((np.array(shape) - 1) / 2)
     if floor:
         return tuple(map(int, centre))
@@ -51,6 +82,14 @@ def compute_centre(shape: Sequence[int], floor: bool = True) -> tuple[int | floa
 
 
 def compute_mesh_centre(mesh: vedo.Mesh) -> np.ndarray:
+    """Computes the centre of a mesh.
+
+    Args:
+        mesh (vedo.Mesh): Mesh to find the centre of.
+
+    Returns:
+        np.ndarray: The centre coordinate of the mesh.
+    """
     bounds = mesh.metadata["original_bounds"]
 
     return np.array(
@@ -63,6 +102,14 @@ def compute_mesh_centre(mesh: vedo.Mesh) -> np.ndarray:
 
 
 def compute_normal(settings: VolumeSettings) -> np.ndarray:
+    """Computes the normal to the view plane from the alignment settings.
+
+    Args:
+        settings (VolumeSettings): Alignment settings to use.
+
+    Returns:
+        np.ndarray: Normal to the view plane.
+    """
     return compute_normal_from_raw(
         settings.pitch,
         settings.yaw,
@@ -73,6 +120,16 @@ def compute_normal(settings: VolumeSettings) -> np.ndarray:
 def compute_normal_from_raw(
     pitch: int, yaw: int, orientation: Orientation
 ) -> np.ndarray:
+    """Computes the normal to the view plane using the provided parameters.
+
+    Args:
+        pitch (int): Pitch of the view.
+        yaw (int): Yaw of the view.
+        orientation (Orientation): Orientation of the view.
+
+    Returns:
+        np.ndarray: Normal to the view plane.
+    """
     match orientation:
         case Orientation.CORONAL:
             normal = [1, 0, 0]
@@ -87,6 +144,15 @@ def compute_normal_from_raw(
 
 
 def compute_origin(centre: Sequence[int], settings: VolumeSettings) -> np.ndarray:
+    """Computes the view plane origin from the given centre and settings.
+
+    Args:
+        centre (Sequence[int]): Centre to work from.
+        settings (VolumeSettings): Alignment settings to use.
+
+    Returns:
+        np.ndarray: The origin computed from the centre and the alignment offset.
+    """
     if len(centre) != 3:
         raise ValueError(f"Centre should be 3 coordinates. Got {len(centre)}.")
 
@@ -109,12 +175,28 @@ def compute_origin(centre: Sequence[int], settings: VolumeSettings) -> np.ndarra
 def convert_sk_transform_to_q_transform(
     transformation: AffineTransform,
 ) -> QtGui.QTransform:
+    """Converts an skimage AffineTransform to a PySide QTransform.
+
+    Args:
+        transformation (AffineTransform): Transform object to convert.
+
+    Returns:
+        QtGui.QTransform: The equivalent QTransform to the input AffineTransform.
+    """
     return QtGui.QTransform(*transformation.params.T.flatten().tolist())
 
 
 def convert_q_transform_to_sk_transform(
     transformation: QtGui.QTransform,
 ) -> AffineTransform:
+    """Converts a PySide QTransform to an skimage AffineTransform.
+
+    Args:
+        transformation (QtGui.QTransform): Transform object to convert.
+
+    Returns:
+        AffineTransform: The equivalent AffineTransform to the input QTransform.
+    """
     return AffineTransform(
         matrix=get_transformation_matrix_from_q_transform(transformation)
     )
@@ -148,6 +230,15 @@ def get_transformation_matrix_from_q_transform(
     transformation: QtGui.QTransform,
     invert: bool = False,
 ) -> np.ndarray:
+    """Retrieves the transformation matrix from a QTransform object.
+
+    Args:
+        transformation (QtGui.QTransform): Transform object to retrieve the matrix of.
+        invert (bool): Whether to invert the matrix.
+
+    Returns:
+        np.ndarray: The transformation matrix.
+    """
     if invert:
         transformation, success = transformation.inverted()
         if not success:
@@ -203,8 +294,8 @@ def get_sk_transform_from_parameters(
 
 
     Returns:
-        AffineTransform: The 2D affine transform whose matrix is obtained from the given
-                         parameters.
+        AffineTransform:
+            The 2D affine transform whose matrix is obtained from the given parameters.
     """
     # `AffineTransform` uses shearing angles instead of coordinate shift. We therefore
     # compute the equivalent angles on the trigonometric circle. Since the shearing is
@@ -254,6 +345,16 @@ def get_sk_transform_from_parameters(
 def signed_vector_angle(
     vector1: np.ndarray, vector2: np.ndarray, axis: np.ndarray
 ) -> float:
+    """Computes the signed vector angle between two vectors using the right-hand rule.
+
+    Args:
+        vector1 (np.ndarray): First vector.
+        vector2 (np.ndarray): Second vector.
+        axis (np.ndarray): Axis from which to determine the sign of the angle.
+
+    Returns:
+        float: The signed angle between the two vectors.
+    """
     return math.degrees(
         math.atan2(np.dot((np.cross(vector1, vector2)), axis), np.dot(vector1, vector2))
     )
