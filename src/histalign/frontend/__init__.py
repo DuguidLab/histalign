@@ -81,6 +81,10 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.build_menu_bar()
         self.build_status_bar()
 
+        self.project_opened.connect(
+            lambda: self.reload_project(tab_widget.currentIndex())
+        )
+
     def build_menu_bar(self) -> None:
         """Builds the menu bar for this window."""
         menu_bar = self.menuBar()
