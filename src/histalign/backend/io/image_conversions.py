@@ -2,10 +2,22 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This modules provides helper functions for operations on 2D images."""
+
 import numpy as np
 
 
 def convert_to_rgb32(image: np.ndarray) -> np.ndarray:
+    """Converts an image to RGB32.
+
+    Note that if the image is not 8 bit, it is normalised to 8 bit and then converted.
+
+    Args:
+        image (np.ndarray): Image to convert.
+
+    Returns:
+        np.ndarray: The converted image.
+    """
     if image.dtype != np.uint8:
         scaling_to_8_bit = np.iinfo(image.dtype).max / 256
         image = image.astype(float)
@@ -23,6 +35,15 @@ def convert_to_rgb32(image: np.ndarray) -> np.ndarray:
 
 
 def mask_off_colour(image: np.ndarray, colour: str) -> np.ndarray:
+    """Masks off a channel on an image.
+
+    Args:
+        image (np.ndarray): Image to mask.
+        colour (str): Channel name to mask. Allowed values are: red, green, blue.
+
+    Returns:
+        np.ndarray: The masked image.
+    """
     if image.dtype != np.uint32:
         raise ValueError("Masking of colour only available on 32-bit images.")
 

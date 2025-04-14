@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This module provides an API for loading 2D and 3D files and inspecting directories."""
+
 import importlib.resources
 import json
 import logging
@@ -46,6 +48,19 @@ def load_image(
     allow_stack: bool = False,
     allow_dataset: bool = False,
 ) -> np.ndarray:
+    """Loads a 2D image or 3D stack from disk.
+
+    Args:
+        file_path (str | Path): Path to the file.
+        normalise_dtype (Optional[np.dtype], optional):
+            Data type to normalise to. Leave as `None` to disable normalisation.
+        allow_stack (bool): Whether to allow 3D image stacks.
+        allow_dataset (bool):
+            Whether to allow returning an h5py.Dataset instead of a regular array.
+
+    Returns:
+        np.ndarray: The loaded file as a NumPy array.
+    """
     if isinstance(file_path, Path):
         file_path = str(file_path)
 
@@ -102,6 +117,20 @@ def load_volume(
     return_raw_array: bool = False,
     allow_dataset: bool = False,
 ) -> np.ndarray | vedo.Volume:
+    """Loads a 3D volume from disk.
+
+    Args:
+        file_path (str | Path): Path to the file.
+        normalise_dtype (Optional[np.dtype], optional):
+            Data type to normalise to. Leave as `None` to disable normalisation.
+        return_raw_array (bool):
+            Whether to return a NumPy array instead of a vedo.Volume.
+        allow_dataset (bool):
+            Whether to allow returning an h5py.Dataset instead of a regular array.
+
+    Returns:
+        np.ndarray | vedo.Volume: NumPy array or vedo.Volume object with the file data.
+    """
     if isinstance(file_path, Path):
         file_path = str(file_path)
 
@@ -151,6 +180,16 @@ def load_volume(
 
 
 def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
+    """Gathers alignment settings paths.
+
+    Alignment settings paths are the files where registration settings are stored.
+
+    Args:
+        alignment_directory (str | Path): Directory to iterate to find alignment paths.
+
+    Returns:
+        list[Path]: The gathered alignment paths.
+    """
     if isinstance(alignment_directory, str):
         alignment_directory = Path(alignment_directory)
 
@@ -166,11 +205,26 @@ def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
 
 
 def load_alignment_settings(path: str | Path) -> AlignmentSettings:
+    """Loads alignment settings from an alignment path.
+
+    Args:
+        path (str | Path): Path to the alignment settings file.
+
+    Returns:
+        AlignmentSettings: A model with fields initialised to the parsed values.
+    """
     with open(path) as handle:
         return AlignmentSettings(**json.load(handle))
 
 
 def clear_directory(directory_path: str | Path) -> None:
+    """Removes all files and directories from the given path.
+
+    Note that the given path itself is not removed.
+
+    Args:
+        directory_path (str | Path): Path to the directory to clear.
+    """
     _module_logger.debug(f"Clearing directory at: {directory_path}")
 
     if isinstance(directory_path, str):
