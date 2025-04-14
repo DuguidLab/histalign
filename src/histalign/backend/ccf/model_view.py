@@ -126,15 +126,12 @@ class ABAStructureModel(QtCore.QAbstractItemModel):
 
             return None
 
-        if index.column() == 1:
-            if role == QtCore.Qt.ItemDataRole.CheckStateRole:
-                return (
-                    QtCore.Qt.CheckState.Checked
-                    if index in self._checked_indices
-                    else QtCore.Qt.CheckState.Unchecked
-                )
-            else:
-                return None
+        if index.column() == 1 and role == QtCore.Qt.ItemDataRole.CheckStateRole:
+            return (
+                QtCore.Qt.CheckState.Checked
+                if index in self._checked_indices
+                else QtCore.Qt.CheckState.Unchecked
+            )
 
         item = index.internalPointer()
         if (
@@ -174,10 +171,10 @@ class ABAStructureModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.ItemDataRole.CheckStateRole:
             if value == QtCore.Qt.CheckState.Checked.value:
                 self._checked_indices.append(index)
-                self.item_checked.emit(index.siblingAtColumn(0))
+                self.item_checked.emit(index)
             else:
                 self._checked_indices.remove(index)
-                self.item_unchecked.emit(index.siblingAtColumn(0))
+                self.item_unchecked.emit(index)
 
             self.dataChanged.emit(index, index)
 

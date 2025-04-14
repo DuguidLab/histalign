@@ -107,7 +107,10 @@ class StructureTreeView(QtWidgets.QTreeView):
         super().__init__(parent)
 
         #
-        self.setModel(ABAStructureTreeModel())
+        model = ABAStructureTreeModel()
+        model.item_checked.connect(self.item_checked.emit)
+        model.item_unchecked.connect(self.item_unchecked.emit)
+        self.setModel(model)
 
         #
         self.setStyle(NoFocusRectProxyStyle())
