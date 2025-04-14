@@ -9,8 +9,8 @@ from pathlib import Path
 import re
 from typing import Any, Optional
 
-from PySide6 import QtCore, QtGui, QtWidgets
 from pydantic import ValidationError
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import (
     AverageFluorescenceMeasureSettings,
@@ -314,6 +314,9 @@ class ResultsWidget(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def has_at_least_one_checked(self) -> bool:
+        if not hasattr(self, "proxy_model"):
+            return False
+
         for i in range(self.proxy_model.rowCount()):
             if (
                 self.proxy_model.index(i, 0).data(QtCore.Qt.ItemDataRole.CheckStateRole)
@@ -366,6 +369,10 @@ class ResultsWidget(QtWidgets.QWidget):
 
         if self.project_directory is not None:
             self.parse_project(self.project_directory)
+
+    def reset(self) -> None:
+        self.view = ResultsTableView()
+        self.update_buttons_state()
 
     @QtCore.Slot()
     def filter_model(self, _) -> None:

@@ -446,6 +446,15 @@ class PrepareWidget(QtWidgets.QWidget):
 
         return settings
 
+    def reset(self) -> None:
+        # Remove directories from combo box
+        self.quantification_parameters_frame.directory_widget.clear()
+
+        # TODO: Find a good heuristic for resetting the rest of the GUI. It seems like
+        #       resetting everything might feel bad as an end-user since changing
+        #       project would reset everything and wanting to run the same quantifying
+        #       on a new project would become tedious.
+
     @QtCore.Slot()
     def run_quantification(self) -> None:
         self.set_quantification_running_state(True)

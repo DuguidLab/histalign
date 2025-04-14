@@ -78,6 +78,7 @@ class QuantificationWidget(QtWidgets.QWidget):
         tab_widget.setEnabled(False)
 
         self.project_opened.connect(lambda: tab_widget.setEnabled(True))
+        self.project_closed.connect(self.reset)
         self.project_closed.connect(lambda: tab_widget.setEnabled(False))
 
     @QtCore.Slot()
@@ -89,3 +90,10 @@ class QuantificationWidget(QtWidgets.QWidget):
 
         self.tab_widget.setEnabled(True)
         self.project_loaded = True
+
+    @QtCore.Slot()
+    def reset(self) -> None:
+        self.prepare_tab.reset()
+        self.results_tab.reset()
+
+        self.project_loaded = False
