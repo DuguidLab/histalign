@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This module handles interactions with the Allen Institute's web API."""
+
 import logging
 import os
 from pathlib import Path
@@ -29,6 +31,13 @@ def download_atlas(
     resolution: Resolution,
     atlas_type: Literal["average_template", "ara_nissl"] = "average_template",
 ) -> None:
+    """Downloads the atlas file for the given type and resolution.
+
+    Args:
+        resolution (Resolution): Resolution of the atlas.
+        atlas_type (Literal["average_template", "ara_nissl"], optional):
+            Type of the atlas.
+    """
     atlas_file_name = f"{atlas_type}_{resolution.value}.nrrd"
     url = "/".join([BASE_ATLAS_URL, atlas_type, atlas_file_name])
     atlas_path = ATLAS_ROOT_DIRECTORY / atlas_file_name
@@ -37,6 +46,11 @@ def download_atlas(
 
 
 def download_annotation_volume(resolution: Resolution) -> None:
+    """Downloads the annotation volume file for the given resolution.
+
+    Args:
+        resolution (Resolution): Resolution of the atlas.
+    """
     volume_file_name = f"annotation_{resolution}.nrrd"
     url = "/".join([BASE_ANNOTATION_URL, volume_file_name])
     volume_path = ANNOTATION_ROOT_DIRECTORY / volume_file_name
@@ -45,6 +59,12 @@ def download_annotation_volume(resolution: Resolution) -> None:
 
 
 def download_structure_mask(structure_name: str, resolution: Resolution) -> None:
+    """Downloads the structure mask file for the given name and resolution.
+
+    Args:
+        structure_name (str): Name of the structure.
+        resolution (Resolution): Resolution of the atlas.
+    """
     structure_id = get_structure_id(structure_name, resolution)
     structure_file_name = f"structure_{structure_id}.nrrd"
     url = "/".join(
@@ -62,6 +82,12 @@ def download_structure_mask(structure_name: str, resolution: Resolution) -> None
 
 
 def download(url: str, file_path: str | Path) -> None:
+    """Downloads a file from the given URL and saves it to the given path.
+
+    Args:
+        url (str): URL to fetch.
+        file_path (str | Path): Path to save the result to.
+    """
     # Thin guard to not just download anything...
     if not url.startswith(BASE_ATLAS_URL) and not url.startswith(BASE_MASK_URL):
         raise ValueError("Invalid URL.")
@@ -87,6 +113,15 @@ def download(url: str, file_path: str | Path) -> None:
 def get_ssl_context(
     check_hostname: bool = True, check_certificate: bool = True
 ) -> ssl.SSLContext:
+    """Creates an SSL context to use with urllib.
+
+    Args:
+        check_hostname (bool, optional): Whether to enable hostname checking.
+        check_certificate (bool, optional): Whether to enable certificate checking.
+
+    Returns:
+        ssl.SSLContext: An SSL context with the given options.
+    """
     context = ssl.create_default_context()
     if not check_hostname:
         context.check_hostname = False

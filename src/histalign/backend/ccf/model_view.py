@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This module defines PySide models and helpers for managing structure metadata."""
+
 from __future__ import annotations, annotations
 
 from collections.abc import Iterator
@@ -391,7 +393,15 @@ def iterate_tree_model_dfs(model: QtCore.QAbstractItemModel) -> Iterator[Index]:
             queue.append(model.index(row_index, 0, index))
 
 
-def get_checked_items(model: QtCore.QAbstractItemModel) -> list[Index]:
+def get_checked_items(model: ABAStructureTreeModel) -> list[Index]:
+    """Iterates a tree model and returns checked items.
+
+    Args:
+        model (ABAStructureListModel): Model to iterate.
+
+    Returns:
+        list[Index]: List of checked indices.
+    """
     checked_items = []
     for index in iterate_tree_model_dfs(model):
         if (
