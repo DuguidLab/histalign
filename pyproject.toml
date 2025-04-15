@@ -24,13 +24,17 @@ dependencies = [
   "allensdk",
   "click",
   "h5py",
+  "imagecodecs",
   "matplotlib",
   "numpy",
   "opencv-python",
+  "psutil",
   "pyside6",
   "pynrrd",
   "pydantic",
+  "readlif",
   "scikit-image",
+  "tifffile",
   "vedo",
 ]
 

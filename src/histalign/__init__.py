@@ -24,6 +24,12 @@ from PySide6 import QtCore, QtWidgets
 
 from histalign.frontend import HistalignMainWindow
 from histalign.frontend.themes import DARK_THEME, LIGHT_THEME
+from histalign.io.convert import convert
+from histalign.io.image import list_formats, load_plugins
+from histalign.io.info import info
+from histalign.io.project import project
+from histalign.io.split import split
+from histalign.io.transform import transform
 
 PREFERRED_STARTUP_SIZE = QtCore.QSize(1600, 900)
 
@@ -42,7 +48,8 @@ _console_handler.setFormatter(_formatter)
 _module_logger.addHandler(_console_handler)
 
 
-@click.command
+@click.group(invoke_without_command=True)
+@click.pass_context
 @click.option(
     "-v",
     "--verbose",
@@ -69,7 +76,15 @@ _module_logger.addHandler(_console_handler)
     is_flag=True,
     help="Whether to enable UI debugging. " "This adds a border around elements.",
 )
-def histalign(verbosity: int, fullscreen: bool, dark: bool, debug_ui: bool) -> None:
+def histalign(
+    context: click.Context, verbosity: int, fullscreen: bool, dark: bool, debug_ui: bool
+) -> None:
+    # Handle setting up plugins for IO subcommands
+    if context.invoked_subcommand is not None:
+        load_plugins()
+        return
+
+    # Start in GUI mode
     if verbosity == 1:
         set_log_level(logging.INFO)
     elif verbosity >= 2:
@@ -117,6 +132,14 @@ def compute_startup_size() -> QtCore.QSize:
 
 def set_log_level(level: int | str) -> None:
     _module_logger.setLevel(level)
+
+
+histalign.add_command(convert, "convert")
+histalign.add_command(list_formats, "list")
+histalign.add_command(info, "info")
+histalign.add_command(project, "project")
+histalign.add_command(split, "split")
+histalign.add_command(transform, "transform")
 
 
 if __name__ == "__main__":
