@@ -10,15 +10,19 @@ import re
 import shutil
 from typing import Optional
 
-import h5py
 import nrrd
 import numpy as np
-from PIL import Image
 from PySide6 import QtCore
 import vedo
 
 from histalign.backend.maths import normalise_array
 from histalign.backend.models import AlignmentSettings
+from histalign.io.image import (
+    get_appropriate_plugin_class,
+    ImageFile,
+    MultiSeriesImageFile,
+    UnknownFileFormatError,
+)
 
 data_directories = QtCore.QStandardPaths.standardLocations(
     QtCore.QStandardPaths.GenericDataLocation
@@ -48,33 +52,41 @@ def load_image(
     path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     allow_stack: bool = False,
-    allow_h5py_dataset: bool = False,
 ) -> np.ndarray:
     """Loads a 2D image or 3D stack from disk.
 
     Args:
         path (str | Path): Path to the file.
         normalise_dtype (Optional[np.dtype], optional):
-            Data type to normalise to. Leave as `None` to disable normalisation.
+            Data type to normalise to. Leave as `None` to disable normalisation. Note
+            that normalisation happens on the whole array (for example, Z stacks are
+            normalised using min/max of the whole array).
         allow_stack (bool): Whether to allow 3D image stacks.
-        allow_h5py_dataset (bool):
-            Whether to allow returning an h5py.Dataset instead of a regular array.
 
     Returns:
         np.ndarray: The loaded file as a NumPy array.
     """
-    array = load_array(path, normalise_dtype, allow_h5py_dataset)
+    file = open_file(path)
 
-    dimension_count = len(array.shape)
-    if dimension_count == 3 and not allow_stack:
+    if isinstance(file, MultiSeriesImageFile):
+        if file.series_count < 1:
+            file.close()
+            raise ValueError(f"File does not have any data.")
+        elif file.series_count > 1:
+            file.close()
+            raise ValueError(f"File has more than one series.")
+
+    if "C" in file.dimension_order.value:
+        file.close()
+        raise ValueError(f"Multi-channel files are not allowed.")
+    elif "Z" in file.dimension_order.value and not allow_stack:
         raise ValueError(
-            f"Provided array is 3-dimensional but only 2D images are allowed."
+            f"Provided file data has a Z axis but only 2D images are allowed."
         )
-    elif dimension_count != 2:
-        raise ValueError(
-            f"Provided array is {dimension_count}-dimensional but only 2D images "
-            f"and 3D stacks are supported."
-        )
+
+    array = file.load()
+    if normalise_dtype is not None:
+        array = normalise_array(array, normalise_dtype)
 
     return array
 
@@ -83,95 +95,70 @@ def load_volume(
     path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     as_array: bool = False,
-    allow_h5py_dataset: bool = False,
 ) -> np.ndarray | vedo.Volume:
     """Loads a 3D volume from disk.
 
     Args:
         path (str | Path): Path to the file.
         normalise_dtype (Optional[np.dtype], optional):
-            Data type to normalise to. Leave as `None` to disable normalisation.
+            Data type to normalise to. Leave as `None` to disable normalisation. Note
+            that normalisation happens on the whole array (for example, Z stacks are
+            normalised using min/max of the whole array).
         as_array (bool):
             Whether to return a NumPy array instead of a vedo.Volume.
-        allow_h5py_dataset (bool):
-            Whether to allow returning an h5py.Dataset instead of a regular array.
 
     Returns:
         np.ndarray | vedo.Volume: NumPy array or vedo.Volume object with the file data.
     """
-    array = load_array(path, normalise_dtype, allow_h5py_dataset)
+    # TODO: Write NRRD plugin
+    try:
+        file = open_file(path)
 
-    dimension_count = len(array.shape)
-    if dimension_count != 3:
-        raise ValueError(
-            f"Provided array is {dimension_count}-dimensional but a 3D volume was "
-            f"expected."
-        )
+        if isinstance(file, MultiSeriesImageFile):
+            if file.series_count < 1:
+                file.close()
+                raise ValueError(f"File does not have any data.")
+            elif file.series_count > 1:
+                file.close()
+                raise ValueError(f"File has more than one series.")
+
+        if "C" in file.dimension_order.value:
+            file.close()
+            raise ValueError(f"Multi-channel files are not allowed.")
+        elif "Z" not in file.dimension_order.value:
+            raise ValueError(
+                f"Provided file data is only two-dimensional. Expected a volume."
+            )
+
+        array = file.load()
+    except UnknownFileFormatError:
+        suffix = Path(path).suffix
+        if suffix == ".nrrd":
+            array = nrrd.read(path)[0]
+        else:
+            # Continue raising
+            raise
+
+    if normalise_dtype is not None:
+        array = normalise_array(array, normalise_dtype)
 
     return array if as_array else vedo.Volume(array)
 
 
 # noinspection PyUnboundLocalVariable
-def load_array(
-    path: str | Path,
-    normalise_dtype: Optional[np.dtype] = None,
-    allow_h5py_dataset: bool = False,
-) -> np.ndarray:
-    """Loads an array from disk.
+def open_file(path: str | Path) -> ImageFile:
+    """Opens a file from disk.
 
     Args:
-        path (str | Path): Path to the array to load.
-        normalise_dtype (Optional[np.dtype], optional):
-            Optional dtype to use to normalise the array.
-        allow_h5py_dataset (bool, optional):
-            Whether to allow the returned object to be an h5py.Dataset. For most
-            operations, they are equivalent to NumPy array but they are are not quite
-            interchangeable.
+        path (str | Path): Path to the file on disk.
 
     Returns:
-
+        ImageFile: A handle to the opened file.
     """
     path = Path(path)
 
-    match path.suffix:
-        case ".h5" | ".hdf5":
-            handle = h5py.File(path)
-
-            dataset_name = list(handle.keys())
-            if len(dataset_name) < 1:
-                raise ValueError(f"Could not find a dataset in HDF5 file '{path}'.")
-            elif len(dataset_name) > 1:
-                raise ValueError(f"Found more than one dataset in HDF5 file '{path}'.")
-
-            array = handle[dataset_name[0]]
-            if not allow_h5py_dataset:
-                array = array[:]
-                handle.close()
-        case ".jpg" | ".jpeg" | ".png":
-            array = np.array(Image.open(path))
-        case ".npy":
-            array = np.load(path)
-        case ".npz":
-            with np.load(path) as handle:
-                keys = list(handle.keys())
-                if len(keys) < 1:
-                    raise ValueError(f"Could not find an array in NPZ file '{path}'.")
-                elif len(keys) > 1:
-                    raise ValueError(f"Found more than one array in NPZ file '{path}'.")
-
-                array = handle[keys[0]]
-        case ".nrrd":
-            array = nrrd.read(str(path))[0]
-        case other:
-            if other in _SUPPORTED_ARRAY_FORMATS:
-                raise NotImplementedError(f"Format not yet implemented.")
-
-            raise ValueError(f"Unsupported array file extension '{other}'.")
-
-    if normalise_dtype is not None:
-        array = normalise_array(array, normalise_dtype)
-
-    return array
+    plugin_class = get_appropriate_plugin_class(path, "r")
+    return plugin_class(path, "r", None)
 
 
 def load_alignment_settings(path: str | Path) -> AlignmentSettings:

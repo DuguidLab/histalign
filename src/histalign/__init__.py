@@ -80,8 +80,8 @@ def histalign(
     context: click.Context, verbosity: int, fullscreen: bool, dark: bool, debug_ui: bool
 ) -> None:
     # Handle setting up plugins for IO subcommands
+    load_plugins()
     if context.invoked_subcommand is not None:
-        load_plugins()
         return
 
     # Start in GUI mode
