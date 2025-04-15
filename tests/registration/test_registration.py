@@ -17,7 +17,7 @@ import pytest
 
 from histalign.backend.ccf.paths import get_atlas_path
 from histalign.backend.ccf.downloads import download_atlas
-from histalign.backend.io import load_alignment_settings, load_image, load_volume
+from histalign.io import load_alignment_settings, load_image, load_volume
 from histalign.backend.registration import Registrator
 from histalign.backend.workspace import VolumeSlicer
 

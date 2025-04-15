@@ -11,7 +11,6 @@ from scipy.ndimage import gaussian_filter
 
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
-from histalign.backend.io import load_volume
 from histalign.backend.models import Resolution
 from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
@@ -21,6 +20,7 @@ from histalign.frontend.common_widgets import (
 )
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.views import SliceViewer, VolumeViewer
+from histalign.io import load_volume
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)

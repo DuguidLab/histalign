@@ -9,9 +9,9 @@ from typing import Optional
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-import histalign.backend.io as io
 from histalign.backend.models import AlignmentSettings
 from histalign.backend.registration import ContourGeneratorThread, Registrator
+import histalign.io as io
 
 
 class QAViewerWidget(QtWidgets.QLabel):

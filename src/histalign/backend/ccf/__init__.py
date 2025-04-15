@@ -4,7 +4,7 @@
 
 import os
 
-from histalign.backend.io import DATA_ROOT
+from histalign.io import DATA_ROOT
 
 BASE_ANNOTATION_URL = (
     "https://download.alleninstitute.org/informatics-archive/"

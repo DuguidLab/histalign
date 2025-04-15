@@ -13,16 +13,16 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.paths import get_atlas_path
-from histalign.backend.io import (
-    load_alignment_settings,
-    load_volume,
-)
 from histalign.backend.registration import ContourGeneratorThread
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.common_widgets import BinaryAlphaPixmap, ZoomAndPanView
 from histalign.frontend.pyside_helpers import (
     np_to_qpixmap,
     try_show_permanent_status_message,
+)
+from histalign.io import (
+    load_alignment_settings,
+    load_volume,
 )
 from histalign.resources import ICONS_ROOT
 

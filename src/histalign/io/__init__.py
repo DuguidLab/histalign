@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""This module provides an API for loading 2D and 3D files and inspecting directories."""
-
 import json
 import logging
 import os
@@ -172,31 +170,6 @@ def load_volume(
     return array if return_raw_array else vedo.Volume(array)
 
 
-def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
-    """Gathers alignment settings paths.
-
-    Alignment settings paths are the files where registration settings are stored.
-
-    Args:
-        alignment_directory (str | Path): Directory to iterate to find alignment paths.
-
-    Returns:
-        list[Path]: The gathered alignment paths.
-    """
-    if isinstance(alignment_directory, str):
-        alignment_directory = Path(alignment_directory)
-
-    paths = []
-
-    for file in alignment_directory.iterdir():
-        if re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, file.name) is None:
-            continue
-
-        paths.append(file)
-
-    return paths
-
-
 def load_alignment_settings(path: str | Path) -> AlignmentSettings:
     """Loads alignment settings from an alignment path.
 
@@ -208,6 +181,50 @@ def load_alignment_settings(path: str | Path) -> AlignmentSettings:
     """
     with open(path) as handle:
         return AlignmentSettings(**json.load(handle))
+
+
+def is_alignment_file(path: str | Path) -> bool:
+    """Returns whether the given path points to an alignment settings file.
+
+    Args:
+        path (str | Path): Path to the file to check.
+
+    Returns:
+        bool: Whether the file path points to an alignment settings file.
+    """
+
+    path = Path(path)
+
+    # Add extra check to make sure this is a not a hidden file (doesn't start with a
+    # period)
+    return (
+        path.is_file()
+        and re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, path.name) is not None
+        and not path.name.startswith(".")
+    )
+
+
+def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
+    """Gathers alignment settings paths.
+
+    Alignment settings paths are the files where registration settings are stored.
+
+    Args:
+        alignment_directory (str | Path): Directory to iterate to find alignment paths.
+
+    Returns:
+        list[Path]: The gathered alignment paths.
+    """
+    alignment_directory = Path(alignment_directory)
+
+    paths = []
+    for file in alignment_directory.iterdir():
+        if not is_alignment_file(file):
+            continue
+
+        paths.append(file)
+
+    return paths
 
 
 def clear_directory(directory_path: str | Path) -> None:

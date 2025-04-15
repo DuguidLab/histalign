@@ -34,7 +34,6 @@ import vedo  # type: ignore[import]
 
 from histalign.backend.ccf.downloads import download_annotation_volume, download_atlas
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_tree
-import histalign.backend.io as io
 from histalign.backend.maths import (
     compute_centre,
     compute_normal,
@@ -50,6 +49,7 @@ from histalign.backend.models import (
     Resolution,
     VolumeSettings,
 )
+import histalign.io as io
 
 _module_logger = logging.getLogger(__name__)
 

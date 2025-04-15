@@ -8,7 +8,6 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.io import clear_directory
 from histalign.backend.models import ProjectSettings
 from histalign.backend.workspace import Workspace
 from histalign.frontend.common_widgets import DynamicThemeIcon
@@ -24,6 +23,7 @@ from histalign.frontend.quantification import QuantificationWidget
 from histalign.frontend.registration import RegistrationWidget
 from histalign.frontend.visualisation import VisualisationWidget
 from histalign.frontend.volume_builder import VolumeBuilderWidget
+from histalign.io import clear_directory
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)

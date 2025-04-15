@@ -24,10 +24,6 @@ from histalign.backend.ccf.model_view import (
     ABAStructureTreeModel,
     iterate_tree_model_dfs,
 )
-from histalign.backend.io import (
-    ALIGNMENT_FILE_NAME_PATTERN,
-    load_alignment_settings,
-)
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.events import (
@@ -44,6 +40,7 @@ from histalign.frontend.pyside_helpers import (
     lua_aware_shift,
 )
 from histalign.frontend.themes import is_light_colour
+from histalign.io import is_alignment_file, load_alignment_settings
 from histalign.resources import ICONS_ROOT
 
 QWIDGETSIZE_MAX = 16777215  # Qt constant
@@ -3874,7 +3871,7 @@ class NavigationArea(QtWidgets.QScrollArea):
         aligned_paths = []
         path_index_map = {}
         for child_path in path.iterdir():
-            if re.fullmatch(ALIGNMENT_FILE_NAME_PATTERN, child_path.name) is None:
+            if not is_alignment_file(child_path):
                 continue
 
             aligned_paths.append(child_path)

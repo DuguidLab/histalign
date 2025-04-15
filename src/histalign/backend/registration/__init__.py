@@ -15,7 +15,6 @@ import vedo
 
 from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
 from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
-from histalign.backend.io import load_image
 from histalign.backend.maths import (
     get_sk_transform_from_parameters,
 )
@@ -23,6 +22,7 @@ from histalign.backend.models import (
     AlignmentSettings,
 )
 import histalign.backend.workspace as workspace  # Avoid circular import
+from histalign.io import load_image
 
 _module_logger = logging.getLogger(__name__)
 

@@ -15,11 +15,6 @@ from PySide6 import QtCore
 
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
-from histalign.backend.io import (
-    gather_alignment_paths,
-    load_image,
-    load_volume,
-)
 from histalign.backend.models import (
     AlignmentSettings,
     ProjectSettings,
@@ -36,6 +31,7 @@ from histalign.backend.registration.alignment import (
     interpolate_sparse_3d_array,
 )
 from histalign.frontend.pyside_helpers import FakeQtABC
+from histalign.io import gather_alignment_paths, load_image, load_volume
 
 
 class Quantifier(QtCore.QObject, FakeQtABC):

@@ -9,9 +9,9 @@ import numpy as np
 
 from histalign.backend.ccf.downloads import download_atlas
 from histalign.backend.ccf.paths import get_atlas_path
-from histalign.backend.io import load_alignment_settings, load_volume
 from histalign.backend.registration import Registrator
 from histalign.backend.workspace import Volume, VolumeSlicer
+from histalign.io import load_alignment_settings, load_volume
 
 
 def re_baseline(transformation: str, volume_path: Path, volume: Volume) -> None:

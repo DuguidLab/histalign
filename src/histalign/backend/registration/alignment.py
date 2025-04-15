@@ -21,12 +21,6 @@ import vedo
 
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
-from histalign.backend.io import (
-    DATA_ROOT,
-    gather_alignment_paths,
-    load_image,
-    load_volume,
-)
 from histalign.backend.maths import (
     apply_rotation,
     compute_centre,
@@ -41,6 +35,7 @@ from histalign.backend.models import (
     VolumeSettings,
 )
 from histalign.backend.registration import Registrator
+from histalign.io import DATA_ROOT, gather_alignment_paths, load_image, load_volume
 
 ALIGNMENT_VOLUMES_CACHE_DIRECTORY = DATA_ROOT / "alignment_volumes"
 os.makedirs(ALIGNMENT_VOLUMES_CACHE_DIRECTORY, exist_ok=True)

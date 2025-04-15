@@ -8,12 +8,12 @@ from typing import Optional
 import numpy as np
 from PySide6 import QtCore
 
-from histalign.backend.io import load_volume
 from histalign.backend.models import VolumeBuildingSettings
 from histalign.backend.registration.alignment import (
     build_aligned_array,
     interpolate_sparse_3d_array,
 )
+from histalign.io import load_volume
 
 _module_logger = logging.getLogger(__name__)
 
