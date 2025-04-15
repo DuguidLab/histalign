@@ -36,6 +36,7 @@ from histalign.backend.maths import (
 )
 from histalign.backend.models import (
     AlignmentSettings,
+    Orientation,
     Resolution,
     VolumeSettings,
 )
@@ -110,6 +111,8 @@ def build_aligned_array(
     )
 
     # Validate arguments
+    alignment_directory = Path(alignment_directory)
+
     if channel_regex is not None and channel_index is None:
         _module_logger.warning(
             "Received channel regex but no channel index. Building alignment "
@@ -224,6 +227,10 @@ def build_aligned_array(
             cloud = build_point_cloud(origin, image.shape, settings.volume_settings)
 
             # Insert point data from registered image
+            if settings.volume_settings.orientation == Orientation.HORIZONTAL:
+                image = np.flipud(image)
+            elif settings.volume_settings.orientation == Orientation.SAGITTAL:
+                image = np.fliplr(image)
             cloud.pointdata["ImageScalars"] = image.flatten()
 
             point_clouds.append(cloud)
