@@ -154,7 +154,7 @@ class VisualisationWidget(QtWidgets.QWidget):
         old_view = self.central_view
         new_view = old_view
 
-        volume = load_volume(path, normalise_dtype=np.uint16, return_raw_array=True)
+        volume = load_volume(path, normalise_dtype=np.uint16, as_array=True)
 
         # Preprocessing would have been done beforehand
         volume = gaussian_filter(volume, sigma=5, radius=20)
@@ -165,7 +165,7 @@ class VisualisationWidget(QtWidgets.QWidget):
         mask_path = get_structure_mask_path("root", self.resolution)
         if not Path(mask_path).exists():
             download_structure_mask("root", self.resolution)
-        mask = load_volume(mask_path, return_raw_array=True)
+        mask = load_volume(mask_path, as_array=True)
         volume = np.where(mask, volume, 0)
 
         if isinstance(old_view, VolumeViewer):

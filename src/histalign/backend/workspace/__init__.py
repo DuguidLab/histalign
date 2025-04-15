@@ -419,7 +419,7 @@ class Volume(QtCore.QObject):
 
     def load(self) -> np.ndarray:
         """Loads the raw numpy array this volume points to."""
-        return io.load_volume(self.path, self.dtype, return_raw_array=True)
+        return io.load_volume(self.path, self.dtype, as_array=True)
 
     def _ensure_downloaded(self) -> None:
         if not self.path.exists() and not self.is_loaded:

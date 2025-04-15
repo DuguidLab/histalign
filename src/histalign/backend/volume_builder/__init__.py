@@ -90,7 +90,7 @@ class VolumeInterpolatorThread(QtCore.QThread):
             return
 
         # Load the 3D array
-        aligned_array = load_volume(aligned_array_path, return_raw_array=True)
+        aligned_array = load_volume(aligned_array_path, as_array=True)
 
         # Ensure the 3D array is not empty
         if not np.any(aligned_array):

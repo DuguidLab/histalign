@@ -30,144 +30,148 @@ del data_directories
 
 ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
 
+_SUPPORTED_ARRAY_FORMATS = [
+    ".h5",
+    ".hdf5",
+    ".jpg",
+    ".jpeg",
+    "png",
+    ".npy",
+    "npz",
+    ".nrrd",
+]
+
 _module_logger = logging.getLogger(__name__)
 
 
 def load_image(
-    file_path: str | Path,
+    path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     allow_stack: bool = False,
-    allow_dataset: bool = False,
+    allow_h5py_dataset: bool = False,
 ) -> np.ndarray:
     """Loads a 2D image or 3D stack from disk.
 
     Args:
-        file_path (str | Path): Path to the file.
+        path (str | Path): Path to the file.
         normalise_dtype (Optional[np.dtype], optional):
             Data type to normalise to. Leave as `None` to disable normalisation.
         allow_stack (bool): Whether to allow 3D image stacks.
-        allow_dataset (bool):
+        allow_h5py_dataset (bool):
             Whether to allow returning an h5py.Dataset instead of a regular array.
 
     Returns:
         np.ndarray: The loaded file as a NumPy array.
     """
-    if isinstance(file_path, Path):
-        file_path = str(file_path)
+    array = load_array(path, normalise_dtype, allow_h5py_dataset)
 
-    match file_path.split(".")[-1]:
-        case "h5" | "hdf5":
-            h5_handle = h5py.File(file_path, "r")
-            dataset_name = list(h5_handle.keys())
-
-            if len(dataset_name) != 1:
-                raise ValueError(
-                    f"Unexpected number of datasets found. "
-                    f"Expected 1, found {len(dataset_name)}. "
-                    f"Make sure the file only contains a single image."
-                )
-
-            array = h5_handle[dataset_name[0]]
-
-            if len(array.shape) != 2:
-                if not (allow_stack and len(array.shape) == 3):
-                    raise ValueError(
-                        f"Unexpected number of dataset dimensions. "
-                        f"Expected 2, found {len(array.shape)}. "
-                        f"Make sure the image has been project to only contain "
-                        f"XY data."
-                    )
-
-            # Datasets can behave as arrays most but not all of the time
-            if not allow_dataset:
-                array = array[:]
-                h5_handle.close()
-        case "npy":
-            array = np.load(file_path)
-        case "npz":
-            try:
-                array = np.load(file_path)["array"]
-            except KeyError:
-                raise ValueError(
-                    "Expected .npz file to have a key 'array' for the volume."
-                )
-        case "jpg" | "jpeg" | "png":
-            array = np.array(Image.open(file_path))
-        case other:
-            raise ValueError(f"Unknown file extension '{other}'.")
-
-    if normalise_dtype is not None:
-        array = normalise_array(array, normalise_dtype)
+    dimension_count = len(array.shape)
+    if dimension_count == 3 and not allow_stack:
+        raise ValueError(
+            f"Provided array is 3-dimensional but only 2D images are allowed."
+        )
+    elif dimension_count != 2:
+        raise ValueError(
+            f"Provided array is {dimension_count}-dimensional but only 2D images "
+            f"and 3D stacks are supported."
+        )
 
     return array
 
 
 def load_volume(
-    file_path: str | Path,
+    path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
-    return_raw_array: bool = False,
-    allow_dataset: bool = False,
+    as_array: bool = False,
+    allow_h5py_dataset: bool = False,
 ) -> np.ndarray | vedo.Volume:
     """Loads a 3D volume from disk.
 
     Args:
-        file_path (str | Path): Path to the file.
+        path (str | Path): Path to the file.
         normalise_dtype (Optional[np.dtype], optional):
             Data type to normalise to. Leave as `None` to disable normalisation.
-        return_raw_array (bool):
+        as_array (bool):
             Whether to return a NumPy array instead of a vedo.Volume.
-        allow_dataset (bool):
+        allow_h5py_dataset (bool):
             Whether to allow returning an h5py.Dataset instead of a regular array.
 
     Returns:
         np.ndarray | vedo.Volume: NumPy array or vedo.Volume object with the file data.
     """
-    if isinstance(file_path, Path):
-        file_path = str(file_path)
+    array = load_array(path, normalise_dtype, allow_h5py_dataset)
 
-    match file_path.split(".")[-1]:
-        case "h5" | "hdf5":
-            handle = h5py.File(file_path, "r")
+    dimension_count = len(array.shape)
+    if dimension_count != 3:
+        raise ValueError(
+            f"Provided array is {dimension_count}-dimensional but a 3D volume was "
+            f"expected."
+        )
+
+    return array if as_array else vedo.Volume(array)
+
+
+# noinspection PyUnboundLocalVariable
+def load_array(
+    path: str | Path,
+    normalise_dtype: Optional[np.dtype] = None,
+    allow_h5py_dataset: bool = False,
+) -> np.ndarray:
+    """Loads an array from disk.
+
+    Args:
+        path (str | Path): Path to the array to load.
+        normalise_dtype (Optional[np.dtype], optional):
+            Optional dtype to use to normalise the array.
+        allow_h5py_dataset (bool, optional):
+            Whether to allow the returned object to be an h5py.Dataset. For most
+            operations, they are equivalent to NumPy array but they are are not quite
+            interchangeable.
+
+    Returns:
+
+    """
+    path = Path(path)
+
+    match path.suffix:
+        case ".h5" | ".hdf5":
+            handle = h5py.File(path)
+
             dataset_name = list(handle.keys())
-
-            if len(dataset_name) != 1:
-                raise ValueError(
-                    f"Unexpected number of datasets found. "
-                    f"Expected 1, found {len(dataset_name)}. "
-                    f"Make sure the file only contains a single volume."
-                )
+            if len(dataset_name) < 1:
+                raise ValueError(f"Could not find a dataset in HDF5 file '{path}'.")
+            elif len(dataset_name) > 1:
+                raise ValueError(f"Found more than one dataset in HDF5 file '{path}'.")
 
             array = handle[dataset_name[0]]
-
-            if len(array.shape) != 3:
-                raise ValueError(
-                    f"Unexpected number of dataset dimensions. "
-                    f"Expected 3, found {len(array.shape)}. "
-                    f"Make sure the volume contains XYZ data."
-                )
-
-            # Datasets can behave as arrays most but not all of the time
-            if not allow_dataset:
+            if not allow_h5py_dataset:
                 array = array[:]
                 handle.close()
-        case "nrrd":
-            array = nrrd.read(file_path)[0]
-        case "npy":
-            array = np.load(file_path)
-        case "npz":
-            try:
-                array = np.load(file_path)["array"]
-            except KeyError:
-                raise ValueError(
-                    "Expected .npz file to have a key 'array' for the volume."
-                )
+        case ".jpg" | ".jpeg" | ".png":
+            array = np.array(Image.open(path))
+        case ".npy":
+            array = np.load(path)
+        case ".npz":
+            with np.load(path) as handle:
+                keys = list(handle.keys())
+                if len(keys) < 1:
+                    raise ValueError(f"Could not find an array in NPZ file '{path}'.")
+                elif len(keys) > 1:
+                    raise ValueError(f"Found more than one array in NPZ file '{path}'.")
+
+                array = handle[keys[0]]
+        case ".nrrd":
+            array = nrrd.read(str(path))[0]
         case other:
-            raise ValueError(f"Unknown volume file extension '{other}'.")
+            if other in _SUPPORTED_ARRAY_FORMATS:
+                raise NotImplementedError(f"Format not yet implemented.")
+
+            raise ValueError(f"Unsupported array file extension '{other}'.")
 
     if normalise_dtype is not None:
         array = normalise_array(array, normalise_dtype)
 
-    return array if return_raw_array else vedo.Volume(array)
+    return array
 
 
 def load_alignment_settings(path: str | Path) -> AlignmentSettings:

@@ -324,7 +324,7 @@ def interpolate_sparse_3d_array(
     mask_path = get_structure_mask_path(mask_name, resolution)
     if not Path(mask_path).exists():
         download_structure_mask(mask_path, resolution=resolution)
-    mask_array = load_volume(mask_path, return_raw_array=True)
+    mask_array = load_volume(mask_path, as_array=True)
 
     # Compute interpolation target coordinates
     if only_mask:

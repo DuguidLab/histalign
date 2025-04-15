@@ -272,7 +272,7 @@ class VolumeViewer(QtWidgets.QWidget):
 
             path = get_atlas_path(resolution)
             reference_volume = load_volume(
-                path, normalise_dtype=np.uint16, return_raw_array=True
+                path, normalise_dtype=np.uint16, as_array=True
             )
 
         self.overlay_volume = overlay_volume

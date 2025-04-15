@@ -205,7 +205,7 @@ class AverageFluorescenceBrainQuantifier(Quantifier):
             )
             if not Path(mask_path).exists():
                 download_structure_mask(structure_name, project_settings.resolution)
-            mask_array = load_volume(mask_path, return_raw_array=True)
+            mask_array = load_volume(mask_path, as_array=True)
 
             quantification_results.data[structure_name] = compute_average_fluorescence(
                 interpolated_array, mask_array
