@@ -11,8 +11,8 @@ from scipy.ndimage import gaussian_filter
 
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
+from histalign.backend.maths import normalise_array
 from histalign.backend.models import Resolution
-from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
     CollapsibleWidgetArea,
     NavigationWidget,

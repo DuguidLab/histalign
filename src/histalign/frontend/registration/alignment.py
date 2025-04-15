@@ -15,6 +15,7 @@ from histalign.backend.maths import (
     convert_q_transform_to_sk_transform,
     convert_sk_transform_to_q_transform,
     get_sk_transform_from_parameters,
+    simulate_auto_contrast_passes,
 )
 from histalign.backend.models import (
     AlignmentSettings,
@@ -22,7 +23,6 @@ from histalign.backend.models import (
     Orientation,
     VolumeSettings,
 )
-from histalign.backend.preprocessing import simulate_auto_contrast_passes
 from histalign.backend.workspace import VolumeSlicer
 from histalign.frontend.common_widgets import PointGraphicsItem, ZoomAndPanView
 from histalign.frontend.pyside_helpers import get_colour_table

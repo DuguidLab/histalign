@@ -17,8 +17,8 @@ from PIL import Image
 from PySide6 import QtCore
 import vedo
 
+from histalign.backend.maths import normalise_array
 from histalign.backend.models import AlignmentSettings
-from histalign.backend.preprocessing import normalise_array
 
 data_directories = QtCore.QStandardPaths.standardLocations(
     QtCore.QStandardPaths.GenericDataLocation

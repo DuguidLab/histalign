@@ -5,7 +5,9 @@
 """This modules handles most of the math-centered operations of the package."""
 
 from collections.abc import Sequence
+import logging
 import math
+from typing import Optional
 
 import numpy as np
 from PySide6 import QtGui
@@ -13,11 +15,14 @@ from scipy.spatial.transform import Rotation
 from skimage.transform import AffineTransform
 import vedo
 
+from histalign.backend.array_operations import get_dtype_maximum
 from histalign.backend.models import (
     Orientation,
     VolumeSettings,
 )
 from histalign.backend.models.errors import InvalidOrientationError
+
+_module_logger = logging.getLogger(__name__)
 
 
 def apply_rotation(vector: np.ndarray, settings: VolumeSettings) -> np.ndarray:
@@ -342,6 +347,28 @@ def get_sk_transform_from_parameters(
     return AffineTransform(matrix=matrix)
 
 
+def normalise_array(array: np.ndarray, dtype: Optional[np.dtype] = None) -> np.ndarray:
+    """Normalise an array to the range between 0 and the dtype's maximum value.
+
+    Args:
+        array (np.ndarray): Array to normalise.
+        dtype (np.dtype, optional):
+            Target dtype. If `None`, the dtype will be inferred as the dtype of `array`.
+
+    Returns:
+        np.ndarray: The normalised array.
+    """
+    dtype = dtype or array.dtype
+    maximum = get_dtype_maximum(dtype)
+
+    array = array.astype(np.float64)
+    array -= array.min()
+    array /= array.max()
+    array *= maximum
+
+    return array.astype(dtype)
+
+
 def signed_vector_angle(
     vector1: np.ndarray, vector2: np.ndarray, axis: np.ndarray
 ) -> float:
@@ -358,3 +385,92 @@ def signed_vector_angle(
     return math.degrees(
         math.atan2(np.dot((np.cross(vector1, vector2)), axis), np.dot(vector1, vector2))
     )
+
+
+def simulate_auto_contrast_passes(
+    image: np.ndarray, passes: int = 1, normalise: bool = True, inplace: bool = False
+) -> tuple[np.ndarray, bool]:
+    """Apply the ImageJ auto-contrast algorithm to an image.
+
+    Args:
+        image (np.ndarray): Image to apply the algorithm to.
+        passes (int, optional): How many passes to simulate. This correspond to how
+                                many presses of the "auto" button will be simulated.
+        normalise (bool, optional): Whether to normalise the image values to the full
+                                    range allowed by its dtype after applying the auto
+                                    contrast.
+        inplace (bool, optional): Whether to carry out the modification in place.
+
+    Returns:
+        np.ndarray: The result of applying `passes` number of passes on `image` using
+                    the auto-contrast algorithm.
+        bool: Whether the algorithm was successful. Passing `passes=0` returns False.
+
+    References:
+        https://github.com/imagej/ImageJ/blob/master/ij/plugin/frame/ContrastAdjuster.java#L815
+    """
+    if passes < 1:
+        if passes < 0:
+            _module_logger.warning(
+                "Cannot simulate a negative number of auto-contrast passes. "
+                "Returning the image as is."
+            )
+
+        return image, False
+
+    if not inplace:
+        image = image.copy()
+
+    pixel_count = np.prod(image.shape)
+    limit = pixel_count / 10
+
+    auto_threshold = 0
+    for i in range(1, passes + 1):
+        if auto_threshold < 10:
+            auto_threshold = 5_000
+        else:
+            auto_threshold /= 2
+    threshold = pixel_count / auto_threshold
+
+    histogram = np.histogram(image, bins=256, range=(0, get_dtype_maximum(image.dtype)))
+    histogram = (histogram[0], np.round(histogram[1]).astype(np.uint64))
+
+    i = 0  # Silence PyCharm warning
+    for i in range(256):
+        count = histogram[0][i]
+
+        if count > limit:
+            count = 0
+
+        found = count > threshold
+        if found:
+            break
+    histogram_minimum = i
+
+    j = 0  # Silence PyCharm warning
+    for j in range(255, -1, -1):
+        count = histogram[0][j]
+
+        if count > limit:
+            count = 0
+
+        found = count > threshold
+        if found:
+            break
+    histogram_maximum = j
+
+    # If algorithm was successful, clip the image. Otherwise, don't modify the image.
+    successful = False
+    if histogram_minimum < histogram_maximum:
+        np.clip(
+            image,
+            histogram[1][histogram_minimum],
+            histogram[1][histogram_maximum],
+            out=image,
+        )
+        successful = True
+
+    if normalise:
+        image[:] = normalise_array(image)
+
+    return image, successful
