@@ -16,7 +16,6 @@ from histalign.backend.ccf.paths import get_atlas_path
 from histalign.backend.io import (
     load_alignment_settings,
     load_volume,
-    RESOURCES_ROOT,
 )
 from histalign.backend.registration import ContourGeneratorThread
 from histalign.backend.workspace import HistologySlice
@@ -25,6 +24,7 @@ from histalign.frontend.pyside_helpers import (
     np_to_qpixmap,
     try_show_permanent_status_message,
 )
+from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
 
@@ -498,7 +498,7 @@ class FMRIPreview(ZoomAndPanView):
         make_primary_button = QtWidgets.QPushButton(self)
 
         make_primary_button.setIcon(
-            BinaryAlphaPixmap(RESOURCES_ROOT / "icons" / "search-line-icon.png")
+            BinaryAlphaPixmap(ICONS_ROOT / "search-line-icon.png")
         )
         make_primary_button.setIconSize(QtCore.QSize(12, 12))
 

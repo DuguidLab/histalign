@@ -10,7 +10,6 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.io import ICONS_ROOT
 from histalign.backend.models import (
     Resolution,
     VolumeBuildingSettings,
@@ -28,6 +27,7 @@ from histalign.frontend.common_widgets import (
 )
 from histalign.frontend.pyside_helpers import lua_aware_shift
 from histalign.frontend.quantification.prepare import QuantificationParametersFrame
+from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
 

@@ -27,7 +27,6 @@ from histalign.backend.ccf.model_view import (
 from histalign.backend.io import (
     ALIGNMENT_FILE_NAME_PATTERN,
     load_alignment_settings,
-    RESOURCES_ROOT,
 )
 from histalign.backend.workspace import HistologySlice
 from histalign.frontend.dialogs import OpenProjectDialog
@@ -45,6 +44,7 @@ from histalign.frontend.pyside_helpers import (
     lua_aware_shift,
 )
 from histalign.frontend.themes import is_light_colour
+from histalign.resources import ICONS_ROOT
 
 QWIDGETSIZE_MAX = 16777215  # Qt constant
 
@@ -455,7 +455,7 @@ class StructureTagWidget(QtWidgets.QFrame):
 
         #
         pixmap_label = ResizablePixmapLabel(
-            RESOURCES_ROOT / "icons" / "close-line-icon.png", icon_mode=True
+            ICONS_ROOT / "close-line-icon.png", icon_mode=True
         )
 
         pixmap_height = name_label.fontMetrics().boundingRect(name).height()
@@ -1538,7 +1538,7 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
     @staticmethod
     def generate_pixmaps() -> None:
         """Generates and caches the relevant pixmaps for this item."""
-        pixmap_out = QtGui.QPixmap(RESOURCES_ROOT / "icons" / "circle-center-icon.png")
+        pixmap_out = QtGui.QPixmap(ICONS_ROOT / "circle-center-icon.png")
         painter = QtGui.QPainter(pixmap_out)
         painter.setCompositionMode(
             QtGui.QPainter.CompositionMode.CompositionMode_SourceIn
@@ -3011,7 +3011,7 @@ class CollapsibleWidgetArea(QtWidgets.QWidget):
         icon_path = (
             Path(icon_path)
             if icon_path
-            else RESOURCES_ROOT / "icons" / "three-horizontal-lines-icon.png"
+            else ICONS_ROOT / "three-horizontal-lines-icon.png"
         )
 
         icon_button = HoverButton(icon_path=icon_path)
@@ -3102,9 +3102,9 @@ class VisibleSplitterHandle(QtWidgets.QSplitterHandle):
         icon_rect.moveCenter(self.rect().center())
 
         if self.orientation() == QtCore.Qt.Orientation.Vertical:
-            pixmap = BinaryAlphaPixmap(RESOURCES_ROOT / "icons" / "ellipsis-h-icon.png")
+            pixmap = BinaryAlphaPixmap(ICONS_ROOT / "ellipsis-h-icon.png")
         else:
-            pixmap = BinaryAlphaPixmap(RESOURCES_ROOT / "icons" / "ellipsis-v-icon.png")
+            pixmap = BinaryAlphaPixmap(ICONS_ROOT / "ellipsis-v-icon.png")
         painter.drawPixmap(icon_rect, pixmap, pixmap.rect())
 
         painter.end()
@@ -3267,7 +3267,7 @@ class ThumbnailWidget(QtWidgets.QFrame):
             "ThumbnailWidget_complete", complete_icon_pixmap
         ):
             complete_icon_pixmap = QtGui.QPixmap(
-                RESOURCES_ROOT / "icons" / "check-mark-square-icon.png"
+                ICONS_ROOT / "check-mark-square-icon.png"
             )
             QtGui.QPixmapCache.insert("ThumbnailWidget_complete", complete_icon_pixmap)
 
@@ -3472,7 +3472,7 @@ class FileWidget(HoverMixIn, DoubleClickMixIn, QtWidgets.QWidget):
 
         if not icon_path:
             icon_file_name = "folder-icon.svg" if is_folder else "file-black-icon.svg"
-            icon_path = RESOURCES_ROOT / "icons" / icon_file_name
+            icon_path = ICONS_ROOT / icon_file_name
         icon = Icon(icon_path)
         icon.setFixedSize(QtCore.QSize(30, 30))
         icon.setIconSize(QtCore.QSize(20, 20))
@@ -3596,9 +3596,7 @@ class NavigationHeader(QtWidgets.QWidget):
         back_button = HoverButton(flat=True)
         back_button.clicked.connect(self.decrease_stack_index)
         back_button.setFixedSize(40, 40)
-        back_button.setIcon(
-            QtGui.QIcon(str(RESOURCES_ROOT / "icons" / "thin-arrow-left-icon.png"))
-        )
+        back_button.setIcon(QtGui.QIcon(str(ICONS_ROOT / "thin-arrow-left-icon.png")))
         back_button.setIconSize(QtCore.QSize(18, 18))
         self.back_button = back_button
 
@@ -3606,7 +3604,7 @@ class NavigationHeader(QtWidgets.QWidget):
         forward_button.clicked.connect(self.increase_stack_index)
         forward_button.setFixedSize(40, 40)
         forward_button.setIcon(
-            QtGui.QIcon(str(RESOURCES_ROOT / "icons" / "thin-arrow-right-icon.png"))
+            QtGui.QIcon(str(ICONS_ROOT / "thin-arrow-right-icon.png"))
         )
         forward_button.setIconSize(QtCore.QSize(18, 18))
         self.forward_button = forward_button
@@ -3701,14 +3699,14 @@ class NavigationArea(QtWidgets.QScrollArea):
         self._widget_stack = []
 
         folder_2d_button = DoubleClickHoverButton(
-            icon_path=RESOURCES_ROOT / "icons" / "2d-folder-icon.svg"
+            icon_path=ICONS_ROOT / "2d-folder-icon.svg"
         )
         folder_2d_button.clicked.connect(self.show_2d_folders)
         folder_2d_button.setFixedSize(QtCore.QSize(100, 100))
         folder_2d_button.setIconSize(QtCore.QSize(80, 80))
 
         folder_3d_button = DoubleClickHoverButton(
-            icon_path=RESOURCES_ROOT / "icons" / "3d-folder-icon.svg"
+            icon_path=ICONS_ROOT / "3d-folder-icon.svg"
         )
         folder_3d_button.clicked.connect(self.show_3d_files)
         folder_3d_button.setFixedSize(QtCore.QSize(100, 100))
@@ -3737,7 +3735,7 @@ class NavigationArea(QtWidgets.QScrollArea):
         self._folders_2d_widget = FileListWidget(parent=self)
         self._folders_2d_widget.hide()
         self._files_3d_widget = FileListWidget(
-            file_icon_path=RESOURCES_ROOT / "icons" / "innovative-brain-icon.svg",
+            file_icon_path=ICONS_ROOT / "innovative-brain-icon.svg",
             parent=self,
         )
         self._files_3d_widget.hide()

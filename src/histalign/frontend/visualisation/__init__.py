@@ -11,7 +11,7 @@ from scipy.ndimage import gaussian_filter
 
 from histalign.backend.ccf.downloads import download_structure_mask
 from histalign.backend.ccf.paths import get_structure_mask_path
-from histalign.backend.io import load_volume, RESOURCES_ROOT
+from histalign.backend.io import load_volume
 from histalign.backend.models import Resolution
 from histalign.backend.preprocessing import normalise_array
 from histalign.frontend.common_widgets import (
@@ -21,6 +21,7 @@ from histalign.frontend.common_widgets import (
 )
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.views import SliceViewer, VolumeViewer
+from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
 
@@ -72,9 +73,7 @@ class VisualisationWidget(QtWidgets.QWidget):
         #
         left_tools_widget = CollapsibleWidgetArea("left_to_right")
 
-        left_tools_widget.add_widget(
-            navigation_widget, RESOURCES_ROOT / "icons" / "folders-icon.svg"
-        )
+        left_tools_widget.add_widget(navigation_widget, ICONS_ROOT / "folders-icon.svg")
 
         self.left_tools_widget = left_tools_widget
 
@@ -83,7 +82,7 @@ class VisualisationWidget(QtWidgets.QWidget):
 
         right_tools_widget.add_widget(
             information_widget,
-            RESOURCES_ROOT / "icons" / "three-horizontal-lines-icon.png",
+            ICONS_ROOT / "three-horizontal-lines-icon.png",
         )
 
         self.right_tools_widget = right_tools_widget

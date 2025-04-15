@@ -11,7 +11,6 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.paths import get_annotation_path
-from histalign.backend.io import RESOURCES_ROOT
 from histalign.backend.maths import apply_rotation, compute_centre, compute_origin
 from histalign.backend.models import Orientation
 from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace
@@ -34,6 +33,7 @@ from histalign.frontend.registration.alignment import (
 from histalign.frontend.registration.alpha import AlphaWidget
 from histalign.frontend.registration.settings import SettingsWidget
 from histalign.frontend.registration.thumbnails import ThumbnailsWidget
+from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
 
@@ -192,7 +192,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         save_alignment_button = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "file-black-icon.png",
+            icon_path=ICONS_ROOT / "file-black-icon.png",
             shortcut=QtGui.QKeySequence("CTRL+SHIFT+S"),
             tool_tip="Save alignment for the current image.",
         )
@@ -202,7 +202,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         load_alignment_button = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "upload-arrow-icon.png",
+            icon_path=ICONS_ROOT / "upload-arrow-icon.png",
             shortcut=QtGui.QKeySequence("CTRL+L"),
             tool_tip="Load the saved alignment for the current image.",
         )
@@ -219,7 +219,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         delete_alignment_button = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "recycle-bin-icon.png",
+            icon_path=ICONS_ROOT / "recycle-bin-icon.png",
             tool_tip="Delete the saved alignment for the current image.",
         )
         delete_alignment_button.clicked.connect(self.delete_alignment)
@@ -236,7 +236,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         reset_histology_button = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "forward-restore-icon.png",
+            icon_path=ICONS_ROOT / "forward-restore-icon.png",
             tool_tip="Reset the image alignment settings.",
         )
         reset_histology_button.clicked.connect(
@@ -247,7 +247,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         reset_volume_button = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "forward-restore-icon.png",
+            icon_path=ICONS_ROOT / "forward-restore-icon.png",
             tool_tip="Reset the atlas alignment settings.",
         )
         reset_volume_button.clicked.connect(
@@ -258,7 +258,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         apply_auto_threshold_button = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "background-icon.png",
+            icon_path=ICONS_ROOT / "background-icon.png",
             shortcut=QtGui.QKeySequence("CTRL+SHIFT+C"),
             tool_tip="Apply a pass of ImageJ's auto-contrasting algorithm.",
         )
@@ -272,7 +272,7 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         background_alpha_spin_box_icon = ShortcutAwareToolButton(
             enabled=False,
-            icon_path=RESOURCES_ROOT / "icons" / "color-contrast-icon.png",
+            icon_path=ICONS_ROOT / "color-contrast-icon.png",
         )
         background_alpha_spin_box_icon.setStyleSheet(
             """
@@ -303,7 +303,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         tool_bar.addWidget(background_alpha_spin_box)
 
         landmark_registration_button = ShortcutAwareToolButton(
-            icon_path=RESOURCES_ROOT / "icons" / "interactivity-icon.png",
+            icon_path=ICONS_ROOT / "interactivity-icon.png",
             tool_tip="Start the landmark registration process.",
         )
         self.histology_opened.connect(

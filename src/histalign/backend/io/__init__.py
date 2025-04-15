@@ -4,7 +4,6 @@
 
 """This module provides an API for loading 2D and 3D files and inspecting directories."""
 
-import importlib.resources
 import json
 import logging
 import os
@@ -30,12 +29,6 @@ if not data_directories:
     raise ValueError("Cannot find a data directory.")
 DATA_ROOT = Path(data_directories[0]) / "histalign"
 del data_directories
-
-# noinspection PyTypeChecker
-RESOURCES_ROOT = Path(
-    importlib.resources.files("histalign.resources").joinpath(".")
-).resolve()
-ICONS_ROOT = RESOURCES_ROOT / "icons"
 
 ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
 

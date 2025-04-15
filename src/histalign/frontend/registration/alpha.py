@@ -6,8 +6,8 @@ import typing
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.io import RESOURCES_ROOT
 from histalign.frontend.common_widgets import CircularPushButton, DynamicThemeIcon
+from histalign.resources import ICONS_ROOT
 
 
 class AlphaWidget(QtWidgets.QWidget):
@@ -28,7 +28,7 @@ class AlphaWidget(QtWidgets.QWidget):
             global_alpha_button.setMaximumHeight(20)
         global_alpha_button.setMaximumWidth(20)
         global_alpha_button.setIcon(
-            DynamicThemeIcon(RESOURCES_ROOT / "icons" / "color-contrast-icon.png")
+            DynamicThemeIcon(ICONS_ROOT / "color-contrast-icon.png")
         )
         global_alpha_button.setToolTip("Toggle general transparency of current image.")
         global_alpha_button.setStatusTip(
