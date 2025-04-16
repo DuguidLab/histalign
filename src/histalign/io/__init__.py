@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-from typing import Optional
+from typing import Literal, Optional
 
 import nrrd
 import numpy as np
@@ -18,6 +18,7 @@ import vedo
 from histalign.backend.maths import normalise_array
 from histalign.backend.models import AlignmentSettings
 from histalign.io.image import (
+    DimensionOrder,
     get_appropriate_plugin_class,
     ImageFile,
     MultiSeriesImageFile,
@@ -146,19 +147,27 @@ def load_volume(
 
 
 # noinspection PyUnboundLocalVariable
-def open_file(path: str | Path) -> ImageFile:
+def open_file(
+    path: str | Path,
+    mode: Literal["r", "w"] = "r",
+    dimension_order: Optional[DimensionOrder] = None,
+) -> ImageFile:
     """Opens a file from disk.
 
     Args:
         path (str | Path): Path to the file on disk.
+        mode (Literal["r", "w"], optional): Mode to open the file with.
+        dimension_order (Optional[str | DimensionOrder], optional):
+            Order of the dimensions in the file. Leave as `None` to attempt guessing
+            based on dimension sizes.
 
     Returns:
         ImageFile: A handle to the opened file.
     """
     path = Path(path)
 
-    plugin_class = get_appropriate_plugin_class(path, "r")
-    return plugin_class(path, "r", None)
+    plugin_class = get_appropriate_plugin_class(path, mode)
+    return plugin_class(path, mode, dimension_order)
 
 
 def load_alignment_settings(path: str | Path) -> AlignmentSettings:
