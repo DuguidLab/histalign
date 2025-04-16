@@ -10,6 +10,7 @@ from typing import Any, Iterator, Optional, Sequence, TypeVar
 
 import click
 import numpy as np
+from PIL import Image
 
 from histalign.io.language_helpers import classproperty
 
@@ -27,6 +28,10 @@ EXTENSIONS: dict[Extension, Format] = {}
 # right, bias is for Y for be the first dimension then X).
 CZ_THRESHOLD = 5
 XY_THRESHOLD = 50
+
+DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
+THUMBNAIL_DIMENSIONS = (320, 180)  # XY not IJ
+THUMBNAIL_ASPECT_RATIO = THUMBNAIL_DIMENSIONS[0] / THUMBNAIL_DIMENSIONS[1]
 
 _module_logger = logging.getLogger(__name__)
 
@@ -203,6 +208,7 @@ class ImageFile(ABC):
     format: str
     extensions: tuple[str, ...]
 
+    file_path: Path
     dimension_order: DimensionOrder
     index: tuple[slice, ...]
 
@@ -216,6 +222,8 @@ class ImageFile(ABC):
         metadata: Optional["OmeXml"] = None,
         **kwargs,
     ) -> None:
+        self.file_path = file_path
+
         if dimension_order is None and mode != "r":
             shape = kwargs.get("shape")
             if shape is None:
@@ -280,6 +288,83 @@ class ImageFile(ABC):
 
     def close(self) -> None:
         self.file_handle = DeferredError(ValueError("Operation on closed file."))
+
+    def generate_thumbnail(
+        self, dimensions: tuple[int, int] = THUMBNAIL_DIMENSIONS
+    ) -> np.ndarray:
+        """Generates a thumbnail for the current image.
+
+        Args:
+            dimensions (tuple[int, int], optional):
+                Dimensions of the target thumbnail. The image is padded to fit in this
+                aspect ratio.
+
+        Returns:
+            np.ndarray: A thumbnail of the current image
+        """
+        _module_logger.debug(f"Generating thumbnail for '{self.file_path}'.")
+
+        _module_logger.debug(f"Retrieving image for thumbnail.")
+        # Retrieve a starting point for thumbnail generation, allowing plugins to
+        # optimise how much of an image to load when thumbnail generation is the goal.
+        image = self.get_image_for_thumbnail(dimensions)
+        # Transpose the image if width is before height as PIL assumes NumPy arrays are
+        # using row-major.
+        if "XY" in self.dimension_order.value:
+            image = image.T
+
+        _module_logger.debug("Resizing image to thumbnail.")
+        # Use PIL to resize
+        image_pil = Image.fromarray(image)
+        image_pil.thumbnail(dimensions, resample=Image.Resampling.NEAREST)
+
+        thumbnail = np.array(image_pil)
+
+        # Pad
+        i_padding = dimensions[1] - thumbnail.shape[0]
+        j_padding = dimensions[0] - thumbnail.shape[1]
+
+        thumbnail = np.pad(
+            thumbnail,
+            (
+                (i_padding // 2, i_padding // 2 + i_padding % 2),
+                (j_padding // 2, j_padding // 2 + j_padding % 2),
+            ),
+            constant_values=100,
+        )
+
+        _module_logger.debug(f"Finished generating thumbnail for '{self.file_path}'.")
+        return thumbnail
+
+    def get_image_for_thumbnail(self, dimensions: tuple[int, int]) -> np.ndarray:
+        """Loads the current image for thumbnail generation.
+
+        This function uses fancy indexing to limit how much of an image to load to
+        generate a thumbnail. Not all plugins can make use of the fancy indexing and
+        the whole image will be loaded and then indexed. However, plugins like HDF5
+        and TIFF can make use of the fancy indexing to only load the relevant pixels
+        of the image.
+
+        Args:
+            dimensions (tuple[int, int]): Dimensions of the target thumbnail.
+
+        Returns:
+            np.ndarray: The image to thumbnail.
+        """
+        display_shape = np.array(self.shape)[np.array(self.index) == slice(None)]
+        if "YX" in self.dimension_order.value:
+            display_shape = display_shape[::-1]
+
+        # Load the smallest image possible while still above thumbnail dimensions
+        step = int(np.max(np.array(display_shape) / np.array(dimensions)) // 1)
+        index = tuple(
+            (
+                slice_ if slice_ != slice(None) else slice(None, None, step)
+                for slice_ in self.index
+            )
+        )
+
+        return self.read_image(index).squeeze()
 
     @abstractmethod
     def read_image(self, index: tuple[slice, ...]) -> np.ndarray: ...
