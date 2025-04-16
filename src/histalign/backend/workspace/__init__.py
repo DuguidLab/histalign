@@ -849,7 +849,7 @@ class Workspace(QtCore.QObject):
 
         volume_path = get_atlas_path(project_settings.resolution)
         self.alignment_settings = AlignmentSettings(
-            volume_path=volume_path,
+            volume_path=Path(volume_path),
             volume_settings=VolumeSettings(
                 orientation=project_settings.orientation,
                 resolution=project_settings.resolution,
@@ -1046,10 +1046,10 @@ class Workspace(QtCore.QObject):
             handle.write(self.alignment_settings.model_dump_json())
 
     @QtCore.Slot()
-    def load_alignment(self) -> bool:
+    def load_alignment(self) -> None:
         alignment_path = self.build_alignment_path()
         if alignment_path is None:
-            return False
+            return
 
         with open(alignment_path) as handle:
             alignment_settings = AlignmentSettings(**json.load(handle))
