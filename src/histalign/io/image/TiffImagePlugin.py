@@ -5,12 +5,14 @@
 from fractions import Fraction
 import logging
 from pathlib import Path
+import re
 from typing import Optional
 
 import numpy as np
 import tifffile
 from tifffile import RESUNIT
 
+from histalign.io import DimensionOrder
 from histalign.io.image import ImageFile, register_plugin
 from histalign.io.image.metadata import OmeXml, OmeXmlChannel, UnitsLength
 
@@ -72,6 +74,9 @@ class TiffImagePlugin(ImageFile):
 
     def load(self) -> np.ndarray:
         return self.file_handle[:]
+
+    def try_get_dimension_order(self) -> Optional[DimensionOrder]:
+        return convert_tiff_axes_to_dimension_order(self._file_handle.series[0].axes)
 
     def read_image(self, index: tuple[slice, ...]) -> np.ndarray:
         return self.file_handle[index]
@@ -203,6 +208,35 @@ def convert_imagej_tiff_z_unit_to_ome(value: str) -> UnitsLength:
                 f"metadata. Assuming µm."
             )
             return UnitsLength.micro
+
+
+def convert_tiff_axes_to_dimension_order(axes: str) -> Optional[DimensionOrder]:
+    """Converts a `TiffPageSeries.axes` to a `DimensionOrder`.
+
+    For details of `tifffile`'s conventions on naming axes, see this issue:
+    and this source code:
+
+    Args:
+        axes (str): String representation of the dimensions.
+
+    Returns:
+        Optional[DimensionOrder]:
+            The converted dimension order or `None` if the conversion failed.
+
+    References:
+        https://github.com/cgohlke/tifffile/issues/293
+        https://github.com/cgohlke/tifffile/blob/78b57cf84bd92528ba8877ea4972769bb4d43600/tifffile/tifffile.py#L18594-L18618
+    """
+    # Check axes only contains supported dimensions
+    if not re.fullmatch(r"^[XYZCS]+$", axes).group() == axes:
+        return None
+
+    # We cast S to C, hence ensure both aren't present
+    if "C" in axes and "S" in axes:
+        return None
+    axes = re.sub("S", "C", axes)
+
+    return DimensionOrder(axes)
 
 
 register_plugin(

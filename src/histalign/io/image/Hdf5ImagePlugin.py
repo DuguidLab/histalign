@@ -13,6 +13,7 @@ from typing import Optional
 import h5py
 import numpy as np
 
+from histalign.io import DimensionOrder
 from histalign.io.image import MultiSeriesImageFile, register_plugin
 from histalign.io.image.metadata import OmeXml, OmeXmlChannel, UnitsLength
 
@@ -56,6 +57,16 @@ class Hdf5ImagePlugin(MultiSeriesImageFile):
     def close(self) -> None:
         self.file_handle.close()
         super().close()
+
+    def try_get_dimension_order(self) -> Optional[DimensionOrder]:
+        dimension_order = self.file_handle[self._datasets[self.series_index]].attrs.get(
+            "DimensionOrder"
+        )
+        if dimension_order is None:
+            return dimension_order
+
+        # Dimension order is stored as a quoted string
+        return dimension_order[1:-1]
 
     def read_image(self, index: tuple[slice, ...]) -> np.ndarray:
         return self.file_handle[self._datasets[self.series_index]][index]

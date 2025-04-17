@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
+from histalign.io import DimensionOrder
 from histalign.io.image import ImageFile, register_plugin
 from histalign.io.image.metadata import OmeXml
 
@@ -43,6 +44,9 @@ class PngImagePlugin(ImageFile):
 
     def load(self) -> np.ndarray:
         return self.read_image(tuple())
+
+    def try_get_dimension_order(self) -> Optional[DimensionOrder]:
+        return DimensionOrder("YX")
 
     def read_image(self, index: tuple[slice, ...]) -> np.ndarray:
         if self._cache is None:

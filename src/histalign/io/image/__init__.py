@@ -224,38 +224,41 @@ class ImageFile(ABC):
     ) -> None:
         self.file_path = file_path
 
-        if dimension_order is None and mode != "r":
-            shape = kwargs.get("shape")
-            if shape is None:
-                raise ValueError(
-                    "Cannot guess dimension order of new file without a shape."
-                )
-            dimension_order = attempt_guess_dimension_order(shape)
+        if dimension_order is None and mode == "w":
+            raise ValueError(
+                f"Mode 'w' is unsupported with an unknown dimension order."
+            )
         self.dimension_order = dimension_order
 
         self._open(file_path, mode, metadata, **kwargs)
 
+        # Attempt to retrieve dimension order from metadata
         if dimension_order is None:
-            # Allow potentially missing dimension order for probing
-            try:
-                dimension_order = attempt_guess_dimension_order(self.shape)
+            dimension_order = self.try_get_dimension_order()
+            if dimension_order is not None:
+                dimension_order = DimensionOrder(dimension_order)
+            # When all else fails, try to to guess dimension order from heuristic
+            if dimension_order is None:
+                # Allow potentially missing dimension order for probing
+                try:
+                    dimension_order = attempt_guess_dimension_order(self.shape)
 
-                if len(dimension_order.value) > 2 and not self.supports_series:
-                    raise DimensionOrderNotSupportedError(dimension_order, self.format)
-                self.dimension_order = dimension_order
+                    if len(dimension_order.value) > 2 and not self.supports_series:
+                        raise DimensionOrderNotSupportedError(
+                            dimension_order, self.format
+                        )
+                    self.dimension_order = dimension_order
 
-                if len(dimension_order.value) != len(self.shape):
-                    raise DimensionOrderMismatchError(
-                        dimension_order, file_path, self.shape
-                    )
-
-                self.reset_index()
-            except FailedGuessingDimensionOrderError as error:
-                if kwargs.get("allow_no_dimension_order") is None:
-                    raise error
-
+                    if len(dimension_order.value) != len(self.shape):
+                        raise DimensionOrderMismatchError(
+                            dimension_order, file_path, self.shape
+                        )
+                except FailedGuessingDimensionOrderError as error:
+                    if kwargs.get("allow_no_dimension_order") is None:
+                        raise error
             self.dimension_order = dimension_order
-        else:
+
+        if self.dimension_order is not None:
             self.reset_index()
 
     @property
@@ -368,6 +371,15 @@ class ImageFile(ABC):
         )
 
         return self.read_image(index).squeeze()
+
+    @abstractmethod
+    def try_get_dimension_order(self) -> Optional[DimensionOrder]:
+        """Attempts to get the dimension order from metadata.
+
+        Returns:
+            Optional[DimensionOrder]:
+                The retrieved dimension order or `None` if it could not be determined.
+        """
 
     @abstractmethod
     def read_image(self, index: tuple[slice, ...]) -> np.ndarray: ...

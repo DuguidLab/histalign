@@ -93,6 +93,9 @@ class LifImagePlugin(MultiSeriesImageFile):
 
         return whole_series
 
+    def try_get_dimension_order(self) -> Optional[DimensionOrder]:
+        return self._all_images_metadata[self.series_index].DimensionOrder
+
     def read_image(self, index: tuple[slice, ...]) -> np.ndarray:
         frame = np.array(
             self._current_image.get_frame(
