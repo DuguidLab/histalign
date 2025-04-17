@@ -664,6 +664,11 @@ class Workspace(QtCore.QObject):
         else:
             valid_paths = self.gather_image_paths(directory_path, only_neun)
 
+        if len(valid_paths) == 0:
+            _module_logger.warning(
+                f"Could not find any valid images in '{directory_path}'."
+            )
+
         self.working_directory = working_directory
         os.makedirs(self.working_directory, exist_ok=True)
 
