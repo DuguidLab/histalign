@@ -186,7 +186,10 @@ Color:                  {metadata.Color}\
 
 
 def horizontal_line(name: str) -> str:
-    terminal_width = os.get_terminal_size()[0]
+    try:
+        terminal_width = os.get_terminal_size()[0]
+    except OSError:
+        terminal_width = 20
     left_padding, remainder = divmod(terminal_width - 2 - len(name), 2)
     right_padding = left_padding + remainder
 
