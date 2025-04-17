@@ -24,7 +24,7 @@ from histalign.backend.ccf.model_view import (
     ABAStructureTreeModel,
     iterate_tree_model_dfs,
 )
-from histalign.backend.workspace import HistologySlice
+from histalign.backend.workspace import build_thumbnail_path
 from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.events import (
     AboutToCollapseEvent,
@@ -41,6 +41,7 @@ from histalign.frontend.pyside_helpers import (
 )
 from histalign.frontend.themes import is_light_colour
 from histalign.io import is_alignment_file, load_alignment_settings
+from histalign.io.image import generate_file_hash
 from histalign.resources import ICONS_ROOT
 
 QWIDGETSIZE_MAX = 16777215  # Qt constant
@@ -1452,10 +1453,7 @@ class SliceNamesComboBox(QtWidgets.QComboBox):
 
             if (
                 not Path(file_path).exists()
-                or not (
-                    metadata_root
-                    / f"{HistologySlice.generate_file_name_hash(file_path)}.json"
-                ).exists()
+                or not (metadata_root / generate_file_hash(file_path)).exists()
             ):
                 self.model().item(self.findText(file_name)).setEnabled(False)
 
@@ -3913,8 +3911,8 @@ class NavigationArea(QtWidgets.QScrollArea):
         try:
             volume_paths = list(map(Path, contents["interpolated"]))
         except KeyError:
-            _module_logger.error(
-                f"Could not parse 'volumes.json' file "
+            _module_logger.debug(
+                f"Did not find interpolated volumes entry in 'volumes.json' file "
                 f"for project '{self.project_root}'."
             )
             return
@@ -3959,9 +3957,10 @@ class NavigationArea(QtWidgets.QScrollArea):
         alignment_settings = load_alignment_settings(alignment_path)
         histology_path = alignment_settings.histology_path
 
-        # TODO: Thread this in case the thumbnail cache was cleared since registration
-        thumbnail_path = HistologySlice(str(histology_path)).generate_thumbnail(
-            str(alignment_path.parent)
+        # TODO: Attempt to generate thumbnail in case it was cleared since registration
+        #       or at least provide a placeholder.
+        thumbnail_path = build_thumbnail_path(
+            alignment_path.parent, alignment_path.stem
         )
 
         widget = ThumbnailWidget(thumbnail_path, histology_path.name)

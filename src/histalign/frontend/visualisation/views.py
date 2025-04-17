@@ -13,8 +13,8 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf.paths import get_atlas_path
+from histalign.backend.maths import normalise_array
 from histalign.backend.registration import ContourGeneratorThread
-from histalign.backend.workspace import HistologySlice
 from histalign.frontend.common_widgets import BinaryAlphaPixmap, ZoomAndPanView
 from histalign.frontend.pyside_helpers import (
     np_to_qpixmap,
@@ -23,6 +23,7 @@ from histalign.frontend.pyside_helpers import (
 from histalign.io import (
     load_alignment_settings,
     load_volume,
+    open_file,
 )
 from histalign.resources import ICONS_ROOT
 
@@ -102,10 +103,10 @@ class SliceViewer(QtWidgets.QWidget):
         alignment_settings = load_alignment_settings(alignment_path)
         histology_path = alignment_settings.histology_path
 
-        file = HistologySlice(str(histology_path))
-        file.load_image(str(alignment_path.parent), downsampling_factor=1)
-
-        pixmap = np_to_qpixmap(file.image_array)
+        handle = open_file(histology_path)
+        pixmap = np_to_qpixmap(
+            normalise_array(handle.read_image(handle.index), np.uint8)
+        )
 
         self.set_pixmap(pixmap)
         self._alignment_settings = alignment_settings

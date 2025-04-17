@@ -4,6 +4,7 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Iterator, Optional, Sequence, TypeVar
@@ -29,7 +30,6 @@ EXTENSIONS: dict[Extension, Format] = {}
 CZ_THRESHOLD = 5
 XY_THRESHOLD = 50
 
-DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
 THUMBNAIL_DIMENSIONS = (320, 180)  # XY not IJ
 THUMBNAIL_ASPECT_RATIO = THUMBNAIL_DIMENSIONS[0] / THUMBNAIL_DIMENSIONS[1]
 
@@ -259,6 +259,10 @@ class ImageFile(ABC):
             self.reset_index()
 
     @property
+    def hash(self) -> str:
+        return generate_file_hash(self.file_path)
+
+    @property
     @abstractmethod
     def shape(self) -> tuple[int, ...]: ...
 
@@ -330,7 +334,6 @@ class ImageFile(ABC):
                 (i_padding // 2, i_padding // 2 + i_padding % 2),
                 (j_padding // 2, j_padding // 2 + j_padding % 2),
             ),
-            constant_values=100,
         )
 
         _module_logger.debug(f"Finished generating thumbnail for '{self.file_path}'.")
@@ -504,6 +507,11 @@ class DeferredError:
     # True signature is "-> Never" but mypy doesn't like it
     def __getattr__(self, _: Any) -> Any:
         raise self.exception
+
+
+def generate_file_hash(path: str | Path) -> str:
+    path = str(path)
+    return hashlib.md5(path.encode("UTF-8")).hexdigest()
 
 
 def generate_indices(

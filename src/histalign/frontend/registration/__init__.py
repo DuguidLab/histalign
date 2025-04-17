@@ -5,6 +5,7 @@
 from contextlib import suppress
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -492,10 +493,8 @@ class RegistrationWidget(QtWidgets.QWidget):
         self.settings_widget.volume_settings_widget.blockSignals(False)
         self.settings_widget.histology_settings_widget.blockSignals(False)
 
-        for index, slice_ in enumerate(self.workspace._histology_slices):
-            if not os.path.exists(
-                self.workspace.working_directory + os.sep + slice_.hash + ".json"
-            ):
+        for index, hash in enumerate(self.workspace.list_hashes()):
+            if not Path(self.workspace.build_alignment_path(hash)).exists():
                 continue
 
             self.thumbnails_widget.set_thumbnail_completed(index, True)
@@ -621,10 +620,6 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         image = self.workspace.get_image(index)
         if image is None:
-            if len(self.workspace._histology_slices) > 0:
-                _module_logger.error(
-                    f"Failed retrieving image at index {index}, index out of range."
-                )
             return
 
         self.alignment_widget.update_histological_slice(image)

@@ -20,14 +20,19 @@ def get_appropriate_transform_function(transform: Transform) -> Callable:
 
 
 def downscaling_transform(
-    image: np.ndarray, downscaling_factor: int = 4, downscaling_order: int = 3, **kwargs
+    image: np.ndarray,
+    downscaling_factor: int = 4,
+    downscaling_order: int = 3,
+    naive: bool = False,
+    **kwargs,
 ) -> np.ndarray:
-    downscaled_image = rescale(
+    if naive:
+        return image[::downscaling_factor, ::downscaling_factor]
+
+    return rescale(
         image,
         1 / downscaling_factor,
         order=downscaling_order,
         preserve_range=True,
         anti_aliasing=True,
     )
-
-    return downscaled_image

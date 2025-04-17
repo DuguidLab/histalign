@@ -113,7 +113,7 @@ def load_volume(
     """
     # TODO: Write NRRD plugin
     try:
-        file = open_file(path)
+        file = open_file(path, dimension_order=DimensionOrder.XYZ)
 
         if isinstance(file, MultiSeriesImageFile):
             if file.series_count < 1:

@@ -15,6 +15,7 @@ from histalign.backend.maths import (
     convert_q_transform_to_sk_transform,
     convert_sk_transform_to_q_transform,
     get_sk_transform_from_parameters,
+    normalise_array,
     simulate_auto_contrast_passes,
 )
 from histalign.backend.models import (
@@ -162,6 +163,11 @@ class AlignmentWidget(QtWidgets.QWidget):
         if array is None:
             self.histology_image = QtGui.QImage()
         else:
+            # Ensure images are 8-bit as that's the only way to have an indexed format
+            # and the indexed format allows LUTs.
+            if array.dtype != np.uint8:
+                array = normalise_array(array, np.uint8)
+
             self.histology_image = QtGui.QImage(
                 array.tobytes(),
                 array.shape[1],

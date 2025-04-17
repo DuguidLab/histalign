@@ -4,6 +4,7 @@
 
 from __future__ import annotations, annotations, annotations
 
+from pathlib import Path
 from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -45,7 +46,7 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         self.flush_thumbnails()
 
         workspace.thumbnail_generated.connect(self.update_thumbnail)
-        self.thumbnails_swapped.connect(workspace.swap_slices)
+        self.thumbnails_swapped.connect(workspace.swap_images)
 
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         event.accept()
@@ -229,7 +230,7 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         self.verticalScrollBar().setValue(self.verticalScrollBar().value() + speed)
 
     @QtCore.Slot()
-    def update_thumbnail(self, index: int, file_path: str, file_name: str) -> None:
+    def update_thumbnail(self, index: int, file_path: Path, file_name: str) -> None:
         thumbnail_widget = ThumbnailWidget(
             file_path, file_name, index, parent=self.widget()
         )

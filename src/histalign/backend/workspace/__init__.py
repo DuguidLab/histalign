@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 from functools import partial
@@ -29,7 +29,6 @@ from PySide6 import QtCore
 from scipy import ndimage
 from scipy.spatial.distance import euclidean
 from scipy.spatial.transform import Rotation
-from skimage.transform import resize
 import vedo  # type: ignore[import]
 
 from histalign.backend.ccf.downloads import download_annotation_volume, download_atlas
@@ -40,6 +39,7 @@ from histalign.backend.maths import (
     compute_normal_from_raw,
     compute_origin,
     find_plane_mesh_corners,
+    normalise_array,
     signed_vector_angle,
 )
 from histalign.backend.models import (
@@ -49,268 +49,13 @@ from histalign.backend.models import (
     Resolution,
     VolumeSettings,
 )
+from histalign.io import ImageFile, open_file
 import histalign.io as io
+from histalign.io.transform.transforms import downscaling_transform
 
 _module_logger = logging.getLogger(__name__)
 
-DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)
-THUMBNAIL_DIMENSIONS = (320, 180)
-THUMBNAIL_ASPECT_RATIO = THUMBNAIL_DIMENSIONS[0] / THUMBNAIL_DIMENSIONS[1]
-
-
-class HistologySlice:
-    """Wrapper around histology images present on the file system.
-
-    The class allows easier management of the images and record keeping by a `Workspace`
-    by handling the loading from disk and thumbnail generation for the GUI.
-
-    Attributes:
-        hash (str): MD5 hash obtained from the image's file name.
-        file_path (str): Absolute file path of the image.
-        image_array (np.ndarray | None): Array of the image if it has been loaded or
-                                         None otherwise.
-        thumbnail_array (np.ndarray | None): Array of the thumbnail if it has been
-                                             generated or None otherwise.
-    """
-
-    hash: str
-    file_path: str
-    image_array: Optional[np.ndarray] = None
-    thumbnail_array: Optional[np.ndarray] = None
-    image_downsampling_factor: Optional[int] = None
-
-    def __init__(self, file_path: str) -> None:
-        """Creates a new wrapper around the image located at `file_path`.
-
-        Args:
-            file_path (str): Path to the image to wrap.
-        """
-        self.hash = self.generate_file_name_hash(file_path)
-        self.file_path = os.path.abspath(file_path)
-
-        self.image_array = None
-        self.thumbnail_array = None
-
-        self.logger = logging.getLogger(__name__)
-
-        self._h5_handle = None
-
-    def load_image(self, working_directory: str, downsampling_factor: int = 0) -> None:
-        """Loads wrapped image into memory.
-
-        To avoid having to reload the image again for it, the thumbnail is also
-        generated before returning.
-
-        Note that the greater the downsampling factor and the smaller the image, the
-        greater the discrepancy between the original aspect ratio and the downsampled
-        one. Do not set a downsampling factor if you are unsure whether the discrepancy
-        will impact your analysis.
-
-        Args:
-            working_directory (str): Working directory to use to find the cache
-                                     location.
-            downsampling_factor (int): Factor to downsample raw image by. If set to 0
-                                       (the default), the image is automatically
-                                       downsampled to a manageable size if necessary or
-                                       kept as-is if it is already small enough.
-        """
-        self.image_array = self._load_image(downsampling_factor)
-
-        self.generate_thumbnail(working_directory)
-
-    def generate_thumbnail(self, working_directory: str) -> str:
-        """Generates thumbnail for self.
-
-        In order to avoid loading the wrapped image into memory unnecessarily, the
-        thumbnail is not automatically generated during initialisation. Instead, call
-        this method if a thumbnail is required. If the image was loaded at any point,
-        a thumbnail will exist already.
-
-        If a thumbnail was previously generated in the provided directory, the cached
-        thumbnail will be loaded instead, meaning the image is not loaded into memory.
-
-        Args:
-            working_directory (str):
-                Working directory to use to find the cache location.
-        """
-        self.logger.debug(f"Generating thumbnail for {self.hash[:10]}.")
-
-        cache_root = Path(working_directory) / ".cache" / "thumbnails"
-        os.makedirs(cache_root, exist_ok=True)
-
-        # Try loading cached file
-        cache_path = str(cache_root / f"{self.hash[:10]}.png")
-        with contextlib.suppress(FileNotFoundError):
-            Image.open(cache_path)
-            self.logger.debug(f"Found cached thumbnail ('{cache_path}').")
-            return cache_path
-
-        image_array = self.image_array
-        if image_array is None:
-            # TODO: Include `histoflow` for IO
-            if self.file_path.endswith(".h5"):
-                h5_handle = h5py.File(self.file_path, "r")
-                self._h5_handle = h5_handle
-
-                dataset_name = list(h5_handle.keys())
-
-                if len(dataset_name) != 1:
-                    raise ValueError(
-                        f"Unexpected number of datasets found. "
-                        f"Expected 1, found {len(dataset_name)}. "
-                        f"Make sure the file only contains a single image."
-                    )
-
-                image_array = h5_handle[dataset_name[0]][::4, ::4]
-
-                if len(image_array.shape) != 2:
-                    raise ValueError(
-                        f"Unexpected number of dataset dimensions. "
-                        f"Expected 2, found {len(image_array.shape)}. "
-                        f"Make sure the image has been project to only contain "
-                        f"XY data."
-                    )
-            else:
-                image_array = self._load_image(4)
-
-        # Generate thumbnail from `self.image_array`
-        aspect_ratio = image_array.shape[1] / image_array.shape[0]
-        if aspect_ratio >= THUMBNAIL_ASPECT_RATIO:
-            temporary_height = image_array.shape[0] / (
-                image_array.shape[1] / THUMBNAIL_DIMENSIONS[0]
-            )
-
-            thumbnail_array = resize(
-                image_array, (temporary_height, THUMBNAIL_DIMENSIONS[0])
-            )
-
-            padding = (THUMBNAIL_DIMENSIONS[1] - thumbnail_array.shape[0]) / 2
-            off_by_one = padding - (padding // 1) == 0.5
-            padding = int(padding)
-
-            thumbnail_array = np.pad(
-                thumbnail_array,
-                ((padding, padding + off_by_one), (0, 0)),
-            )
-        else:
-            temporary_width = image_array.shape[1] / (
-                image_array.shape[0] / THUMBNAIL_DIMENSIONS[1]
-            )
-
-            thumbnail_array = resize(
-                image_array, (THUMBNAIL_DIMENSIONS[1], temporary_width)
-            )
-
-            padding = (THUMBNAIL_DIMENSIONS[0] - thumbnail_array.shape[1]) / 2
-            off_by_one = padding - (padding // 1) == 0.5
-            padding = int(padding)
-
-            thumbnail_array = np.pad(
-                thumbnail_array,
-                ((0, 0), (padding, padding + off_by_one)),
-            )
-
-        thumbnail_array = self.normalise_to_8_bit(thumbnail_array)
-
-        # Cache thumbnail
-        Image.fromarray(thumbnail_array).save(cache_path)
-        self.logger.debug(
-            f"Finished generating thumbnail and cached it to '{cache_path}'."
-        )
-
-        self.thumbnail_array = thumbnail_array
-
-        if self._h5_handle is not None:
-            self._h5_handle.close()
-            self._h5_handle = None
-
-        return cache_path
-
-    @staticmethod
-    def downsample(array: np.ndarray, downsampling_factor: int) -> np.ndarray:
-        """Returns `array` downsampled by `downsampling_factor`.
-
-        Args:
-            array (np.ndarray): Array to downsample.
-            downsampling_factor (int): Factor to downsample `array` by.
-
-        Returns:
-            np.ndarray: Array after downsampling.
-        """
-        # NOTE: this is around 1.5 orders of magnitude faster than just using
-        # skimage.transform.resize or rescale.
-        size = np.round(np.array(array.shape) / downsampling_factor).astype(int)
-        return np.array(Image.fromarray(array).resize(size[::-1].tolist()))
-
-    @staticmethod
-    def normalise_to_8_bit(array: np.ndarray) -> np.ndarray:
-        """Returns `array` after normalisation and conversion to u8.
-
-        Args:
-            array (np.ndarray): Array to normalise and convert.
-
-        Returns:
-            np.ndarray: Array after normalisation and conversion.
-        """
-        return np.interp(
-            array,
-            (array.min(), array.max()),
-            (0, 2**8 - 1),
-        ).astype(np.uint8)
-
-    @staticmethod
-    def generate_file_name_hash(file_path: str) -> str:
-        """Generate a hash for this slice.
-
-        Note this function only uses the file name at the end of the file path to
-        generate the hash. If you require a hash that takes into account the whole,
-        resolved path, use `Workspace.generate_directory_hash()`.
-
-        Args:
-            file_path (str): File path to use when generating a hash. The file name will
-                             be extracted as the last part after splitting on the OS
-                             separator.
-
-        Returns:
-            str: The generated hash.
-        """
-        file_name = file_path.split(os.sep)[-1]
-        return hashlib.md5(file_name.encode("UTF-8")).hexdigest()
-
-    # noinspection PyUnboundLocalVariable
-    def _load_image(self, downsampling_factor: int) -> np.ndarray:
-        if downsampling_factor < 1 and downsampling_factor != 0:
-            raise ValueError(
-                f"Invalid downsampling factor of {downsampling_factor}. "
-                f"Factor should be greater than 1 or equal to 0."
-            )
-
-        start_time = time.perf_counter()
-
-        image_array = io.load_image(self.file_path)
-
-        if downsampling_factor == 0:
-            # If the image is smaller than DOWNSAMPLE_TARGET_SHAPE, don't downsample
-            downsampling_factor = round(
-                max(
-                    1.0,
-                    (np.array(image_array.shape) / DOWNSAMPLE_TARGET_SHAPE).max(),
-                )
-            )
-        self.image_downsampling_factor = downsampling_factor
-        image_array = self.downsample(image_array, downsampling_factor)
-
-        image_array = self.normalise_to_8_bit(image_array)
-
-        self.logger.debug(
-            f"Loaded and processed '{self.file_path.split(os.sep)[-1]}' "
-            f"({self.hash[:10]}) in {time.perf_counter() - start_time:.2f} seconds."
-        )
-
-        return image_array
-
-    def __eq__(self, other: "HistologySlice") -> bool:
-        return self.hash == other.hash
+DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)  # IJ not XY
 
 
 class ThumbnailGeneratorThread(QtCore.QThread):
@@ -332,22 +77,32 @@ class ThumbnailGeneratorThread(QtCore.QThread):
 
     def run(self) -> None:
         with ThreadPoolExecutor(max_workers=4) as executor:
-            executor.map(
-                self.generate_thumbnail, range(len(self.parent()._histology_slices))
-            )
+            executor.map(self.generate_thumbnail, self.parent().iterate_handles())
 
-    def generate_thumbnail(self, index: int):
+    def generate_thumbnail(self, handle: ImageFile):
         if self.stop_event.is_set():
             return
 
         parent = self.parent()
-        histology_slice = parent._histology_slices[index]
 
-        cache_path = histology_slice.generate_thumbnail(parent.working_directory)
+        cache_path = build_thumbnail_path(Path(parent.working_directory), handle.hash)
+        try:
+            Image.open(cache_path)
+            _module_logger.debug(
+                f"Found cached thumbnail for '{handle.file_path}' at '{cache_path}'."
+            )
+        except FileNotFoundError:
+            thumbnail = handle.generate_thumbnail()
+            thumbnail = normalise_array(thumbnail, np.uint8)
+            Image.fromarray(thumbnail).save(cache_path)
+            _module_logger.debug(
+                f"Cached thumbnail for '{handle.file_path}' at '{cache_path}'."
+            )
+
         parent.thumbnail_generated.emit(
-            index,
+            parent.index(handle),
             cache_path,
-            Path(histology_slice.file_path).name,
+            handle.file_path.name,
         )
 
     def parent(self) -> Workspace:
@@ -834,7 +589,7 @@ class Workspace(QtCore.QObject):
     current_aligner_image_hash: Optional[str] = None
     current_aligner_image_index: Optional[int] = None
 
-    thumbnail_generated: QtCore.Signal = QtCore.Signal(int, str, np.ndarray)
+    thumbnail_generated: QtCore.Signal = QtCore.Signal(int, Path, str)
 
     def __init__(
         self, project_settings: ProjectSettings, parent: Optional[QtCore.QObject] = None
@@ -856,7 +611,7 @@ class Workspace(QtCore.QObject):
             ),
         )
 
-        self._histology_slices: list[HistologySlice] = []
+        self._file_handles: list[ImageFile] = []
         self._thumbnail_thread = ThumbnailGeneratorThread(self)
 
     @property
@@ -895,7 +650,7 @@ class Workspace(QtCore.QObject):
                 self.working_directory == working_directory
                 and not removed_paths
                 and not added_paths
-                and self._histology_slices  # Still load when opening project
+                and self._file_handles  # Still load when opening project
             ):
                 return
 
@@ -912,52 +667,34 @@ class Workspace(QtCore.QObject):
         self.working_directory = working_directory
         os.makedirs(self.working_directory, exist_ok=True)
 
-        self._histology_slices = self._deserialise_slices(valid_paths)
+        self._file_handles = self._deserialise_handles(valid_paths)
         self.save_metadata()
 
     def get_image(self, index: int) -> Optional[np.ndarray]:
-        if index >= len(self._histology_slices):
+        if index >= len(self._file_handles):
+            _module_logger.error(
+                f"Failed retrieving image at index {index}, index out of range."
+            )
             return None
 
-        histology_slice = self._histology_slices[index]
-        if histology_slice.image_array is None:
-            self._histology_slices[index].load_image(self.working_directory)
-        self.current_aligner_image_hash = histology_slice.hash
+        image_handle = self._file_handles[index]
+        self.current_aligner_image_hash = image_handle.hash
         self.current_aligner_image_index = index
 
-        self.alignment_settings.histology_path = histology_slice.file_path
-        self.alignment_settings.histology_downsampling = (
-            histology_slice.image_downsampling_factor
-        )
+        self.alignment_settings.histology_path = image_handle.file_path
 
-        return histology_slice.image_array
+        image = image_handle.read_image(image_handle.index)
+        downsampling_factor = compute_downsampling_factor(image.shape)
+        image = downscaling_transform(image, downsampling_factor, naive=True)
 
-    def get_thumbnail(self, index: int, timeout: int = 10) -> Optional[np.ndarray]:
-        if index >= len(self._histology_slices):
-            return None
+        self.alignment_settings.histology_downsampling = downsampling_factor
 
-        while True:
-            if self._histology_slices[index].thumbnail_array is not None:
-                break
+        return image
 
-            if not self._thumbnail_thread.is_alive():
-                self._histology_slices[index].generate_thumbnail(self.working_directory)
-                break
-
-            timeout -= 1
-            if timeout == 0:
-                self.logger.error(
-                    f"Timed out trying to retrieve thumbnail at index {index}."
-                )
-                return None
-            time.sleep(1)
-
-        return self._histology_slices[index].thumbnail_array
-
-    def swap_slices(self, index1: int, index2: int) -> None:
-        self._histology_slices[index1], self._histology_slices[index2] = (
-            self._histology_slices[index2],
-            self._histology_slices[index1],
+    def swap_images(self, index1: int, index2: int) -> None:
+        self._file_handles[index1], self._file_handles[index2] = (
+            self._file_handles[index2],
+            self._file_handles[index1],
         )
         self.save_metadata()
 
@@ -967,8 +704,31 @@ class Workspace(QtCore.QObject):
     def stop_thumbnail_generation(self) -> None:
         self._thumbnail_thread.stop_event.set()
 
-    def build_alignment_path(self) -> Optional[str]:
-        if self.current_aligner_image_hash is None:
+    def iterate_handles(self) -> Iterator[ImageFile]:
+        for handle in self._file_handles:
+            yield handle
+
+    def index(self, handle: ImageFile) -> int:
+        """Returns the index of the handle provided.
+
+        Args:
+            handle (ImageFile): ImageFile handle to find the index of.
+
+        Returns:
+            int: The index of the handle or -1 if it is not found.
+        """
+        try:
+            return self._file_handles.index(handle)
+        except ValueError:
+            return -1
+
+    def list_hashes(self) -> list[str]:
+        return [handle.hash for handle in self._file_handles]
+
+    def build_alignment_path(self, hash: str = "") -> Optional[str]:
+        hash = hash or self.current_aligner_image_hash
+
+        if hash is None:
             return None
 
         return f"{self.working_directory}{os.sep}{self.current_aligner_image_hash}.json"
@@ -984,7 +744,7 @@ class Workspace(QtCore.QObject):
                     raise e
 
             contents["directory_path"] = self.last_parsed_directory
-            contents["slice_paths"] = self._serialise_slices(self._histology_slices)
+            contents["slice_paths"] = self._serialise_handles(self._file_handles)
 
             json.dump(contents, handle)
 
@@ -1120,9 +880,48 @@ class Workspace(QtCore.QObject):
         ]
 
     @staticmethod
-    def _serialise_slices(histology_slices: list[HistologySlice]) -> list[str]:
-        return [histology_slice.file_path for histology_slice in histology_slices]
+    def _serialise_handles(file_handles: list[ImageFile]) -> list[str]:
+        return [str(handle.file_path) for handle in file_handles]
 
     @staticmethod
-    def _deserialise_slices(path_list: list[str]) -> list[HistologySlice]:
-        return [HistologySlice(file_path) for file_path in path_list]
+    def _deserialise_handles(path_list: list[str]) -> list[ImageFile]:
+        return [open_file(path) for path in path_list]
+
+
+def build_thumbnail_path(
+    alignment_directory: Path, hash: str, ensure_directory_exists: bool = True
+) -> Path:
+    return (
+        get_thumbnail_cache_root(alignment_directory, ensure_directory_exists)
+        / f"{hash[:10]}.png"
+    )
+
+
+def get_thumbnail_cache_root(
+    alignment_directory: Path, ensure_exists: bool = True
+) -> Path:
+    root = alignment_directory / ".cache"
+
+    if ensure_exists:
+        os.makedirs(root, exist_ok=True)
+
+    return root
+
+
+def compute_downsampling_factor(shape: tuple[int, ...]) -> int:
+    """Computes the closest downsampling factor to fit shape inside default shape.
+
+    Args:
+        shape (tuple[int, ...]): Shape to downsample.
+
+    Returns:
+        int:
+            The downsampling factor that scales shape down to fit inside
+            DOWNSAMPLE_TARGET_SHAPE.
+    """
+    return math.ceil(
+        max(
+            1.0,
+            (np.array(shape) / DOWNSAMPLE_TARGET_SHAPE).max(),
+        )
+    )

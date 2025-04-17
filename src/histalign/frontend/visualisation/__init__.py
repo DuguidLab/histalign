@@ -111,7 +111,6 @@ class VisualisationWidget(QtWidgets.QWidget):
         self.image_opened.connect(
             lambda: self.information_widget.structures_widget.setEnabled(True)
         )
-        self.image_opened.connect(lambda: print("Enabling"))
 
     def get_baseline_splitter_sizes(self) -> list[int]:
         width = (
