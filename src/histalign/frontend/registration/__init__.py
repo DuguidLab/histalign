@@ -307,6 +307,7 @@ class RegistrationWidget(QtWidgets.QWidget):
             icon_path=ICONS_ROOT / "interactivity-icon.png",
             tool_tip="Start the landmark registration process.",
         )
+        landmark_registration_button.clicked.connect(self.begin_landmark_registration)
         self.histology_opened.connect(
             lambda: landmark_registration_button.setEnabled(True)
         )
