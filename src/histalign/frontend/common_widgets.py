@@ -4211,6 +4211,7 @@ class DraggableSpinBoxMixIn:
                     self._initial_drag_value
                     + round(pixel_delta / self._pixel_step_size) * self.singleStep()
                 )
+                value = max(self.minimum(), min(self.maximum(), value))
                 self.setValue(value)
 
                 self.selectAll()
