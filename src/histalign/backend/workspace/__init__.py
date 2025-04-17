@@ -746,6 +746,7 @@ class Workspace(QtCore.QObject):
             contents["directory_path"] = self.last_parsed_directory
             contents["slice_paths"] = self._serialise_handles(self._file_handles)
 
+            # noinspection PyTypeChecker
             json.dump(contents, handle)
 
     def save(self) -> None:
@@ -762,6 +763,7 @@ class Workspace(QtCore.QObject):
                 },
                 "alignment_settings": self.alignment_settings.model_dump(),
             }
+            # noinspection PyTypeChecker
             json.dump(dump, handle)
 
     @staticmethod
