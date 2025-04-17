@@ -22,7 +22,6 @@ import time
 from typing import Any, get_type_hints, Literal, Optional
 
 from allensdk.core.structure_tree import StructureTree  # type: ignore[import]
-import h5py
 import numpy as np
 from PIL import Image
 from PySide6 import QtCore
@@ -51,6 +50,7 @@ from histalign.backend.models import (
 )
 from histalign.io import ImageFile, open_file
 import histalign.io as io
+from histalign.io.image import EXTENSIONS, SUPPORTED_READ_FORMATS
 from histalign.io.transform.transforms import downscaling_transform
 
 _module_logger = logging.getLogger(__name__)
@@ -851,18 +851,14 @@ class Workspace(QtCore.QObject):
     def gather_image_paths(directory_path: str, only_neun: bool = True) -> list[str]:
         image_paths = []
         for path in Path(directory_path).iterdir():
-            if path.suffix in (".h5", ".hdf5", ".npy", ".jpg", ".jpeg", ".png"):
+            if EXTENSIONS.get(path.suffix) in SUPPORTED_READ_FORMATS:
                 if only_neun and path.stem.split("-")[-1] != "neun":
                     continue
 
-                # Only consider 2D, single-dataset files as valid
-                if path.suffix in (".h5", ".hdf5"):
-                    file = h5py.File(path, mode="r")
-                    datasets = list(file.keys())
-                    if len(datasets) != 1:
-                        continue
-                    if len(file[datasets[0]].shape) != 2:
-                        continue
+                # Only consider 2D images
+                handle = open_file(path)
+                if len(handle.shape) != 2:
+                    continue
 
                 image_paths.append(str(path))
 
