@@ -21,6 +21,7 @@ from histalign.backend.maths import (
 from histalign.backend.models import (
     AlignmentSettings,
 )
+from histalign.backend.workspace import VolumeSlicer
 import histalign.backend.workspace as workspace  # Avoid circular import
 from histalign.io import load_image
 
@@ -54,13 +55,15 @@ class Registrator:
         image: np.ndarray,
         settings: AlignmentSettings,
         origin: Optional[list[float]] = None,
+        slicer: Optional[VolumeSlicer] = None,
     ) -> np.ndarray:
         scaling = get_histology_scaling(settings)
 
         image = rescale(image, scaling, fast=self.fast_rescale, interpolation="nearest")
 
-        volume = vedo.Volume(np.zeros(shape=settings.volume_settings.shape))
-        slicer = workspace.VolumeSlicer(volume=volume)
+        if slicer is None:
+            volume = vedo.Volume(np.zeros(shape=settings.volume_settings.shape))
+            slicer = workspace.VolumeSlicer(volume=volume)
         target_shape = slicer.slice(settings.volume_settings, origin=origin).shape
 
         # TODO: Find why the shape can be off by one sometimes when working on Z-stacks
