@@ -45,6 +45,8 @@ plugins:
         python:
           options:
             docstring_style: google
+            extensions:
+              - griffe_pydantic:
   - search
 
 markdown_extensions:

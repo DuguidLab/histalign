@@ -63,6 +63,7 @@ run = "pytest"
 
 [tool.hatch.envs.docs]
 dependencies = [
+  "griffe-pydantic",
   "mkdocs",
   "mkdocs-click",
   "mkdocs-gen-files",
