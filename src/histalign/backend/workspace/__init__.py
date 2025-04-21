@@ -736,7 +736,7 @@ class Workspace(QtCore.QObject):
         if hash is None:
             return None
 
-        return f"{self.working_directory}{os.sep}{self.current_aligner_image_hash}.json"
+        return f"{self.working_directory}{os.sep}{hash}.json"
 
     def save_metadata(self) -> None:
         with open(f"{self.working_directory}{os.sep}metadata.json", "w+") as handle:
