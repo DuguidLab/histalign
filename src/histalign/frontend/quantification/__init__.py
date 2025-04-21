@@ -8,12 +8,12 @@ from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
+from histalign.backend.models import Resolution
 from histalign.frontend.quantification.prepare import (
     PrepareWidget,
     QuantificationParametersFrame,
 )
 from histalign.frontend.quantification.results import ResultsWidget
-from histalign.frontend.quantification.view import ViewWidget
 
 _module_logger = logging.getLogger(__name__)
 
@@ -23,7 +23,6 @@ class QuantificationWidget(QtWidgets.QWidget):
 
     prepare_tab: PrepareWidget
     results_tab: ResultsWidget
-    view_tab: ViewWidget
     tab_widget: QtWidgets.QTabWidget
 
     project_opened: QtCore.Signal = QtCore.Signal()
@@ -43,25 +42,12 @@ class QuantificationWidget(QtWidgets.QWidget):
         self.results_tab = results_tab
 
         #
-        view_tab = ViewWidget()
-        results_tab.submitted.connect(view_tab.parse_results)
-        results_tab.submitted.connect(
-            lambda: self.tab_widget.tabBar().setCurrentIndex(
-                self.tab_widget.indexOf(self.view_tab)
-            )
-        )
-
-        self.view_tab = view_tab
-
-        #
         tab_widget = QtWidgets.QTabWidget()
 
         tab_widget.addTab(prepare_tab, "Prepare")
         prepare_tab.setAutoFillBackground(True)
         tab_widget.addTab(results_tab, "Results")
         results_tab.setAutoFillBackground(True)
-        tab_widget.addTab(view_tab, "View")
-        view_tab.setAutoFillBackground(True)
 
         self.tab_widget = tab_widget
 
@@ -82,10 +68,12 @@ class QuantificationWidget(QtWidgets.QWidget):
         self.project_closed.connect(lambda: tab_widget.setEnabled(False))
 
     @QtCore.Slot()
-    def open_project(self, project_root: str | Path, *args, **kwargs) -> None:
+    def open_project(
+        self, project_root: str | Path, resolution: Resolution, *args, **kwargs
+    ) -> None:
         project_directory = Path(project_root)
 
-        self.prepare_tab.parse_project(project_directory)
+        self.prepare_tab.parse_project(project_directory, resolution)
         self.results_tab.parse_project(project_directory)
 
         self.tab_widget.setEnabled(True)

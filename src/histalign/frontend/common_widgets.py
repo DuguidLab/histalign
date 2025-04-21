@@ -554,6 +554,9 @@ class StructureTagHolderWidget(QtWidgets.QScrollArea):
         #
         self.setWidgetResizable(True)
 
+    def get_tag_names(self) -> list[str]:
+        return [widget.name for widget in self._tags.keys()]
+
     @QtCore.Slot()
     def add_tag_from_index(self, index: QtCore.QModelIndex) -> None:
         """Adds a structure tag from an index into an ABAStructureTreeModel.
@@ -4226,3 +4229,84 @@ class DraggableSpinBox(DraggableSpinBoxMixIn, QtWidgets.QSpinBox):
 
 class DraggableDoubleSpinBox(DraggableSpinBoxMixIn, QtWidgets.QDoubleSpinBox):
     """A draggable double-precision spin box."""
+
+
+class ColumnsFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "",
+        bold: bool = True,
+        italic: bool = False,
+        column_count: int = 1,
+        column_titles: tuple[str, ...] = (),
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
+
+        self.column_count = column_count
+
+        column_layout = self.build_column_layout(column_count, column_titles)
+        self.column_layout = column_layout
+
+        widget = QtWidgets.QWidget()
+        widget.setLayout(column_layout)
+
+        area = QtWidgets.QScrollArea()
+        area.setWidget(widget)
+        area.setWidgetResizable(True)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(area)
+        self.setLayout(layout)
+
+    def build_column_layout(
+        self, column_count: int, column_titles: tuple[str, ...]
+    ) -> QtWidgets.QHBoxLayout:
+        column_layout = QtWidgets.QHBoxLayout()
+
+        column_titles = list(column_titles[:column_count])
+        column_titles.extend(["Test"] * (column_count - len(column_titles)))
+
+        for i in range(column_count):
+            column_layout.addLayout(
+                self._build_column_layout(column_titles[i]), stretch=1
+            )
+
+        return column_layout
+
+    @staticmethod
+    def _build_column_layout(title: str) -> QtWidgets.QVBoxLayout:
+        label = QtWidgets.QLabel(title)
+        font = label.font()
+        font.setBold(True)
+        label.setFont(font)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(label, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(1)
+
+        return layout
+
+    def add_widget(
+        self,
+        widget: QtWidgets.QWidget,
+        column: int,
+    ) -> None:
+        if column >= self.column_count:
+            column = 0
+
+        layout = self.column_layout.itemAt(column).layout()
+        layout.insertWidget(layout.count() - 1, widget)
+
+    def clear(self) -> None:
+        for i in range(self.column_layout.count()):
+            column = self.column_layout.itemAt(i)
+
+            for j in range(column.count())[::-1]:
+                widget = column.itemAt(j).widget()
+                if (
+                    widget is not None
+                    and not isinstance(widget, QtWidgets.QLabel)
+                    and not isinstance(widget, QtWidgets.QSpacerItem)
+                ):
+                    column.takeAt(j).widget().deleteLater()

@@ -23,10 +23,11 @@ from histalign.frontend.common_widgets import (
     CutOffLabel,
     HoverButton,
     Icon,
+    ProjectDirectoriesComboBox,
     TitleFrame,
 )
 from histalign.frontend.pyside_helpers import lua_aware_shift
-from histalign.frontend.quantification.prepare import QuantificationParametersFrame
+from histalign.frontend.quantification.prepare import ChannelFrame, ZStackFrame
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
@@ -198,7 +199,7 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
             resolution=self.resolution,
             z_stack_regex=frame.z_stack_frame.regex_line_edit.text(),
             channel_regex=frame.multichannel_frame.regex_line_edit.text(),
-            channel_index=frame.multichannel_frame.quantification_channel_line_edit.text(),
+            channel_index=frame.multichannel_frame.index_line_edit.text(),
         )
 
         widget.remove_requested.connect(lambda: self.pop_job(widget))
@@ -339,3 +340,47 @@ class JobWidget(QtWidgets.QFrame):
         self.setPalette(palette)
 
         self.setAutoFillBackground(True)
+
+
+class QuantificationParametersFrame(TitleFrame):
+    def __init__(
+        self,
+        title: str = "Quantification parameters",
+        bold: bool = True,
+        italic: bool = False,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(title, bold, italic, parent)
+
+        #
+        directory_widget = ProjectDirectoriesComboBox()
+
+        self.directory_widget = directory_widget
+
+        #
+        z_stack_frame = ZStackFrame()
+
+        self.z_stack_frame = z_stack_frame
+
+        #
+        multichannel_frame = ChannelFrame()
+
+        self.multichannel_frame = multichannel_frame
+
+        #
+        layout = QtWidgets.QGridLayout()
+
+        layout.setContentsMargins(15, 15, 15, 15)
+
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        layout.setColumnStretch(1, 1)
+        layout.setHorizontalSpacing(20)
+
+        layout.addWidget(QtWidgets.QLabel("Alignment directory"), 0, 0)
+        layout.addWidget(directory_widget, 0, 1)
+
+        layout.addWidget(z_stack_frame, 1, 0, 1, -1)
+
+        layout.addWidget(multichannel_frame, 2, 0, 1, -1)
+
+        self.setLayout(layout)

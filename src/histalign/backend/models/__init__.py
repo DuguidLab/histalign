@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+from __future__ import annotations
+
 from abc import ABC
 from datetime import datetime
 from enum import Enum, IntEnum
+from functools import lru_cache
 import hashlib
 from pathlib import Path
 from typing import Any, Optional
@@ -17,6 +20,7 @@ from pydantic import (
     field_serializer,
     field_validator,
     FilePath,
+    model_validator,
     ValidationInfo,
 )
 
@@ -37,6 +41,35 @@ class Resolution(IntEnum):
 class QuantificationMeasure(str, Enum):
     AVERAGE_FLUORESCENCE = "average_fluorescence"
     CORTICAL_DEPTH = "cortical_depth"
+
+
+class Quantification(Enum):
+    """Enum of supported quantification measures."""
+
+    AVERAGE_FLUORESCENCE = "averagefluorescence"
+    CELL_COUNTING = "cellcounting"
+
+    @classmethod
+    @lru_cache
+    def values(cls) -> list[str]:
+        """Returns the values of the enum's variants.
+
+        Returns:
+            list[str]: The list of values of the enum's variants.
+        """
+        return [key.value for key in cls]
+
+    @classmethod
+    def _missing_(cls, value: Any) -> Quantification:
+        # Transform most common forms of representing the names. Remove " ", "_",
+        # and "-" and check if that is valid. This makes for cleaner code at the call
+        # site.
+        if isinstance(value, str):
+            value = "".join(value.lower().replace("_", "").replace("-", "").split(" "))
+            if value in cls.values():
+                return Quantification(value)
+
+        return super()._missing_(value)
 
 
 class HistologySettings(BaseModel, validate_assignment=True):
@@ -178,19 +211,93 @@ class CorticalDepthMeasureSettings(MeasureSettings, validate_assignment=True):
 
 
 class QuantificationSettings(BaseModel, validate_assignment=True):
-    alignment_directory: DirectoryPath
-    original_directory: DirectoryPath
-    quantification_measure: QuantificationMeasure
-    fast_rescale: bool = True
-    fast_transform: bool = True
-    measure_settings: MeasureSettings
-    channel_index: Optional[int] = None
-    channel_regex: Optional[str] = None
-    projection_regex: Optional[str] = None
+    """Model used to store quantification settings to run in a QuantifierThread."""
 
-    @field_serializer("alignment_directory", "original_directory")
-    def serialise_path(self, value: DirectoryPath) -> str:
-        return str(value)
+    source_directory: DirectoryPath
+    """
+    User-friendly path to the source image directory used in the alignment. For slice
+    quantification, this is where the images will be loaded from. For volume
+    quantification, this is not relevant as the volume is stored in the alignment
+    directory.
+    """
+    alignment_directory: DirectoryPath
+    """Directory under the current project where the alignment settings are stored."""
+    resolution: Resolution
+    """Resolution of the project."""
+    quantification: Quantification
+    """Quantification measure to use."""
+    on_volume: bool
+    """Whether to run the quantification on a volume or individual slices."""
+    structures: list[str]
+    """List of the structures to quantify."""
+    channel_index: str
+    """Optional, alternative index to run the quantification on."""
+    channel_regex: str
+    """Regex identifying the part of the path to replace with the new index."""
+
+    @field_validator("channel_index")
+    @classmethod
+    def validate_regex(cls, value: str) -> str:
+        """Validates the channel index is a valid string representation of an integer.
+
+        Args:
+            value (str): String representation of an integer.
+
+        Returns:
+            str: The string as-is.
+
+        Raises:
+            ValueError: When the value cannot be interpreted as an integer.
+        """
+        try:
+            int(value)
+        except ValueError:
+            if value != "":
+                raise ValueError("could not interpret input as an integer") from None
+
+        return value
+
+    @model_validator(mode="after")
+    def clear_unused(self) -> QuantificationSettings:
+        """Clears channel index and regex when `on_volume` is set.
+
+        Returns:
+            QuantificationSettings: Self with fields cleared.
+        """
+        # Avoid potential errors down the line by clearing fields that should not be
+        # used.
+        if self.on_volume:
+            # Avoid RecursionError by only clearing non-cleared values
+            if self.channel_index:
+                self.channel_index = ""
+            if self.channel_regex:
+                self.channel_regex = ""
+
+        return self
+
+    @model_validator(mode="after")
+    def sanitise_channel_values(self) -> QuantificationSettings:
+        """Ensures both channel index and regex are set.
+
+        If not, they are both cleared.
+
+        Returns:
+            QuantificationSettings: Self with sanitised fields.
+        """
+        if self.channel_regex and not self.channel_index:
+            _module_logger.warning(
+                "Model initialised with a channel regex but not a channel index. "
+                "Considering both as blank."
+            )
+            self.channel_regex = ""
+        elif not self.channel_regex and self.channel_index:
+            _module_logger.warning(
+                "Model initialised with a channel index but not a channel regex. "
+                "Considering both as blank."
+            )
+            self.channel_index = ""
+
+        return self
 
 
 class QuantificationResults(BaseModel, validate_assignment=True):

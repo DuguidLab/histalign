@@ -257,7 +257,6 @@ class ResultsWidget(QtWidgets.QWidget):
     model: ResultsTableModel
     proxy_model: ResultsTableFilterProxyModel
     view: ResultsTableView
-    view_button: QtWidgets.QPushButton
     export_button: QtWidgets.QPushButton
     parsed_timestamp: float = -1.0
 
@@ -287,13 +286,6 @@ class ResultsWidget(QtWidgets.QWidget):
         self.view = view
 
         #
-        view_button = QtWidgets.QPushButton("View")
-        view_button.clicked.connect(self.submit_checked)
-        view_button.setEnabled(False)
-
-        self.view_button = view_button
-
-        #
         export_button = QtWidgets.QPushButton("Export")
         export_button.clicked.connect(self.export_checked)
         export_button.setEnabled(False)
@@ -303,7 +295,6 @@ class ResultsWidget(QtWidgets.QWidget):
         #
         button_layout = QtWidgets.QHBoxLayout()
 
-        button_layout.addWidget(view_button)
         button_layout.addWidget(export_button)
 
         #
@@ -381,7 +372,6 @@ class ResultsWidget(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def update_buttons_state(self) -> None:
-        self.view_button.setEnabled(self.has_at_least_one_checked())
         self.export_button.setEnabled(self.has_at_least_one_checked())
 
     @QtCore.Slot()
