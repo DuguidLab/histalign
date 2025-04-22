@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""This module handles interactions with the Allen Institute's Python and web APIs."""
+"""This sub-package handles interactions with the Allen Institute's APIs."""
 
 import logging
 import os

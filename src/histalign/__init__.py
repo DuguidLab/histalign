@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""The main application entry point."""
+
 if __name__ == "histalign":
     # Fix a typing bug when using `vedo` with python==3.10.12.
     # Leaving `typing_extensions.Self` as-is leads to the following error message:

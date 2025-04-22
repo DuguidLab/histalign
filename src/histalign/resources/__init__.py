@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This sub-package is used to store the resources required by the application."""
+
 import importlib.resources
 from pathlib import Path
 

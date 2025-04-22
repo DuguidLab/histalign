@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This sub-package provides the functions and classes used by the frontend widgets."""
+
 from enum import IntEnum
 
 

@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This sub-package provides the frontend widgets for the user to interact with."""
+
 import logging
 from pathlib import Path
 from typing import Optional

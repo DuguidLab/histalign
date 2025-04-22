@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""This sub-package handles most interactions with the file system and most commands."""
+
 import json
 import logging
 import os

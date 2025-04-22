@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""This module defines PySide models and helpers for managing structure metadata."""
+"""This sub-package defines PySide models and helpers to manage structure metadata."""
 
 from __future__ import annotations, annotations
 
