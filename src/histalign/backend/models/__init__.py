@@ -49,6 +49,15 @@ class Quantification(Enum):
     AVERAGE_FLUORESCENCE = "averagefluorescence"
     CELL_COUNTING = "cellcounting"
 
+    @property
+    def display_value(self) -> str:
+        if self == Quantification.AVERAGE_FLUORESCENCE:
+            return "average fluorescence"
+        elif self == Quantification.CELL_COUNTING:
+            return "cell counting"
+
+        raise Exception("ASSERT NOT REACHED")
+
     @classmethod
     @lru_cache
     def values(cls) -> list[str]:

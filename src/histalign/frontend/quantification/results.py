@@ -2,23 +2,25 @@
 #
 # SPDX-License-Identifier: MIT
 
-import json
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
 import re
 from typing import Any, Optional
 
-from pydantic import ValidationError
+import pandas as pd
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import (
     AverageFluorescenceMeasureSettings,
     CorticalDepthMeasureSettings,
     MeasureSettings,
-    QuantificationResults,
+    Quantification,
 )
-from histalign.frontend.quantification.view import get_appropriate_visualiser
+
+_module_logger = logging.getLogger(__name__)
 
 
 def get_appropriate_measure_settings(
@@ -52,7 +54,7 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
         super().__init__(parent)
 
         self._data = self.parse_project(project_directory)
-        self._columns = ["", "Date", "Measure", "Directory"]
+        self._columns = ["", "Date", "Quantification", "Directory"]
 
     def data(
         self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex, role: int = ...
@@ -65,10 +67,10 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
                 return QtCore.Qt.AlignmentFlag.AlignCenter
         elif role == QtCore.Qt.ItemDataRole.CheckStateRole:
             if index.column() == 0:
-                if self._data[index.row()][0] == "[ ]":
-                    return QtCore.Qt.CheckState.Unchecked
-                else:
+                if self._data[index.row()][0]:
                     return QtCore.Qt.CheckState.Checked
+                else:
+                    return QtCore.Qt.CheckState.Unchecked
         elif role == QtCore.Qt.ItemDataRole.UserRole:
             return self._data[index.row()][-1]
 
@@ -79,13 +81,7 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
         role: int = ...,
     ) -> bool:
         if role == QtCore.Qt.ItemDataRole.CheckStateRole:
-            if index.column() == 0:
-                state = self._data[index.row()][index.column()]
-                if state == "[ ]":
-                    toggled_state = "[X]"
-                else:
-                    toggled_state = "[ ]"
-                self._data[index.row()][index.column()] = toggled_state
+            self._data[index.row()][0] = not self._data[index.row()][0]
 
         return True
 
@@ -112,44 +108,33 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
         return super().flags(index)
 
     @staticmethod
-    def parse_project(project_directory: Path) -> list[list[str]]:
+    def parse_project(
+        project_directory: Path,
+    ) -> list[list[bool | str | str | str | pd.DataFrame]]:
         data = []
 
         quantification_path = project_directory / "quantification"
         if not quantification_path.exists():
             return data
 
-        for file in quantification_path.iterdir():
-            try:
-                with open(file) as handle:
-                    contents = json.load(handle)
-                results = QuantificationResults(**contents)
-
-                results.settings.measure_settings = get_appropriate_measure_settings(
-                    contents["settings"]["quantification_measure"]
-                )(**contents["settings"]["measure_settings"])
-            except (ValidationError, json.JSONDecodeError) as error:
-                logging.getLogger(__name__).error(
-                    f"Failed to load quantification results from '{file}'."
-                )
-                logging.getLogger(__name__).error(error)
+        for path in quantification_path.iterdir():
+            if path.name.startswith(".") or path.suffix != ".csv":
                 continue
 
-            quantification_measure = (
-                results.settings.quantification_measure.value.replace("_", " ")
+            df = pd.read_csv(path, index_col=0)
+
+            *source, quantification, timestamp_ymd, timestamp_hm = path.stem.split("_")
+            source = "_".join(source)
+            quantification = Quantification(quantification).display_value.capitalize()
+            timestamp_ymd = timestamp_ymd[::-1]
+            full_timestamp = (
+                f"{timestamp_hm[:2]}:{timestamp_hm[2:]} "
+                f"{timestamp_ymd[:2]}"
+                f"/{timestamp_ymd[2:4]}"
+                f"/{timestamp_ymd[4:]}"
             )
-            quantification_measure = (
-                quantification_measure[0].upper() + quantification_measure[1:]
-            )
-            data.append(
-                [
-                    "[ ]",
-                    results.timestamp.strftime("%Y/%m/%d - %H:%M"),
-                    quantification_measure,
-                    str(results.settings.original_directory),
-                    results,
-                ]
-            )
+
+            data.append([False, full_timestamp, quantification, source, df])
 
         return data
 
@@ -163,7 +148,7 @@ class ResultsTableFilterProxyModel(QtCore.QSortFilterProxyModel):
     def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
         super().__init__(parent)
 
-    def set_measure_regular_expression(self, pattern: str) -> None:
+    def set_quantification_regex(self, pattern: str) -> None:
         self.measure_regex = pattern
         self.invalidateFilter()
 
@@ -211,6 +196,9 @@ class ResultsTableView(QtWidgets.QTableView):
         self.installEventFilter(self)
 
     def resizeColumnsToContents(self):
+        if self.model() is None:
+            return
+
         for i in range(self.model().columnCount() - 1):
             self.resizeColumnToContents(i)
 
@@ -219,10 +207,11 @@ class ResultsTableView(QtWidgets.QTableView):
                     i, self.horizontalHeader().sectionSize(i) + 20
                 )
 
-    def setModel(self, model: QtCore.QAbstractItemModel) -> None:
+    def setModel(self, model: Optional[QtCore.QAbstractItemModel]) -> None:
         super().setModel(model)
 
-        model.filter_changed.connect(self.resizeColumnsToContents)
+        if model is not None:
+            model.filter_changed.connect(self.resizeColumnsToContents)
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -242,8 +231,12 @@ class ResultsTableView(QtWidgets.QTableView):
                 event.accept()
                 return True
             case QtCore.QEvent.Type.FocusOut:
-                self.selectionModel().clearSelection()
-                self.selectionModel().clearCurrentIndex()
+                model = self.selectionModel()
+                if model is None:
+                    return True
+
+                model.clearSelection()
+                model.clearCurrentIndex()
 
                 return True
 
@@ -251,37 +244,41 @@ class ResultsTableView(QtWidgets.QTableView):
 
 
 class ResultsWidget(QtWidgets.QWidget):
-    project_directory: Optional[Path] = None
+    project_directory: Optional[Path]
 
     filter_layout: QtWidgets.QFormLayout
-    model: ResultsTableModel
-    proxy_model: ResultsTableFilterProxyModel
+    model: Optional[ResultsTableModel]
+    proxy_model: Optional[ResultsTableFilterProxyModel]
     view: ResultsTableView
     export_button: QtWidgets.QPushButton
     parsed_timestamp: float = -1.0
 
-    submitted: QtCore.Signal = QtCore.Signal(list)
-
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
 
+        self.project_directory = None
+        self.model = None
+        self.proxy_model = None
+
         #
-        measure_widget = QtWidgets.QComboBox()
-        measure_widget.addItems(["Average fluorescence", "Cortical depth"])
+        quantification_widget = QtWidgets.QComboBox()
+        quantification_widget.addItems(
+            [variant.display_value.capitalize() for variant in Quantification]
+        )
 
-        measure_widget.currentTextChanged.connect(self.filter_model)
+        quantification_widget.currentTextChanged.connect(self.filter_model)
 
-        self.measure_widget = measure_widget
+        self.quantification_widget = quantification_widget
 
         #
         filter_layout = QtWidgets.QFormLayout()
-        filter_layout.addRow("Measure", measure_widget)
+        filter_layout.addRow("Quantification", quantification_widget)
 
         self.filter_layout = filter_layout
 
         #
         view = ResultsTableView()
-        self.measure_widget.currentTextChanged.connect(self.update_buttons_state)
+        self.quantification_widget.currentTextChanged.connect(self.update_buttons_state)
 
         self.view = view
 
@@ -293,19 +290,14 @@ class ResultsWidget(QtWidgets.QWidget):
         self.export_button = export_button
 
         #
-        button_layout = QtWidgets.QHBoxLayout()
-
-        button_layout.addWidget(export_button)
-
-        #
         layout = QtWidgets.QVBoxLayout()
         layout.addLayout(filter_layout)
         layout.addWidget(view, stretch=1)
-        layout.addLayout(button_layout)
+        layout.addWidget(export_button)
         self.setLayout(layout)
 
     def has_at_least_one_checked(self) -> bool:
-        if not hasattr(self, "proxy_model"):
+        if self.proxy_model is None:
             return False
 
         for i in range(self.proxy_model.rowCount()):
@@ -317,7 +309,7 @@ class ResultsWidget(QtWidgets.QWidget):
 
         return False
 
-    def get_checked_items(self) -> list[QuantificationResults]:
+    def get_checked_items(self) -> list[QtCore.QModelIndex]:
         checked_items = []
         for i in range(self.proxy_model.rowCount()):
             index = self.proxy_model.index(i, 0)
@@ -325,14 +317,14 @@ class ResultsWidget(QtWidgets.QWidget):
                 index.data(QtCore.Qt.ItemDataRole.CheckStateRole)
                 == QtCore.Qt.CheckState.Checked
             ):
-                checked_items.append(index.data(QtCore.Qt.ItemDataRole.UserRole))
+                checked_items.append(index)
 
         return checked_items
 
     def parse_project(self, project_directory: Path) -> None:
         quantification_path = project_directory / "quantification"
         if not os.path.exists(quantification_path):
-            os.makedirs(quantification_path, exist_ok=True)
+            return
 
         if (
             timestamp := os.stat(quantification_path).st_mtime
@@ -346,49 +338,45 @@ class ResultsWidget(QtWidgets.QWidget):
 
         proxy_model = ResultsTableFilterProxyModel(self)
         proxy_model.setSourceModel(model)
-
         proxy_model.checked_state_changed.connect(self.update_buttons_state)
 
         self.model = model
         self.proxy_model = proxy_model
         self.view.setModel(proxy_model)
 
-        self.filter_model(...)
+        self.filter_model()
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
         super().showEvent(event)
 
+        # Force reparse when shown
         if self.project_directory is not None:
             self.parse_project(self.project_directory)
 
     def reset(self) -> None:
-        self.view = ResultsTableView()
+        self.view.setModel(None)
         self.update_buttons_state()
 
     @QtCore.Slot()
-    def filter_model(self, _) -> None:
-        measure_regex = self.measure_widget.currentText()
-        self.proxy_model.set_measure_regular_expression(measure_regex)
+    def filter_model(self, regex: str = "") -> None:
+        quantification_regex = regex or self.quantification_widget.currentText()
+        self.proxy_model.set_quantification_regex(quantification_regex)
 
     @QtCore.Slot()
     def update_buttons_state(self) -> None:
         self.export_button.setEnabled(self.has_at_least_one_checked())
 
     @QtCore.Slot()
-    def submit_checked(self) -> None:
-        self.submitted.emit(self.get_checked_items())
-
-    @QtCore.Slot()
     def export_checked(self) -> None:
         checked_items = self.get_checked_items()
-
         if not checked_items:
+            _module_logger.error("Could not export results: no checked items found.")
             return
 
-        visualiser = get_appropriate_visualiser(
-            checked_items[0].settings.quantification_measure
-        )
-        dataframe = visualiser.parse_results_to_dataframe(checked_items)
+        dataframes = [
+            index.data(QtCore.Qt.ItemDataRole.UserRole) for index in checked_items
+        ]
+        merged_dataframe = pd.concat(dataframes, ignore_index=True)
 
         file_dialog = QtWidgets.QFileDialog(self)
         file_dialog.setWindowTitle("Select location to save results")
@@ -406,4 +394,6 @@ class ResultsWidget(QtWidgets.QWidget):
         if file_dialog.result() == QtWidgets.QDialog.DialogCode.Rejected:
             return
 
-        dataframe.to_csv(file_dialog.selectedFiles()[0])
+        output_path = file_dialog.selectFile()[0]
+        _module_logger.debug(f"Exporting results to: {output_path}")
+        merged_dataframe.to_csv(output_path)
