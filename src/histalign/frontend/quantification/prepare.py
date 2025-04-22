@@ -212,7 +212,9 @@ class QuantificationParametersFrame(TitleFrame):
         self.project_root = None
 
         quantification_combo_box = QtWidgets.QComboBox()
-        quantification_combo_box.addItems(["Average fluorescence"])
+        quantification_combo_box.addItems(
+            [variant.display_value.capitalize() for variant in Quantification]
+        )
         quantification_combo_box.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding,
             quantification_combo_box.sizePolicy().verticalPolicy(),
