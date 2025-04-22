@@ -59,6 +59,9 @@ class PrepareWidget(QtWidgets.QWidget):
         self._progress_timer = progress_timer
 
         quantification_parameters_frame = QuantificationParametersFrame()
+        quantification_parameters_frame.structures_frame.tag_holder_modified.connect(
+            self.update_add_job_state
+        )
         quantification_parameters_frame.setContentsMargins(
             1, quantification_parameters_frame.contentsMargins().top(), 1, 1
         )
@@ -91,11 +94,25 @@ class PrepareWidget(QtWidgets.QWidget):
         layout.setColumnStretch(1, 1)
         self.setLayout(layout)
 
+        self.update_add_job_state()
+
     def parse_project(self, path: Path, resolution: Resolution) -> None:
         self.project_root = path
         self.resolution = resolution
 
         self.quantification_parameters_frame.parse_project(path)
+
+    def update_add_job_state(self) -> None:
+        holder = (
+            self.quantification_parameters_frame.structures_frame.structure_tag_holder
+        )
+        enabled = len(holder.get_tag_names()) > 0
+
+        self.add_job_button.setEnabled(enabled)
+        if enabled:
+            self.add_job_button.setToolTip("")
+        else:
+            self.add_job_button.setToolTip("No structures selected.")
 
     def set_running_state(self, running: bool) -> None:
         self.running = running
@@ -435,6 +452,8 @@ class ZStackFrame(TitleFrame):
 
 
 class StructureFrame(TitleFrame):
+    tag_holder_modified: QtCore.Signal = QtCore.Signal()
+
     def __init__(
         self,
         title: str = "Structures",
@@ -462,7 +481,9 @@ class StructureFrame(TitleFrame):
 
         view = pop_up.finder_widget.tree_view
         view.item_checked.connect(structure_tag_holder.add_tag_from_index)
+        view.item_checked.connect(lambda _: self.tag_holder_modified.emit())
         view.item_unchecked.connect(structure_tag_holder.remove_tag_from_index)
+        view.item_unchecked.connect(lambda _: self.tag_holder_modified.emit())
 
         self.structure_tag_holder = structure_tag_holder
 
