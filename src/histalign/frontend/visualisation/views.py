@@ -283,6 +283,10 @@ class VolumeViewer(QtWidgets.QWidget):
     def minimumSize(self) -> QtCore.QSize:
         return QtCore.QSize(200, 150)
 
+    def reset(self) -> None:
+        self.set_reference_volume(np.zeros((1, 1, 1), dtype=np.uint8))
+        self.set_overlay_volume(np.zeros((1, 1, 1), dtype=np.uint8))
+
     def set_reference_volume(self, volume: np.ndarray) -> None:
         self.reference_volume = volume
         self._slicing_indices = (np.array(volume.shape) - 1) // 2
