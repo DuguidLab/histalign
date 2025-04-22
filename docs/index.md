@@ -3,7 +3,7 @@
 [`histalign`](https://github.com/DuguidLab/histalign) is an open-source package that facilitates the registration of two-dimensional histological slices to the [Allen Institute's Common Coordinate Framework](https://www.sciencedirect.com/science/article/pii/S0092867420304025?via%3Dihub) (CCF) for 2D and 3D quantification and visualisation. It provides a graphical user interface (GUI) to permit the user to apply any combination of [affine transformations](https://en.wikipedia.org/wiki/Affine_transformation#Image_transformation) to images obtained through experiments in order to register them to the Allen Institute's Mouse Brain Atlas.
 
 ## Prerequisites
-`histalign` is meant to work with [HDF5 files](https://www.hdfgroup.org/solutions/hdf5/) (.h5). Future  support might be added for other formats such as TIFF but alignment is limited to HDF5 for the time being.  
+`histalign` works best with [HDF5 files](https://www.hdfgroup.org/solutions/hdf5/) (.h5). However, support for TIFF, LIF, and PNG files is available. For a full list of available formats, run the `histalign list` command locally. 
 
 In order to carry out alignment, single-channel, two-dimensional images are needed. See [data preparation](tutorials/data-preparation.md) for more details.
 
@@ -12,7 +12,7 @@ In order to carry out alignment, single-channel, two-dimensional images are need
 
 The recommended way to install `histalign` is to use [`pipx`](https://pipx.pypa.io/latest/). These instructions will guide you through installing both `pipx` and `histalign`.  
 
-If you run into troubles when trying to install `pipx`, refer to the latest documentation from their [website](https://pipx.pypa.io/latest/installation/#installing-pipx) to see if it fixes the problem. If you run into troubles when trying to install `histalign` itself, have a look at the [open and closed issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue%20state%3Aclosed) on the package's GitHub. If you do not find an answer after looking through those, feel free to [open a new one](https://github.com/DuguidLab/histalign/issues/new), detailing your problem as best you can.
+If you run into troubles when trying to install `pipx`, refer to the latest documentation from [their website](https://pipx.pypa.io/latest/installation/#installing-pipx) to see if it fixes the problem. If you run into troubles when trying to install `histalign` itself, have a look at the [open and closed issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue%20state%3Aclosed) on the package's GitHub. If you do not find an answer after looking through those, feel free to [open a new one](https://github.com/DuguidLab/histalign/issues/new), detailing your problem as best you can.
 
 ### Installing `pipx`
 
