@@ -69,6 +69,13 @@ class ProjectDirectoriesComboBox(QtWidgets.QComboBox):
             if not metadata_path.exists():
                 continue
 
+            # Don't list directories that do not have any alignment files
+            for child_path in path.iterdir():
+                if is_alignment_file(child_path):
+                    break
+            else:
+                continue
+
             with open(metadata_path) as handle:
                 self.addItem(json.load(handle)["directory_path"])
 
