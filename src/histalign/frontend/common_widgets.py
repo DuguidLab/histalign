@@ -1962,13 +1962,29 @@ class AnimatedCheckBox(QtWidgets.QCheckBox):
     ) -> None:
         super().__init__(parent)
 
+        bar_colour = QtGui.QColor(bar_colour)
+        checked_colour = QtGui.QColor(checked_colour)
+        handle_colour = QtGui.QColor(handle_colour)
+
         #
         self._bar_brush = QtGui.QBrush(bar_colour)
+        self._bar_brush_disabled = QtGui.QBrush(
+            lua_aware_shift(bar_colour, 30, away=False)
+        )
         self._bar_checked_brush = QtGui.QBrush(checked_colour)
+        self._bar_checked_brush_disabled = QtGui.QBrush(
+            lua_aware_shift(checked_colour, 30, away=False)
+        )
 
         self._handle_brush = QtGui.QBrush(handle_colour)
+        self._handle_brush_disabled = QtGui.QBrush(
+            lua_aware_shift(handle_colour, 30, away=False)
+        )
         self._handle_checked_brush = QtGui.QBrush(
             QtGui.QColor(checked_colour).lighter()
+        )
+        self._handle_checked_brush_disabled = QtGui.QBrush(
+            lua_aware_shift(QtGui.QColor(checked_colour).lighter(), 30, away=False)
         )
 
         #
@@ -2033,15 +2049,30 @@ class AnimatedCheckBox(QtWidgets.QCheckBox):
 
         # Draw the trail
         painter.setPen(self._transparent_pen)
+        bar_brush = self._bar_brush if self.isEnabled() else self._bar_brush_disabled
+        bar_checked_brush = (
+            self._bar_checked_brush
+            if self.isEnabled()
+            else self._bar_checked_brush_disabled
+        )
+        handle_brush = (
+            self._handle_brush if self.isEnabled() else self._handle_brush_disabled
+        )
+        handle_checked_brush = (
+            self._handle_checked_brush
+            if self.isEnabled()
+            else self._handle_checked_brush_disabled
+        )
+
         if self.isChecked():
-            painter.setBrush(self._bar_checked_brush)
+            painter.setBrush(bar_checked_brush)
             painter.drawRoundedRect(bar_rect, rounding, rounding)
-            painter.setBrush(self._handle_checked_brush)
+            painter.setBrush(handle_checked_brush)
         else:
-            painter.setBrush(self._bar_brush)
+            painter.setBrush(bar_brush)
             painter.drawRoundedRect(bar_rect, rounding, rounding)
             painter.setPen(self._light_grey_pen)
-            painter.setBrush(self._handle_brush)
+            painter.setBrush(handle_brush)
 
         # Draw the handle
         painter.drawEllipse(
