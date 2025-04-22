@@ -14,29 +14,10 @@ import pandas as pd
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import (
-    AverageFluorescenceMeasureSettings,
-    CorticalDepthMeasureSettings,
-    MeasureSettings,
     Quantification,
 )
 
 _module_logger = logging.getLogger(__name__)
-
-
-def get_appropriate_measure_settings(
-    quantification_measure: str,
-) -> type[MeasureSettings]:
-    match quantification_measure:
-        case "average_fluorescence":
-            settings = AverageFluorescenceMeasureSettings
-        case "cortical_depth":
-            settings = CorticalDepthMeasureSettings
-        case _:
-            raise ValueError(
-                f"Unknown quantification measure '{quantification_measure}'."
-            )
-
-    return settings
 
 
 def get_default_export_directory(project_directory: Path) -> Path:
