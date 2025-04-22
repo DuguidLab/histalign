@@ -12,7 +12,7 @@ from typing import Optional
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.ccf.paths import get_atlas_path
+from histalign.backend.ccf import get_atlas_path
 from histalign.backend.maths import normalise_array
 from histalign.backend.registration import ContourGeneratorThread
 from histalign.frontend.common_widgets import BinaryAlphaPixmap, ZoomAndPanView
@@ -271,7 +271,7 @@ class VolumeViewer(QtWidgets.QWidget):
                     "or a resolution."
                 )
 
-            path = get_atlas_path(resolution)
+            path = get_atlas_path(resolution, ensure_downloaded=True)
             reference_volume = load_volume(
                 path, normalise_dtype=np.uint16, as_array=True
             )

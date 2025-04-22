@@ -11,7 +11,7 @@ from typing import Optional
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.ccf.paths import get_annotation_path
+from histalign.backend.ccf import get_annotation_path
 from histalign.backend.maths import apply_rotation, compute_centre, compute_origin
 from histalign.backend.models import Orientation
 from histalign.backend.workspace import AnnotationVolume, VolumeLoaderThread, Workspace

@@ -9,8 +9,7 @@ import numpy as np
 from PySide6 import QtCore, QtWidgets
 from scipy.ndimage import gaussian_filter
 
-from histalign.backend.ccf.downloads import download_structure_mask
-from histalign.backend.ccf.paths import get_structure_mask_path
+from histalign.backend.ccf import get_structure_mask_path
 from histalign.backend.maths import normalise_array
 from histalign.backend.models import Resolution
 from histalign.frontend.common_widgets import (
@@ -161,9 +160,9 @@ class VisualisationWidget(QtWidgets.QWidget):
         volume = np.digitize(volume, np.linspace(0, 255, 25)).astype(np.uint8)
         volume = normalise_array(volume, dtype=np.uint16)
 
-        mask_path = get_structure_mask_path("root", self.resolution)
-        if not Path(mask_path).exists():
-            download_structure_mask("root", self.resolution)
+        mask_path = get_structure_mask_path(
+            "root", self.resolution, ensure_downloaded=True
+        )
         mask = load_volume(mask_path, as_array=True)
         volume = np.where(mask, volume, 0)
 

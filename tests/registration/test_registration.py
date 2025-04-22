@@ -15,8 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from histalign.backend.ccf.paths import get_atlas_path
-from histalign.backend.ccf.downloads import download_atlas
+from histalign.backend.ccf import get_atlas_path
 from histalign.io import load_alignment_settings, load_image, load_volume
 from histalign.backend.registration import Registrator
 from histalign.backend.workspace import VolumeSlicer
@@ -61,9 +60,9 @@ def test_registration(parameter: str) -> None:
         not alignment_settings.volume_path.is_file()
         or not alignment_settings.volume_path.suffixes[-1] == ".nrrd"
     ):
-        atlas_path = get_atlas_path(alignment_settings.volume_settings.resolution)
-        if not Path(atlas_path).exists():
-            download_atlas(alignment_settings.volume_settings.resolution)
+        atlas_path = get_atlas_path(
+            alignment_settings.volume_settings.resolution, ensure_downloaded=True
+        )
 
         alignment_settings.volume_path = atlas_path
 

@@ -30,8 +30,12 @@ from scipy.spatial.distance import euclidean
 from scipy.spatial.transform import Rotation
 import vedo  # type: ignore[import]
 
-from histalign.backend.ccf.downloads import download_annotation_volume, download_atlas
-from histalign.backend.ccf.paths import get_atlas_path, get_structure_tree
+from histalign.backend.ccf import (
+    download_annotation_volume,
+    download_atlas,
+    get_atlas_path,
+    get_structure_tree,
+)
 from histalign.backend.maths import (
     compute_centre,
     compute_normal,

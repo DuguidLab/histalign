@@ -13,8 +13,7 @@ from PySide6 import QtCore
 from skimage.transform import rescale as sk_rescale, warp
 import vedo
 
-from histalign.backend.ccf.downloads import download_atlas, download_structure_mask
-from histalign.backend.ccf.paths import get_atlas_path, get_structure_mask_path
+from histalign.backend.ccf import get_atlas_path, get_structure_mask_path
 from histalign.backend.maths import (
     get_sk_transform_from_parameters,
 )
@@ -192,18 +191,16 @@ class Registrator:
                         "current filesystem. "
                         "Retrieving atlas manually (may incur download)."
                     )
-                    volume_path = get_atlas_path(settings.volume_settings.resolution)
-                    if not Path(volume_path).exists():
-                        download_atlas()
+                    volume_path = get_atlas_path(
+                        settings.volume_settings.resolution, ensure_downloaded=True
+                    )
             case _:
                 try:
                     volume_path = get_structure_mask_path(
-                        volume_name, settings.volume_settings.resolution
+                        volume_name,
+                        settings.volume_settings.resolution,
+                        ensure_downloaded=True,
                     )
-                    if not Path(volume_path).exists():
-                        download_structure_mask(
-                            volume_name, resolution=settings.volume_settings.resolution
-                        )
                 except KeyError:
                     raise ValueError(
                         f"Could not resolve `volume_name` with value '{volume_name}' "

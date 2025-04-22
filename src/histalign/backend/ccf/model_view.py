@@ -17,7 +17,7 @@ from pydantic import BaseModel, computed_field
 from PySide6 import QtCore
 
 from histalign.backend import UserRole
-from histalign.backend.ccf.paths import get_structures_hierarchy_path
+from histalign.backend.ccf import get_structures_hierarchy_path
 
 # Structure set IDs for which no structure mask exists. These were found by
 # brute-forcing GET requests for structure IDs and collecting the sets for which the

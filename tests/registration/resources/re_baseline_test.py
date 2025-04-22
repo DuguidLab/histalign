@@ -7,8 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from histalign.backend.ccf.downloads import download_atlas
-from histalign.backend.ccf.paths import get_atlas_path
+from histalign.backend.ccf import get_atlas_path
 from histalign.backend.registration import Registrator
 from histalign.backend.workspace import Volume, VolumeSlicer
 from histalign.io import load_alignment_settings, load_volume
@@ -58,9 +57,9 @@ try:
         "tests/registration/resources/complete_alignment_settings.json"
     )
 
-    volume_path = get_atlas_path(alignment_settings.volume_settings.resolution)
-    if not Path(volume_path).exists():
-        download_atlas(alignment_settings.volume_settings.resolution)
+    volume_path = get_atlas_path(
+        alignment_settings.volume_settings.resolution, ensure_downloaded=True
+    )
     alignment_settings.volume_path = volume_path
 
     image = np.load(

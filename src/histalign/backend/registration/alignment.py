@@ -19,8 +19,7 @@ from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import euclidean
 import vedo
 
-from histalign.backend.ccf.downloads import download_structure_mask
-from histalign.backend.ccf.paths import get_structure_mask_path
+from histalign.backend.ccf import get_structure_mask_path
 from histalign.backend.maths import (
     apply_rotation,
     compute_centre,
@@ -321,9 +320,7 @@ def interpolate_sparse_3d_array(
         return array
 
     # Load the mask
-    mask_path = get_structure_mask_path(mask_name, resolution)
-    if not Path(mask_path).exists():
-        download_structure_mask(mask_path, resolution=resolution)
+    mask_path = get_structure_mask_path(mask_name, resolution, ensure_downloaded=True)
     mask_array = load_volume(mask_path, as_array=True)
 
     # Compute interpolation target coordinates

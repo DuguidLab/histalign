@@ -7,7 +7,6 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 import os
-from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Optional
 
@@ -15,8 +14,7 @@ import numpy as np
 import pandas as pd
 from PySide6 import QtCore
 
-from histalign.backend.ccf.downloads import download_structure_mask
-from histalign.backend.ccf.paths import get_structure_mask_path
+from histalign.backend.ccf import get_structure_mask_path
 from histalign.backend.models import (
     AlignmentSettings,
     Quantification,
@@ -128,9 +126,9 @@ class QuantificationThread(QtCore.QThread):
         #       every loop. On higher resolutions, keeping a lot in memory will be bad.
         masks: dict[str, VolumeSlicer] = {}
         for structure in settings.structures:
-            structure_path = get_structure_mask_path(structure, settings.resolution)
-            if not Path(structure_path).exists():
-                download_structure_mask(structure, settings.resolution)
+            structure_path = get_structure_mask_path(
+                structure, settings.resolution, ensure_downloaded=True
+            )
 
             volume = load_volume(structure_path)
             slicer = VolumeSlicer(volume=volume)
