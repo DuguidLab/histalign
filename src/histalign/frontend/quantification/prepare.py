@@ -95,7 +95,7 @@ class PrepareWidget(QtWidgets.QWidget):
         self.project_root = path
         self.resolution = resolution
 
-        self.quantification_parameters_frame.directory_widget.parse_project(path)
+        self.quantification_parameters_frame.parse_project(path)
 
     def set_running_state(self, running: bool) -> None:
         self.running = running
@@ -103,7 +103,7 @@ class PrepareWidget(QtWidgets.QWidget):
         self.run_jobs_button.setEnabled(not running)
 
     def reset(self) -> None:
-        self.quantification_parameters_frame.directory_widget.clear()
+        self.quantification_parameters_frame.reset()
         self._jobs_map.clear()
 
         self.jobs_frame.clear()
@@ -209,6 +209,8 @@ class QuantificationParametersFrame(TitleFrame):
     ) -> None:
         super().__init__(title, bold, italic, parent)
 
+        self.project_root = None
+
         quantification_combo_box = QtWidgets.QComboBox()
         quantification_combo_box.addItems(["Average fluorescence"])
         quantification_combo_box.setSizePolicy(
@@ -218,21 +220,23 @@ class QuantificationParametersFrame(TitleFrame):
         self.quantification_combo_box = quantification_combo_box
 
         directory_widget = ProjectDirectoriesComboBox()
+        directory_widget.currentTextChanged.connect(self.update_on_volume_state)
         directory_widget.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding,
             directory_widget.sizePolicy().verticalPolicy(),
         )
         self.directory_widget = directory_widget
 
+        run_on_volume_label = QtWidgets.QLabel("Run on volume?")
+        self.run_on_volume_label = run_on_volume_label
+
         run_on_volume_check_box = AnimatedCheckBox()
-        run_on_volume_check_box.setChecked(True)
         run_on_volume_check_box.checkStateChanged.connect(
             lambda x: multi_channel_frame.setEnabled(x != QtCore.Qt.CheckState.Checked)
         )
         self.run_on_volume_check_box = run_on_volume_check_box
 
         multi_channel_frame = ChannelFrame()
-        multi_channel_frame.setEnabled(False)
         self.channel_frame = multi_channel_frame
 
         structures_frame = StructureFrame()
@@ -247,7 +251,7 @@ class QuantificationParametersFrame(TitleFrame):
         layout.addWidget(quantification_combo_box, 0, 1)
         layout.addWidget(QtWidgets.QLabel("Directory"), 1, 0)
         layout.addWidget(directory_widget, 1, 1)
-        layout.addWidget(QtWidgets.QLabel("Run on volume?"), 2, 0)
+        layout.addWidget(run_on_volume_label, 2, 0)
         layout.addWidget(
             run_on_volume_check_box, 2, 1, alignment=QtCore.Qt.AlignmentFlag.AlignRight
         )
@@ -255,6 +259,46 @@ class QuantificationParametersFrame(TitleFrame):
         layout.addWidget(structures_frame, 4, 0, 1, 2)
         layout.setHorizontalSpacing(30)
         self.setLayout(layout)
+
+        self.update_on_volume_state()
+
+    def parse_project(self, path: Path) -> None:
+        self.project_root = path
+
+        self.directory_widget.parse_project(path)
+
+    def update_on_volume_state(self) -> None:
+        if self.project_root is None:
+            return
+
+        alignment_directory = self.project_root / Workspace.generate_directory_hash(
+            self.directory_widget.currentText()
+        )
+        interpolated_directory = alignment_directory / "volumes" / "interpolated"
+        if (
+            interpolated_directory.exists()
+            and len(list(interpolated_directory.iterdir())) > 0
+        ):
+            self.run_on_volume_label.setEnabled(True)
+            self.run_on_volume_check_box.setEnabled(True)
+            self.run_on_volume_label.setToolTip("")
+            self.run_on_volume_check_box.setToolTip("")
+        else:
+            self.run_on_volume_label.setEnabled(False)
+            self.run_on_volume_check_box.setEnabled(False)
+            self.run_on_volume_check_box.setChecked(False)
+            self.run_on_volume_label.setToolTip(
+                "No volume found for the current directory. "
+                "Build one to allow quantification."
+            )
+            self.run_on_volume_check_box.setToolTip(
+                "No volume found for the current directory. "
+                "Build one to allow quantification."
+            )
+
+    def reset(self) -> None:
+        self.project_root = None
+        self.directory_widget.clear()
 
 
 class ChannelFrame(TitleFrame):
