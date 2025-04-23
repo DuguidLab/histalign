@@ -52,8 +52,8 @@ _module_logger = logging.getLogger(__name__)
 
 def build_aligned_array(
     alignment_directory: str | Path,
-    channel_index: str = "",
     channel_regex: str = "",
+    channel_substitution: str = "",
     projection_regex: str = "",
     misc_regexes: Sequence[str] = (),
     misc_subs: Sequence[str] = (),
@@ -80,12 +80,12 @@ def build_aligned_array(
         alignment_directory (str | Path):
             Path to the directory containing the alignment settings of the images to use
             to build the array.
-        channel_index (str, optional):
-            Channel index to use for building. Leave empty to use alignment channel. Use
-            in conjunction with `channel_regex`.
         channel_regex (str, optional):
             Channel regex identifying the channel part of `path`'s name. Use in
             conjunction with `channel_index`.
+        channel_substitution (str, optional):
+            String to substitute `channel_regex` with. Leave empty to use alignment
+            channel. Use in conjunction with `channel_regex`.
         projection_regex (str, optional):
             Projection regex identifying the projection part of `path`'s name.
         misc_regexes (Sequence[str], optional):
@@ -107,12 +107,12 @@ def build_aligned_array(
     # Validate arguments
     alignment_directory = Path(alignment_directory)
 
-    if channel_regex is not None and channel_index is None:
+    if channel_regex is not None and channel_substitution is None:
         _module_logger.warning(
             "Received channel regex but no channel index. Building alignment "
             "volume using the same channel as was used for alignment."
         )
-    elif channel_regex is None and channel_index is not None:
+    elif channel_regex is None and channel_substitution is not None:
         _module_logger.warning(
             "Received channel index but no channel regex. Building alignment "
             "volume using the same channel as was used for alignment."
@@ -152,8 +152,8 @@ def build_aligned_array(
         # Apply regex substitution to the histology path
         substituted_path = replace_path_parts(
             settings.histology_path,
-            channel_index,
             channel_regex,
+            channel_substitution,
             projection_regex,
             misc_regexes,
             misc_subs,
@@ -412,8 +412,8 @@ def interpolate_sparse_3d_array(
 
 def replace_path_parts(
     path: Path,
-    channel_index: str,
     channel_regex: str,
+    channel_substitution: str,
     projection_regex: str,
     misc_regexes: Sequence[str] = (),
     misc_subs: Sequence[str] = (),
@@ -426,10 +426,10 @@ def replace_path_parts(
 
     Args:
         path (Path): Path to remove parts on.
-        channel_index (str):
-            Channel index to use in the returned path.
         channel_regex (str):
             Channel regex identifying the channel part of `path`'s name.
+        channel_substitution (str):
+            String to substitute `channel_regex` with.
         projection_regex (str):
             Projection regex identifying the projection part of `path`'s name.
         misc_regexes (Sequence[str], optional):
@@ -447,27 +447,15 @@ def replace_path_parts(
         Path: The path with the parts removed.
 
     Examples:
-        >>> replace_path_parts(Path("/data/filename_C0_max.h5"), 1, r"_C\d_", "_max")
-        Path('/data/filename_C0.h5')
+        >>> replace_path_parts(Path("/data/filename_C123_max.h5"), "C123", "C456", "_max")
+        Path('/data/filename_C456.h5')
     """
-    # Replace the channel index
-    path = path.with_name(
-        re.sub(
-            channel_regex,
-            channel_regex.replace(r"\d", str(channel_index)),
-            path.name,
-            count=1,
-        )
-    )
+    # Replace the channel name
+    path = path.with_name(re.sub(channel_regex, channel_substitution, path.name))
 
     # Remove part of the file name that indicates the projection
     path = path.with_name(
-        re.sub(
-            projection_regex,
-            "",
-            path.name,
-            count=1,
-        ),
+        re.sub(projection_regex, "", path.name),
     )
 
     # Replace the miscellaneous parts

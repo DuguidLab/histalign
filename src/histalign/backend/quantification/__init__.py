@@ -114,8 +114,8 @@ class QuantificationThread(QtCore.QThread):
                 alignment_settings_list.append(alignment_settings)
                 image_path = replace_path_parts(
                     alignment_settings.histology_path,
-                    settings.channel_index,
                     settings.channel_regex,
+                    settings.channel_substitution,
                     "",
                 )
 

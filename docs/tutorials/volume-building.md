@@ -23,11 +23,13 @@ Using Z-stacks helps in building a more true-to-life volume by minimising the wo
 
 ### Working with multi-channel images
 
-Similarly to Z-stacks, it is possible to align channel 0 and build a volume with channel 1 or 2. The logic is similar to the Z-stack interface. To tell `histalign` to use a different channel, toggle the "Multichannel images" checkbox and enter the part of the file name that corresponds to the channel number. This should include at least a single `\d` character which will be replaced with the provided "quantification channel".  
-Future support will bring the ability to have any regex substitution without the need to have numbered channels.
+Similarly to Z-stacks, it is possible to align channel A and build a volume with channel B or C. The logic is similar to the Z-stack interface. To tell `histalign` to use a different channel, toggle the "Multichannel images" checkbox and enter the part of the file name that corresponds to the channel ID in your alignment images. If you are familiar with regular expressions, you can make full use of them here. If not, you can just provide verbatim the name of the channel (e.g, NEUN, MCHERRY).
 
 !!! Example
-    Let's say your project images use the naming scheme `ANIMAL_ID-EXPERIMENT_ID-DATE-CX.tiff` where `CX` is the letter C followed by the channel number. If you quantified using channel 0 (i.e., file names end in `C0.tiff`), you can tell `histalign` to use channel 1 for building the volume by providing the `C\d` regex and the index `1` quantification channel.
+    Let's say your project images use the naming scheme `ANIMAL_ID-EXPERIMENT_ID-DATE-neun.tiff` where `-neun` is the name of the channel in the image. If you quantified using this NeuN channel (i.e., file names end in `-neun.tiff`), you can tell `histalign` to use mCherry channel (i.e., file names end in `-mcherry.tiff`) for building the volume by providing the `neun` regex and the substitution `mcherry`.  
+    Now, instead of loading the NeuN files to build the volume, the mCherry files will be loaded instead.  
+
+    As mentionned previously, you should make sure those files exist in the same folder.
 
 ## Putting it together
 

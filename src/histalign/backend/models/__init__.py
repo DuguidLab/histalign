@@ -220,32 +220,10 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
     """Whether to run the quantification on a volume or individual slices."""
     structures: list[str]
     """List of the structures to quantify."""
-    channel_index: str
-    """Optional, alternative index to run the quantification on."""
     channel_regex: str
-    """Regex identifying the part of the path to replace with the new index."""
-
-    @field_validator("channel_index")
-    @classmethod
-    def validate_regex(cls, value: str) -> str:
-        """Validates the channel index is a valid string representation of an integer.
-
-        Args:
-            value (str): String representation of an integer.
-
-        Returns:
-            str: The string as-is.
-
-        Raises:
-            ValueError: When the value cannot be interpreted as an integer.
-        """
-        try:
-            int(value)
-        except ValueError:
-            if value != "":
-                raise ValueError("could not interpret input as an integer") from None
-
-        return value
+    """Regex identifying the part of the path to substitute."""
+    channel_substitution: str
+    """String to substitute `channel_regex` with."""
 
     @model_validator(mode="after")
     def clear_unused(self) -> QuantificationSettings:
@@ -258,8 +236,8 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
         # used.
         if self.on_volume:
             # Avoid RecursionError by only clearing non-cleared values
-            if self.channel_index:
-                self.channel_index = ""
+            if self.channel_substitution:
+                self.channel_substitution = ""
             if self.channel_regex:
                 self.channel_regex = ""
 
@@ -274,18 +252,18 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
         Returns:
             QuantificationSettings: Self with sanitised fields.
         """
-        if self.channel_regex and not self.channel_index:
+        if self.channel_regex and not self.channel_substitution:
             _module_logger.warning(
                 "Model initialised with a channel regex but not a channel index. "
                 "Considering both as blank."
             )
             self.channel_regex = ""
-        elif not self.channel_regex and self.channel_index:
+        elif not self.channel_regex and self.channel_substitution:
             _module_logger.warning(
                 "Model initialised with a channel index but not a channel regex. "
                 "Considering both as blank."
             )
-            self.channel_index = ""
+            self.channel_substitution = ""
 
         return self
 
@@ -296,15 +274,28 @@ class VolumeBuildingSettings(BaseModel, validate_assignment=True):
     resolution: Resolution
     z_stack_regex: str
     channel_regex: str
-    channel_index: str
+    channel_substitution: str
 
-    @field_validator("channel_index")
-    @classmethod
-    def validate_regex(cls, value: str | int) -> str:
-        try:
-            value = int(value)
-        except ValueError:
-            if value != "":
-                raise ValueError("could not interpret input as an integer") from None
+    @model_validator(mode="after")
+    def sanitise_channel_values(self) -> VolumeBuildingSettings:
+        """Ensures both channel index and regex are set.
 
-        return str(value)
+        If not, they are both cleared.
+
+        Returns:
+            QuantificationSettings: Self with sanitised fields.
+        """
+        if self.channel_regex and not self.channel_substitution:
+            _module_logger.warning(
+                "Model initialised with a channel regex but not a channel index. "
+                "Considering both as blank."
+            )
+            self.channel_regex = ""
+        elif not self.channel_regex and self.channel_substitution:
+            _module_logger.warning(
+                "Model initialised with a channel index but not a channel regex. "
+                "Considering both as blank."
+            )
+            self.channel_substitution = ""
+
+        return self

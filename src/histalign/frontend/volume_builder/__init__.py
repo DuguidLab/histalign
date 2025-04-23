@@ -198,8 +198,8 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
             original_directory=frame.directory_widget.currentText(),
             resolution=self.resolution,
             z_stack_regex=frame.z_stack_frame.regex_line_edit.text(),
-            channel_regex=frame.multichannel_frame.regex_line_edit.text(),
-            channel_index=frame.multichannel_frame.index_line_edit.text(),
+            channel_regex=frame.multichannel_frame.regex,
+            channel_substitution=frame.multichannel_frame.substitution,
         )
 
         widget.remove_requested.connect(lambda: self.pop_job(widget))

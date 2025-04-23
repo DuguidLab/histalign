@@ -42,7 +42,7 @@ class VolumeBuilderThread(QtCore.QThread):
             settings.alignment_directory,
             projection_regex=settings.z_stack_regex,
             channel_regex=settings.channel_regex,
-            channel_index=settings.channel_index,
+            channel_substitution=settings.channel_substitution,
             force=True,
         )
 

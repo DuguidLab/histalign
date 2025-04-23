@@ -148,8 +148,8 @@ class PrepareWidget(QtWidgets.QWidget):
             quantification=Quantification(frame.quantification_combo_box.currentText()),
             on_volume=frame.run_on_volume_check_box.isChecked(),
             structures=frame.structures_frame.structure_tag_holder.get_tag_names(),
-            channel_index=frame.channel_frame.index_line_edit.text(),
-            channel_regex=frame.channel_frame.regex_line_edit.text(),
+            channel_regex=frame.channel_frame.regex,
+            channel_substitution=frame.channel_frame.substitution,
         )
 
         widget.removal_requested.connect(lambda: self.pop_job(widget))
@@ -337,7 +337,9 @@ class ChannelFrame(TitleFrame):
             lambda x: self.regex_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
         )
         check_box.checkStateChanged.connect(
-            lambda x: self.index_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
+            lambda x: self.substitution_line_edit.setEnabled(
+                x == QtCore.Qt.CheckState.Checked
+            )
         )
 
         self.check_box = check_box
@@ -358,18 +360,18 @@ class ChannelFrame(TitleFrame):
         self.regex_line_edit = regex_line_edit
 
         #
-        quantification_channel_line_edit = QtWidgets.QLineEdit()
+        substitution_line_edit = QtWidgets.QLineEdit()
 
-        quantification_channel_line_edit.setEnabled(False)
+        substitution_line_edit.setEnabled(False)
 
-        self.index_line_edit = quantification_channel_line_edit
+        self.substitution_line_edit = substitution_line_edit
 
         #
         layout = QtWidgets.QFormLayout()
 
         layout.addRow("Are images multichannel?", check_box_layout)
         layout.addRow("Channel regex", regex_line_edit)
-        layout.addRow("Quantification channel", quantification_channel_line_edit)
+        layout.addRow("Channel substitution", substitution_line_edit)
 
         self.setLayout(layout)
 
@@ -387,12 +389,12 @@ class ChannelFrame(TitleFrame):
         return regex
 
     @property
-    def index(self) -> str:
-        index = ""
-        if self.index_line_edit.isEnabled():
-            index = self.index_line_edit.text()
+    def substitution(self) -> str:
+        substitution = ""
+        if self.substitution_line_edit.isEnabled():
+            substitution = self.substitution_line_edit.text()
 
-        return index
+        return substitution
 
 
 class ZStackFrame(TitleFrame):
