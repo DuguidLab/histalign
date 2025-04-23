@@ -162,7 +162,9 @@ def _split(
     for series_index in range(
         source_file.series_count if isinstance(source_file, MultiSeriesImageFile) else 1
     ):
-        _module_logger.info(f"Splitting {series_index + 1} of '{source_path.name}'.")
+        _module_logger.info(
+            f"Splitting series {series_index + 1} of '{source_path.name}'."
+        )
         _split_series(
             source_file,
             source_path,
@@ -170,17 +172,17 @@ def _split(
             source_extension,
             destination_extension,
             on,
+            (
+                series_index
+                if isinstance(source_file, MultiSeriesImageFile)
+                and source_file.series_count > 1
+                else -1
+            ),
             force,
         )
 
         if source_file.supports_multi_series and source_file.has_another_series:
             source_file.seek_next_series()
-
-            destination_file.seek_next_series(
-                shape=source_file.shape,
-                dtype=source_file.dtype,
-                metadata=source_file.metadata,
-            )
 
 
 def _split_series(
@@ -190,16 +192,19 @@ def _split_series(
     source_extension: str,
     destination_extension: str,
     on: str,
+    series_index: int,
     force: bool,
 ) -> None:
-    split_dimension_size = source_file.shape[
-        source_file.dimension_order.value.index(on)
-    ]
-    if split_dimension_size < 2:
-        _module_logger.info(
-            f"'{source_path.name}' only has size 1 on the split axis. "
-            f"Skipping split."
+    try:
+        split_dimension_size = source_file.shape[
+            source_file.dimension_order.value.index(on)
+        ]
+    except ValueError:
+        _module_logger.error(
+            f"Could not find dimension '{on}' in current series of "
+            f"file '{source_path}'. Skipping it."
         )
+        return
 
     destination_order = DimensionOrder(
         source_file.dimension_order.value.replace(on, "")
@@ -215,8 +220,9 @@ def _split_series(
         )
     )
     for i in range(split_dimension_size):
+        series_string = "" if series_index < 0 else f"_series{series_index}"
         current_destination_path = destination_path / source_path.name.replace(
-            source_extension, f"_{on}{i}{destination_extension}"
+            source_extension, f"{series_string}_{on}{i}{destination_extension}"
         )
         if current_destination_path.exists() and not force:
             _module_logger.debug(
