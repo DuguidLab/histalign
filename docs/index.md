@@ -5,7 +5,8 @@
 ## Prerequisites
 `histalign` works best with [HDF5 files](https://www.hdfgroup.org/solutions/hdf5/) (.h5). However, support for TIFF, LIF, and PNG files is available. For a full list of available formats, run the `histalign list` command locally. 
 
-In order to carry out alignment, single-channel, two-dimensional images are needed. See [data preparation](tutorials/data-preparation.md) for more details.
+In order to carry out alignment, single-channel, two-dimensional images are needed. See [data preparation](tutorials/data-preparation.md) for more details.  
+It should also be noted that only bright tissue on dark background is supported. The quantification pipeline should be able to handle dark on bright but the alignment experience will be much degraded. 
 
 ## Installation
 `histalign` is being developed with all major platforms in mind (Linux, macOS, Windows). However, due to hardware issues, testing on MacOS is limited. 
