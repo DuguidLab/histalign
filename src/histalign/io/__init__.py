@@ -62,7 +62,7 @@ def load_image(
         path (str | Path): Path to the file.
         normalise_dtype (Optional[np.dtype], optional):
             Data type to normalise to. Leave as `None` to disable normalisation. Note
-            that normalisation happens on the whole array (for example, Z stacks are
+            that normalisation happens on the whole array (for example, Z-stacks are
             normalised using min/max of the whole array).
         allow_stack (bool): Whether to allow 3D image stacks.
 
@@ -105,7 +105,7 @@ def load_volume(
         path (str | Path): Path to the file.
         normalise_dtype (Optional[np.dtype], optional):
             Data type to normalise to. Leave as `None` to disable normalisation. Note
-            that normalisation happens on the whole array (for example, Z stacks are
+            that normalisation happens on the whole array (for example, Z-stacks are
             normalised using min/max of the whole array).
         as_array (bool):
             Whether to return a NumPy array instead of a vedo.Volume.

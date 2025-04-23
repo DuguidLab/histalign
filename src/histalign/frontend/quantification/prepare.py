@@ -398,7 +398,7 @@ class ChannelFrame(TitleFrame):
 class ZStackFrame(TitleFrame):
     def __init__(
         self,
-        title: str = "Z stacks",
+        title: str = "Z-stacks",
         bold: bool = False,
         italic: bool = False,
         parent: Optional[QtWidgets.QWidget] = None,
@@ -432,8 +432,8 @@ class ZStackFrame(TitleFrame):
         #
         layout = QtWidgets.QFormLayout()
 
-        layout.addRow("Are images Z stacks?", check_box_layout)
-        layout.addRow("Z stack regex", regex_line_edit)
+        layout.addRow("Are images Z-stacks?", check_box_layout)
+        layout.addRow("Z-stack regex", regex_line_edit)
 
         self.setLayout(layout)
 
