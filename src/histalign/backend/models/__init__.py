@@ -4,19 +4,14 @@
 
 from __future__ import annotations
 
-from abc import ABC
-from datetime import datetime
 from enum import Enum, IntEnum
 from functools import lru_cache
-import hashlib
 from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import (
     BaseModel,
-    computed_field,
     DirectoryPath,
-    Field,
     field_serializer,
     field_validator,
     FilePath,
@@ -205,20 +200,6 @@ class ProjectSettings(BaseModel, validate_assignment=True):
         return str(value)
 
 
-class MeasureSettings(BaseModel, ABC):
-    pass
-
-
-class AverageFluorescenceMeasureSettings(MeasureSettings, validate_assignment=True):
-    approach: str
-    structures: list[str]
-
-
-class CorticalDepthMeasureSettings(MeasureSettings, validate_assignment=True):
-    cortex_structure: str
-    structures: list[str]
-
-
 class QuantificationSettings(BaseModel, validate_assignment=True):
     """Model used to store quantification settings to run in a QuantifierThread."""
 
@@ -307,23 +288,6 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
             self.channel_index = ""
 
         return self
-
-
-class QuantificationResults(BaseModel, validate_assignment=True):
-    settings: QuantificationSettings
-    data: dict[str, Any] = {}
-    timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
-
-    @computed_field
-    @property
-    def hash(self) -> str:
-        hash_string = f"{self.settings.model_dump_json(serialize_as_any=True)}"
-        hash_string += "".join(self.data.keys())
-        return hashlib.md5(hash_string.encode("UTF-8")).hexdigest()
-
-    @field_serializer("timestamp")
-    def serialise_timestamp(self, value: datetime) -> str:
-        return value.isoformat()
 
 
 class VolumeBuildingSettings(BaseModel, validate_assignment=True):
