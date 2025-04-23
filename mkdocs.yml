@@ -32,6 +32,9 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
 
+extra_css:
+  - css/icons.css
+
 plugins:
   - gen-files:
       scripts:
@@ -49,6 +52,8 @@ plugins:
   - search
 
 markdown_extensions:
+  - admonition
+  - attr_list
   - mkdocs-click
 
 copyright: Copyright &copy; 2024-Present Olivier Delrée
@@ -60,9 +65,9 @@ nav:
   - Tutorials:
       - Overview: tutorials/index.md
       - Data preparation: tutorials/data-preparation.md
+      - Creating your first project: tutorials/your-first-project.md
       - Registration to the CCF: tutorials/registration.md
       - Building a 3D volume: tutorials/volume-building.md
       - Quantifying: tutorials/quantifying.md
       - Visualisation: tutorials/visualisation.md
-  - Reference:
-      - Overview: reference/
+  - Reference: reference/

@@ -1,0 +1,14 @@
+/* Resize SVG icons to a reasonable size */
+img[src$="-icon.svg"] {
+    height: 20px;
+    width: 20px;
+}
+
+/*
+Invert colour of SVG icons when using a dark theme.
+Magic values from:
+https://medium.com/@cerutti.alexander/a-mostly-complete-guide-to-theme-switching-in-css-and-js-c4992d5fd357
+ */
+[data-md-color-scheme="slate"] img[src$="-icon.svg"] {
+    filter: invert(50%) brightness(219%) contrast(100%);
+}

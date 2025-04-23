@@ -75,6 +75,10 @@ And that should be you sorted! From there, running `histalign` from the command 
 
 ## What's next?
 
-For more information on how the GUI works, see the [typical workflow](typical-workflow.md) tutorial which gives you an overview of how data goes through `histalign`.  
+For your first time working with the app, you should start by reading the [tutorials](tutorials/index.md) section which guide you through the interface and what a typical workflow looks like when using `histalign`.  
+
+For typical uses of the application, see the [how-to guides]().
+
+For documentation of the `histalign` API to use in your own project, see the [reference]() section.
 
 For more in-depth guides to each step of the workflow, see the [tutorials](tutorials/index.md)
