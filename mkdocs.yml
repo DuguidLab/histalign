@@ -19,7 +19,6 @@ theme:
     text: Montserrat
   palette:
     - media: "(prefers-color-scheme: light)"
-      schema: slate
       primary: deep-orange
       accent: purple
       toggle:
