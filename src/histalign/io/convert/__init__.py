@@ -287,7 +287,7 @@ def _convert(
 
             # Translate variables from source order to destination order
             translated_index = translate_between_orders(
-                source_file.index, source_order, current_destination_order
+                image_index, source_order, current_destination_order
             )
 
             image = source_file.read_image(image_index)
