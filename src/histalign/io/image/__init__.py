@@ -36,7 +36,7 @@ THUMBNAIL_ASPECT_RATIO = THUMBNAIL_DIMENSIONS[0] / THUMBNAIL_DIMENSIONS[1]
 _module_logger = logging.getLogger(__name__)
 
 
-@click.command(help="List supported formats.")
+@click.command("list", help="List supported formats.")
 def list_formats() -> None:
     """Lists the supported formats currently registered."""
     click.echo("Supported file formats for reading:")
