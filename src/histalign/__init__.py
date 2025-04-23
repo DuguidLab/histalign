@@ -82,15 +82,17 @@ def histalign(
 ) -> None:
     # Handle setting up plugins for IO subcommands
     load_plugins()
-    if context.invoked_subcommand is not None:
-        return
 
-    # Start in GUI mode
     if verbosity == 1:
         set_log_level(logging.INFO)
     elif verbosity >= 2:
         set_log_level(logging.DEBUG)
 
+    if context.invoked_subcommand is not None:
+        # Pass control to subcommand
+        return
+
+    # Start in GUI mode
     app = QtWidgets.QApplication()
 
     app.setStyle("Fusion")
