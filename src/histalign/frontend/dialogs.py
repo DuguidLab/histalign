@@ -9,6 +9,11 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.models import Orientation, ProjectSettings, Resolution
+from histalign.frontend.common_widgets import (
+    file_picker_overwrite_validator,
+    FilePickerWidget,
+)
+from histalign.io import is_empty_directory
 
 
 class AtlasProgressDialog(QtWidgets.QProgressDialog):
@@ -107,27 +112,13 @@ class NewProjectDialog(QtWidgets.QDialog):
         resolution_layout.addWidget(resolution_widget)
         self.resolution_widget = resolution_widget
 
-        project_picker_layout = QtWidgets.QGridLayout()
-        project_picker_layout.setContentsMargins(0, 0, 0, 0)
-        project_picker_layout.setHorizontalSpacing(5)
-        project_picker_layout.setVerticalSpacing(10)
-
-        project_picker_label = QtWidgets.QLabel("Project directory")
-        self.project_path_label = project_picker_label
-
-        project_picker_line_edit = QtWidgets.QLineEdit()
-        project_picker_line_edit.textChanged.connect(self.validate_project_path)
-        self.project_path_widget = project_picker_line_edit
-
-        project_picker_button = QtWidgets.QPushButton("...")
-        project_picker_button.setFixedSize(25, 22)
-        project_picker_button.clicked.connect(self.show_directory_picker)
-
-        project_picker_layout.addWidget(
-            project_picker_label, 0, 0, 1, 2, alignment=QtCore.Qt.AlignLeft
+        directory_picker = FilePickerWidget(
+            "Project directory",
+            directory_mode=True,
+            validators=[file_picker_overwrite_validator, self.path_validator],
         )
-        project_picker_layout.addWidget(project_picker_line_edit, 1, 0)
-        project_picker_layout.addWidget(project_picker_button, 1, 1)
+        directory_picker.layout().setContentsMargins(0, 0, 0, 0)
+        self.directory_picker = directory_picker
 
         button_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
@@ -135,6 +126,7 @@ class NewProjectDialog(QtWidgets.QDialog):
 
         submit_button = button_box.button(QtWidgets.QDialogButtonBox.Ok)
         submit_button.clicked.connect(self.submit)
+        submit_button.setEnabled(False)
         self.submit_button = submit_button
 
         button_box.button(QtWidgets.QDialogButtonBox.Cancel).clicked.connect(
@@ -143,21 +135,17 @@ class NewProjectDialog(QtWidgets.QDialog):
 
         layout.addRow("Orientation", orientation_layout)
         layout.addRow(resolution_label, resolution_layout)
-        layout.addRow(project_picker_layout)
+        layout.addRow(directory_picker)
         layout.addRow(button_box)
 
         self.setLayout(layout)
         self.setFixedSize(400, layout.sizeHint().height())
 
-    def show_directory_picker(self) -> None:
-        choice = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            caption="Select a project directory",
-            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog,
-        )
+    def path_validator(self, path: str, widget: FilePickerWidget) -> str:
+        path_ = Path(path) if path else Path("/__dummy__path__")
+        self.submit_button.setEnabled(path_.exists() and path_.is_dir())
 
-        if choice != "":
-            self.project_path_widget.setText(choice)
+        return path
 
     def show_confirm_overwrite_dialog(self) -> bool:
         dialog = ConfirmOverwriteDialog(self)
@@ -165,45 +153,16 @@ class NewProjectDialog(QtWidgets.QDialog):
         return dialog.exec() == QtWidgets.QMessageBox.StandardButton.Ok
 
     @QtCore.Slot()
-    def validate_project_path(self, path: str) -> bool:
-        path = Path(path)
-
-        empty = False
-        if path.is_dir():
-            try:
-                next(path.iterdir())
-            except FileNotFoundError:
-                pass
-            except StopIteration:
-                empty = True
-
-        if not empty:
-            self.project_path_label.setText(
-                "Project directory (contents will be overwritten)"
-            )
-
-            pallete = self.project_path_label.palette()
-            pallete.setColor(
-                QtGui.QPalette.ColorRole.WindowText, QtCore.Qt.GlobalColor.red
-            )
-            self.project_path_label.setPalette(pallete)
-        else:
-            self.project_path_label.setText("Project directory")
-            self.project_path_label.setPalette(
-                QtWidgets.QApplication.instance().palette()
-            )
-
-        return empty
-
-    @QtCore.Slot()
     def submit(self) -> None:
-        if not self.validate_project_path(self.project_path_widget.text()):
-            if not self.show_confirm_overwrite_dialog():
-                return
+        if (
+            not is_empty_directory(Path(self.directory_picker.text))
+            and not self.show_confirm_overwrite_dialog()
+        ):
+            return
 
         self.submitted.emit(
             ProjectSettings(
-                project_path=Path(self.project_path_widget.text()),
+                project_path=Path(self.directory_picker.text),
                 orientation=Orientation(self.orientation_widget.currentText().lower()),
                 resolution=Resolution(int(self.resolution_widget.currentText())),
             )

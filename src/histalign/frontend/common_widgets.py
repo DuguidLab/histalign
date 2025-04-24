@@ -37,7 +37,7 @@ from histalign.frontend.pyside_helpers import (
     lua_aware_shift,
 )
 from histalign.frontend.themes import is_light_colour
-from histalign.io import is_alignment_file, load_alignment_settings
+from histalign.io import is_alignment_file, is_empty_directory, load_alignment_settings
 from histalign.io.image import generate_file_hash
 from histalign.resources import ICONS_ROOT
 
@@ -4288,3 +4288,279 @@ class ColumnsFrame(TitleFrame):
                     and not isinstance(widget, QtWidgets.QSpacerItem)
                 ):
                     column.takeAt(j).widget().deleteLater()
+
+
+class FilePickerWidget(QtWidgets.QWidget):
+    """A file picker widget consisting of a label above a line edit and a [...] button.
+
+    Args:
+        text (str, optional): Text to set on the label above the line edit.
+        directory_mode (bool, optional):
+            Whether the file dialog pop-up should request a directory.
+        save_mode (bool, optional):
+            Whether the file dialog pop-up should request a save location.
+        directory (str, optional): Starting directory of the file dialog pop-up.
+        filters (str, optional):
+            File filters of the file dialog pop-up. If `directory_mode` is set, this
+            is ignored.
+        options (Optional[QtWidgets.QFileDialog.Option], optional):
+            File dialog options to set on the file dialog pop-up.
+        validators (Optional[Sequence[Callable[[str, FilePickerWidget], str]]], optional):
+            Validators that should run whenever the line edit text is modified. The
+            validators receive the new value and a reference to this widget and are
+            expected to return a validated value for the line edit. If multiple
+            validators are provided, they are run in order.
+        parent (Optional[QtWidgets.QWidget], optional): Parent of this widget.
+
+    Attributes:
+        validators (Sequence[Callable[[str, FilePickerWidget], str]]):
+            Callables to run on the input to the line edit. The validators are run in
+            order, receive two arguments, the text and this widget, and should return
+            a validated string.
+        file_dialog (QtWidgets.QFileDialog):
+            File dialog pop-up shown when the user clicks the [...] button next to the
+            line edit. This is built automatically from the constructor arguments.
+        label (QtWidgets.QLabel): Label displayed above the line edit.
+        line_edit (QtWidgets.QLineEdit): Line edit to store the file path.
+
+    Signals:
+        text_changed (str):
+            Emits the new text of the line edit after it has been validated by all the
+            validators and set on the line edit.
+    """
+
+    validators: Sequence[Callable[[str, FilePickerWidget], str]]
+
+    file_dialog: QtWidgets.QFileDialog
+    label: QtWidgets.QLabel
+    line_edit: QtWidgets.QLineEdit
+
+    text_changed: QtCore.Signal = QtCore.Signal(str)
+
+    def __init__(
+        self,
+        text: str = "File picker",
+        directory_mode: bool = False,
+        save_mode: bool = False,
+        directory: str = "",
+        filters: str = "",
+        options: Optional[QtWidgets.QFileDialog.Option] = None,
+        validators: Optional[Sequence[Callable[[str, FilePickerWidget], str]]] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.file_dialog = self.build_file_dialog(
+            directory_mode, save_mode, directory, filters, options
+        )
+        self.validators = validators or [lambda x, y: x]
+
+        label = QtWidgets.QLabel(text)
+        self.label = label
+
+        line_edit = QtWidgets.QLineEdit()
+        line_edit.textChanged.connect(self.validate_line_edit)
+        self.line_edit = line_edit
+
+        button = QtWidgets.QPushButton("...")
+        button.setFixedSize(
+            line_edit.sizeHint().height(), line_edit.sizeHint().height()
+        )
+        button.clicked.connect(self.show_file_dialog)
+
+        layout = QtWidgets.QGridLayout()
+        layout.addWidget(label, 0, 0, 1, 2)
+        layout.addWidget(line_edit, 1, 0)
+        layout.addWidget(button, 1, 1)
+        layout.setColumnStretch(1, 1)
+        self.setLayout(layout)
+
+    @property
+    def text(self) -> str:
+        """Current text of the line edit."""
+        return self.line_edit.text()
+
+    def build_file_dialog(
+        self,
+        directory_mode: bool,
+        save_mode: bool,
+        directory: str,
+        filters: str,
+        options: Optional[QtWidgets.QFileDialog.Option],
+    ) -> QtWidgets.QFileDialog:
+        """Builds a file dialog pop-up to show when the [...] button is clicked.
+
+        Args:
+            directory_mode (bool, optional):
+                Whether the file dialog pop-up should request a directory.
+            save_mode (bool, optional):
+                Whether the file dialog pop-up should request a save location.
+            directory (str, optional): Starting directory of the file dialog pop-up.
+            filters (str, optional):
+                File filters of the file dialog pop-up. If `directory_mode` is set, this
+                is ignored.
+            options (Optional[QtWidgets.QFileDialog.Option], optional):
+                File dialog options to set on the file dialog pop-up.
+
+        Returns:
+            QtWidgets.QFileDialog: A QFileDialog built according to input parameters.
+        """
+        dialog = QtWidgets.QFileDialog(self)
+
+        if directory_mode:
+            dialog.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)
+        if save_mode:
+            dialog.setAcceptMode(QtWidgets.QFileDialog.AcceptMode.AcceptSave)
+        if directory:
+            dialog.setDirectory(directory)
+        if filters and not directory_mode:
+            dialog.setNameFilter(filters)
+        if options:
+            dialog.setOptions(options)
+
+        dialog.accepted.connect(
+            lambda: self.line_edit.setText(
+                self.build_path(dialog.selectedFiles()[0], dialog.selectedNameFilter())
+            )
+        )
+
+        return dialog
+
+    @QtCore.Slot()
+    def show_file_dialog(self) -> None:
+        """Shows the file dialog pop-up."""
+        self.file_dialog.open()
+
+    @QtCore.Slot()
+    def validate_line_edit(self, text: str) -> None:
+        """Runs the validators on `text`.
+
+        Args:
+            text (str): New value for the line edit.
+        """
+        for validator in self.validators:
+            text = validator(text, self)
+
+        cursor_position = self.line_edit.cursorPosition()
+        self.line_edit.setText(text)
+        self.line_edit.setCursorPosition(cursor_position)
+        self.text_changed.emit(text)
+
+    # noinspection PyShadowingBuiltins
+    @staticmethod
+    def build_path(path: str, filter: str) -> str:
+        """Builds a complete path, adding the filter suffix if the user did not specify.
+
+        Args:
+            path (str): Path returned by the file dialog pop-up.
+            filter (str): Filter set on the file dialog pop-up.
+
+        Returns:
+            str:
+                The path with the filter's first extension added if the input path was
+                a file, otherwise `path` as-is.
+        """
+        if filter == "Directories":
+            return path
+
+        filter_extensions = filter.split("(")[1].split(")")[0].split()
+        filter_extensions = [
+            extension.replace("*", "") for extension in filter_extensions
+        ]
+
+        for extension in filter_extensions:
+            if path.endswith(extension):
+                return path
+
+        return path + filter_extensions[0]
+
+
+class FileSelectorWidget(QtWidgets.QWidget):
+    """A file selector widget consisting of a label above a combo box.
+
+    Args:
+        text (str, optional): Text to set on the label above the combo box.
+        choices (Sequence[str], optional): Choices to fill the combo box with.
+        parent (Optional[QtWidgets.QWidget], optional): Parent of this widget.
+
+    Attributes:
+        combo_box (QtWidgets.QComboBox): Combo box containing the path options.
+
+    Signals:
+        text_changed (str): Emits the new text of the combo box after it has changed.
+    """
+
+    combo_box: QtWidgets.QComboBox
+
+    text_changed: QtCore.Signal = QtCore.Signal(str)
+
+    def __init__(
+        self,
+        text: str = "Choose a file",
+        choices: Sequence[str] = ("",),
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        label = QtWidgets.QLabel(text)
+
+        combo_box = QtWidgets.QComboBox()
+        combo_box.addItems(choices)
+        combo_box.currentTextChanged.connect(self.text_changed.emit)
+        self.combo_box = combo_box
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(label)
+        layout.addWidget(combo_box)
+        self.setLayout(layout)
+
+    @property
+    def text(self) -> str:
+        """Current text of the combo box."""
+        return self.combo_box.currentText()
+
+
+def file_picker_overwrite_validator(path: str, widget: FilePickerWidget) -> str:
+    """Validates a FilePickerWidget's by changing its label to notify of overwriting.
+
+    The validator adds an overwriting notice on the file picker label and changes the
+    label's colour to red to notify the user.
+
+    Args:
+        path (str): New line edit value to check for overwriting.
+        widget (FilePickerWidget): Widget to validate.
+
+    Returns:
+        str: The path unchanged.
+    """
+    # Keep a separate variable instead of shadowing to allow trailing slashes that
+    # otherwise get eaten by `pathlib`. Also use a dummy path so that clearing the
+    # line edit also clears any notice or palette change since Path("") default to
+    # the current directory.
+    path_ = Path(path) if path else Path("/__dummy__path__")
+
+    would_overwrite = False
+    if path_.is_dir():
+        would_overwrite = not is_empty_directory(path_)
+
+    text = widget.label.text()
+    notice = " (contents will be overwritten)"
+    if would_overwrite:
+        # Add a notice to the picker label and change the palette to make it obvious
+        if not text.endswith(notice):
+            text += notice
+
+        palette = widget.label.palette()
+        palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtCore.Qt.GlobalColor.red)
+        widget.label.setPalette(palette)
+    else:
+        # Clear any modifications
+        text = text.replace(notice, "")
+
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            widget.label.setPalette(app.palette())  # type: ignore[attr-defined]
+
+    widget.label.setText(text)
+
+    return path

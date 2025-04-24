@@ -229,6 +229,27 @@ def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
     return paths
 
 
+def is_empty_directory(path: Path) -> bool:
+    """Returns whether a given path points to an empty directory.
+
+    If the path is not valid or not a directory, this function returns False.
+
+    Args:
+        path (Path): Path to the directory.
+
+    Returns:
+        bool: Whether the path points to a valid, empty directory.
+    """
+    if not path.exists() or not path.is_dir():
+        return False
+
+    try:
+        next(path.iterdir())
+        return False
+    except StopIteration:
+        return True
+
+
 def clear_directory(directory_path: str | Path) -> None:
     """Removes all files and directories from the given path.
 
