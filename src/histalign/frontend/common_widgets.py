@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod
 from collections.abc import Sequence
 import itertools
 import json
@@ -25,7 +24,6 @@ from histalign.backend.ccf.model_view import (
     iterate_tree_model_dfs,
 )
 from histalign.backend.workspace import build_thumbnail_path
-from histalign.frontend.dialogs import OpenProjectDialog
 from histalign.frontend.events import (
     AboutToCollapseEvent,
     CollapsedEvent,
@@ -34,7 +32,6 @@ from histalign.frontend.events import (
 )
 from histalign.frontend.pyside_helpers import (
     connect_single_shot_slot,
-    FakeQtABC,
     find_parent,
     get_actual_background_colour,
     lua_aware_shift,
@@ -1110,63 +1107,6 @@ class BasicMenuBar(QtWidgets.QMenuBar):
         file_menu.addAction(close_action)
         file_menu.addSeparator()
         file_menu.addAction(exit_action)
-
-
-class BasicApplicationWindow(QtWidgets.QMainWindow, FakeQtABC):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-
-        #
-        self.set_up_menu_bar()
-
-        #
-        status_bar = self.statusBar()
-        status_bar.setObjectName("MainStatusBar")
-
-        frame_colour = lua_aware_shift(
-            status_bar.palette().window().color(), 10
-        ).getRgb()
-
-        status_bar.setStyleSheet(
-            "#MainStatusBar {{ border-top: 1px solid rgba({}, {}, {}, {}); }}".format(
-                *frame_colour
-            )
-        )
-
-    def set_up_menu_bar(self) -> None:
-        menu_bar = BasicMenuBar()
-
-        menu_bar.open_requested.connect(self.show_open_project_dialog)
-        menu_bar.close_requested.connect(self.close_project)
-        menu_bar.exit_requested.connect(self.exit_application)
-
-        self.setMenuBar(menu_bar)
-
-    @QtCore.Slot()
-    def show_open_project_dialog(self) -> None:
-        dialog = OpenProjectDialog(self)
-        dialog.submitted.connect(self.open_project)
-        dialog.exec()
-
-    @abstractmethod
-    @QtCore.Slot()
-    def open_project(self, project_file_path: str) -> None:
-        raise NotImplementedError
-
-    @QtCore.Slot()
-    def close_project(self) -> None:
-        if self.close():
-            try:
-                self.parent().open_centralised_window()
-            except AttributeError:
-                _module_logger.error(
-                    "Failed to open centralised window, quitting application instead."
-                )
-
-    @QtCore.Slot()
-    def exit_application(self) -> None:
-        if self.close():
-            exit()
 
 
 class DynamicThemeIcon(QtGui.QIcon):
