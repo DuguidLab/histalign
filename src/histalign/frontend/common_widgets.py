@@ -37,13 +37,16 @@ from histalign.frontend.pyside_helpers import (
     lua_aware_shift,
 )
 from histalign.frontend.themes import is_light_colour
-from histalign.io import is_alignment_file, is_empty_directory, load_alignment_settings
+from histalign.io import (
+    HASHED_DIRECTORY_NAME_PATTERN,
+    is_alignment_file,
+    is_empty_directory,
+    load_alignment_settings,
+)
 from histalign.io.image import generate_file_hash
 from histalign.resources import ICONS_ROOT
 
 QWIDGETSIZE_MAX = 16777215  # Qt constant
-
-HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
 _module_logger = logging.getLogger(__name__)
 

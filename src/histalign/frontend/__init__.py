@@ -10,10 +10,12 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.models import ProjectSettings
-from histalign.backend.workspace import Workspace
+from histalign.backend.models import ProjectSettings, VolumeExportSettings
+from histalign.backend.workspace import VolumeExporterThread, Workspace
 from histalign.frontend.common_widgets import DynamicThemeIcon
 from histalign.frontend.dialogs import (
+    ExportVolumeDialog,
+    InfiniteProgressDialog,
     InvalidProjectFileDialog,
     NewProjectDialog,
     OpenImagesFolderDialog,
@@ -160,6 +162,21 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         project_required_group.append(open_images_folder_action)
 
         file_menu.addAction(open_images_folder_action)
+        file_menu.addSeparator()
+
+        # Volume actions
+        export_volume_action = QtGui.QAction(
+            DynamicThemeIcon(ICONS_ROOT / "external-link-icon.png"),
+            "Export volume",
+            enabled=False,
+            shortcut=QtGui.QKeySequence("CTRL+E"),
+            statusTip="Export a volume from the current project",
+            parent=file_menu,
+        )
+        export_volume_action.triggered.connect(self.export_volume)
+        project_required_group.append(export_volume_action)
+
+        file_menu.addAction(export_volume_action)
         file_menu.addSeparator()
 
         # Application actions
@@ -515,6 +532,32 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
         # Update workspace state
         self.workspace_is_dirty = True
+
+    @QtCore.Slot()
+    def export_volume(self) -> None:
+        """Displays a pop-up to the user enabling them to export built volumes."""
+        _module_logger.debug("Volume export initiated.")
+
+        # Build dialog pop-up to export to a specific directory
+        dialog = ExportVolumeDialog(self.workspace.project_settings.project_path, self)
+        dialog.submitted.connect(self._export_volume)
+        dialog.rejected.connect(
+            lambda: _module_logger.debug("Volume export cancelled.")
+        )
+        dialog.open()
+
+    @QtCore.Slot()
+    def _export_volume(self, settings: VolumeExportSettings) -> None:
+        exporter_thread = VolumeExporterThread(
+            self.workspace.project_settings.project_path, settings, self
+        )
+
+        dialog = InfiniteProgressDialog("Exporting volume(s)", self)
+        exporter_thread.export_finished.connect(dialog.accept)
+        exporter_thread.export_finished.connect(exporter_thread.deleteLater)
+
+        dialog.open()
+        exporter_thread.start()
 
     @QtCore.Slot()
     def quit(self) -> None:

@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 from queue import Empty
 import re
+import shutil
 from threading import Event
 import time
 from typing import Any, get_type_hints, Literal, Optional
@@ -50,6 +51,7 @@ from histalign.backend.models import (
     Orientation,
     ProjectSettings,
     Resolution,
+    VolumeExportSettings,
     VolumeSettings,
 )
 from histalign.io import ImageFile, open_file
@@ -344,6 +346,89 @@ class VolumeLoaderThread(QtCore.QThread):
     @staticmethod
     def _run(volume: Volume, queue: Queue) -> None:
         queue.put(volume.load())
+
+
+class VolumeExporterThread(QtCore.QThread):
+    export_finished: QtCore.Signal = QtCore.Signal()
+
+    def __init__(
+        self,
+        project_root: Path,
+        settings: VolumeExportSettings,
+        parent: Optional[QtCore.QObject] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.project_root = project_root
+        self.settings = settings
+
+    def run(self) -> None:
+        _module_logger.debug("Starting volume export thread.")
+
+        # Try to generate a user-friendly name for the export files
+        alignment_directory = self.project_root / Workspace.generate_directory_hash(
+            self.settings.image_directory
+        )
+        metadata_path = alignment_directory / "metadata.json"
+        destination_file_name = alignment_directory.name
+        try:
+            with metadata_path.open() as handle:
+                contents = json.load(handle)
+            source_directory = contents["directory_path"]
+            destination_file_name = Path(source_directory).name
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            _module_logger.error(
+                f"Failed to load metadata from '{metadata_path}'. "
+                f"Defaulting to hashed names for export."
+            )
+
+        export_aligned_name = destination_file_name + "_aligned.h5"
+        export_interpolated_name = destination_file_name + "_interpolated.h5"
+
+        # TODO: Better check these are the the correct volumes rather than assume they
+        #       are.
+        if self.settings.include_aligned:
+            aligned_path = list(
+                (alignment_directory / "volumes" / "aligned").iterdir()
+            )[0]
+            destination_aligned_path = (
+                self.settings.export_directory / export_aligned_name
+            )
+
+            if destination_aligned_path.exists():
+                _module_logger.error(
+                    f"Export directory '{self.settings.export_directory}' already contains "
+                    f"a copy of the aligned volume '{export_aligned_name}'. "
+                    f"Skipping it."
+                )
+            else:
+                _module_logger.debug(
+                    f"Exporting '{aligned_path}' to '{destination_aligned_path}'."
+                )
+                shutil.copy(aligned_path, destination_aligned_path)
+        if self.settings.include_interpolated:
+            interpolated_path = list(
+                (alignment_directory / "volumes" / "interpolated").iterdir()
+            )[0]
+            destination_interpolated_path = (
+                self.settings.export_directory / export_interpolated_name
+            )
+
+            if destination_interpolated_path.exists():
+                _module_logger.error(
+                    f"Export directory '{self.settings.export_directory}' already contains "
+                    f"a copy of the interpolated volume '{export_interpolated_name}'. "
+                    f"Skipping it."
+                )
+            else:
+                _module_logger.debug(
+                    f"Exporting '{interpolated_path}' to "
+                    f"'{destination_interpolated_path}'."
+                )
+                shutil.copy(interpolated_path, destination_interpolated_path)
+
+        self.export_finished.emit()
+        _module_logger.debug("Finished exporting volumes.")
 
 
 class VolumeSlicer:
@@ -932,3 +1017,23 @@ def compute_downsampling_factor(shape: tuple[int, ...]) -> int:
             (np.array(shape) / DOWNSAMPLE_TARGET_SHAPE).max(),
         )
     )
+
+
+def alignment_directory_has_volumes(directory: Path) -> bool:
+    """Returns whether an alignment directory has both aligned and interpolated volumes.
+
+    Args:
+        directory (Path): Alignment directory to check.
+
+    Returns:
+        bool:
+            Whether the alignment directory has both aligned and interpolated volumes.
+    """
+    aligned_path = directory / "volumes" / "aligned"
+    has_aligned = aligned_path.exists() and len(list(aligned_path.iterdir())) > 0
+    interpolated_path = directory / "volumes" / "interpolated"
+    has_interpolated = (
+        interpolated_path.exists() and len(list(interpolated_path.iterdir())) > 0
+    )
+
+    return has_aligned and has_interpolated

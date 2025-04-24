@@ -4,16 +4,23 @@
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from histalign.backend.models import Orientation, ProjectSettings, Resolution
+from histalign.backend.models import (
+    Orientation,
+    ProjectSettings,
+    Resolution,
+    VolumeExportSettings,
+)
+from histalign.backend.workspace import alignment_directory_has_volumes, Workspace
 from histalign.frontend.common_widgets import (
     file_picker_overwrite_validator,
     FilePickerWidget,
+    FileSelectorWidget,
 )
-from histalign.io import is_empty_directory
+from histalign.io import is_empty_directory, list_alignment_directories
 
 
 class AtlasProgressDialog(QtWidgets.QProgressDialog):
@@ -279,3 +286,156 @@ class ConfirmDeleteDialog(QtWidgets.QMessageBox):
         self.setButtonText(QtWidgets.QMessageBox.StandardButton.Ok, "Confirm")
 
         self.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+
+
+class ExportVolumeDialog(QtWidgets.QDialog):
+    submitted: QtCore.Signal = QtCore.Signal(VolumeExportSettings)
+
+    def __init__(
+        self, project_root: Path, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
+        super().__init__(parent)
+
+        choices = list_alignment_directories(project_root)
+        choices = [
+            path
+            for path in choices
+            if alignment_directory_has_volumes(
+                Path(project_root / Workspace.generate_directory_hash(path))
+            )
+        ]
+
+        image_directory_widget = FileSelectorWidget("Image directory", choices=choices)
+        image_directory_widget.layout().setContentsMargins(0, 0, 0, 0)
+        self.image_directory_widget = image_directory_widget
+
+        alignment_check_box = QtWidgets.QCheckBox()
+        alignment_check_box.stateChanged.connect(
+            lambda: self.export_button_state_validator(export_directory_widget.text)
+        )
+        self.alignment_check_box = alignment_check_box
+
+        interpolation_check_box = QtWidgets.QCheckBox()
+        interpolation_check_box.stateChanged.connect(
+            lambda: self.export_button_state_validator(export_directory_widget.text)
+        )
+        self.interpolation_check_box = interpolation_check_box
+
+        export_directory_widget = FilePickerWidget(
+            "Export directory",
+            directory_mode=True,
+            save_mode=True,
+            validators=[self.export_button_state_validator],
+        )
+        export_directory_widget.layout().setContentsMargins(0, 0, 0, 0)
+        self.export_directory_widget = export_directory_widget
+
+        button_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).clicked.connect(
+            self.submit
+        )
+        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setText(
+            "Export"
+        )
+        button_box.button(
+            QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        ).clicked.connect(self.reject)
+        self.button_box = button_box
+
+        layout = QtWidgets.QGridLayout()
+        layout.addWidget(image_directory_widget, 0, 0, 1, -1)
+        layout.addWidget(QtWidgets.QLabel("Alignment volume"), 1, 0, 1, 2)
+        layout.addWidget(
+            alignment_check_box, 1, 2, alignment=QtCore.Qt.AlignmentFlag.AlignRight
+        )
+        layout.addWidget(QtWidgets.QLabel("Interpolated volume"), 2, 0, 1, 2)
+        layout.addWidget(
+            interpolation_check_box, 2, 2, alignment=QtCore.Qt.AlignmentFlag.AlignRight
+        )
+        layout.addWidget(export_directory_widget, 3, 0, 1, -1)
+        layout.addItem(QtWidgets.QSpacerItem(0, 10), 4, 0)
+        layout.addWidget(
+            button_box, 5, 0, 1, -1, alignment=QtCore.Qt.AlignmentFlag.AlignRight
+        )
+        layout.setSpacing(10)
+        self.setLayout(layout)
+
+        self.setWindowTitle("Export volume")
+        self.setFixedSize(400, layout.sizeHint().height())
+
+        self.export_button_state_validator("")  # Trigger once to set tool tips
+
+    @property
+    def alignment_directory(self) -> str:
+        return self.image_directory_widget.text
+
+    @property
+    def include_aligned(self) -> bool:
+        return self.alignment_check_box.isChecked()
+
+    @property
+    def include_interpolated(self) -> bool:
+        return self.interpolation_check_box.isChecked()
+
+    @property
+    def export_directory(self) -> str:
+        return self.export_directory_widget.text
+
+    def export_button_state_validator(self, path: str, _: Any = None) -> str:
+        ok_button = self.button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+        path_ = Path(path) if path else Path("/__dummy__path__")
+
+        if not self.alignment_directory:
+            ok_button.setEnabled(False)
+            ok_button.setToolTip("Invalid alignment directory.")
+        elif self.include_aligned + self.include_interpolated < 1:
+            ok_button.setEnabled(False)
+            ok_button.setToolTip("Choose at least one volume to export.")
+        elif not (path_.exists() and path_.is_dir()):
+            ok_button.setEnabled(False)
+            ok_button.setToolTip("Invalid export directory.")
+        else:
+            ok_button.setEnabled(True)
+            ok_button.setToolTip("")
+
+        return path
+
+    @QtCore.Slot()
+    def submit(self) -> None:
+        self.submitted.emit(
+            VolumeExportSettings(
+                image_directory=self.alignment_directory,
+                include_aligned=self.include_aligned,
+                include_interpolated=self.include_interpolated,
+                export_directory=self.export_directory,
+            )
+        )
+        self.accept()
+
+
+class InfiniteProgressDialog(QtWidgets.QProgressDialog):
+    def __init__(self, text: str, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        self.setMinimum(0)
+        self.setMaximum(0)
+        self.setCancelButton(None)  # type: ignore[arg-type]
+
+        self.setWindowTitle("")
+        self.setLabelText(text)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            # Disable closing dialog with Escape
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        # Ugly but not all platforms support having a frame and no close button
+        event.ignore()
+        return

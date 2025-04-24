@@ -299,3 +299,20 @@ class VolumeBuildingSettings(BaseModel, validate_assignment=True):
             self.channel_substitution = ""
 
         return self
+
+
+class VolumeExportSettings(BaseModel, validate_assignment=True):
+    image_directory: DirectoryPath
+    include_aligned: bool
+    include_interpolated: bool
+    export_directory: DirectoryPath
+
+    @model_validator(mode="after")
+    def validate_at_least_one_include(self) -> VolumeExportSettings:
+        if self.include_aligned + self.include_interpolated < 1:
+            raise ValueError(
+                "At least one of 'include_aligned' or 'include_interpolated' "
+                "should be set."
+            )
+
+        return self

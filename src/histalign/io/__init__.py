@@ -36,6 +36,7 @@ DATA_ROOT = Path(data_directories[0]) / "histalign"
 del data_directories
 
 ALIGNMENT_FILE_NAME_PATTERN = re.compile(r"[0-9a-f]{32}\.json")
+HASHED_DIRECTORY_NAME_PATTERN = re.compile(r"[0-9a-f]{10}")
 
 _SUPPORTED_ARRAY_FORMATS = [
     ".h5",
@@ -268,3 +269,32 @@ def clear_directory(directory_path: str | Path) -> None:
             os.remove(path)
         else:
             shutil.rmtree(path)
+
+
+def list_alignment_directories(
+    project_root: Path, allow_empty: bool = False
+) -> list[str]:
+    directories = []
+    for path in project_root.iterdir():
+        path: Path
+        if (
+            path.is_file()
+            or re.fullmatch(HASHED_DIRECTORY_NAME_PATTERN, path.name) is None
+        ):
+            continue
+
+        metadata_path = path / "metadata.json"
+        if not metadata_path.exists():
+            continue
+
+        for child_path in path.iterdir():
+            if is_alignment_file(child_path):
+                break
+        else:
+            if not allow_empty:
+                continue
+
+        with metadata_path.open() as handle:
+            directories.append(json.load(handle)["directory_path"])
+
+    return directories
