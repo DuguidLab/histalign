@@ -52,6 +52,7 @@ _module_logger = logging.getLogger(__name__)
 
 def build_aligned_array(
     alignment_directory: str | Path,
+    z_spacing: int = -1,
     channel_regex: str = "",
     channel_substitution: str = "",
     projection_regex: str = "",
@@ -80,6 +81,8 @@ def build_aligned_array(
         alignment_directory (str | Path):
             Path to the directory containing the alignment settings of the images to use
             to build the array.
+        z_spacing (int):
+            Spacing to use when building a volume from Z stacks.
         channel_regex (str, optional):
             Channel regex identifying the channel part of `path`'s name. Use in
             conjunction with `channel_index`.
@@ -106,6 +109,12 @@ def build_aligned_array(
 
     # Validate arguments
     alignment_directory = Path(alignment_directory)
+
+    if z_spacing < 1 and projection_regex:
+        _module_logger.warning(
+            f"Received a projection regex but an invalid Z spacing ('{z_spacing}'). "
+            f"Will default to volume resolution as spacing."
+        )
 
     if channel_regex is not None and channel_substitution is None:
         _module_logger.warning(
@@ -202,10 +211,11 @@ def build_aligned_array(
                 images.append(array[tuple(slice_)])
 
             # Loop over multiple of the normal to get origins
+            z_scaling = (
+                z_spacing / settings.volume_settings.resolution if z_spacing > 0 else 1
+            )
             for i in range(-int(z_count / 2) + (z_count % 2 == 0), z_count // 2 + 1):
-                # TODO: Scale multiple by the real Z-spacing (currently assuming same as
-                #       resolution).
-                origins.append(alignment_origin + i * alignment_normal)
+                origins.append(alignment_origin + i * alignment_normal * z_scaling)
 
         # Register each image
         registrator = Registrator()

@@ -413,6 +413,9 @@ class ZStackFrame(TitleFrame):
         check_box.checkStateChanged.connect(
             lambda x: self.regex_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
         )
+        check_box.checkStateChanged.connect(
+            lambda x: spacing_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
+        )
 
         self.check_box = check_box
 
@@ -426,16 +429,23 @@ class ZStackFrame(TitleFrame):
 
         #
         regex_line_edit = QtWidgets.QLineEdit()
-
+        regex_line_edit.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         regex_line_edit.setEnabled(False)
-
         self.regex_line_edit = regex_line_edit
+
+        #
+        spacing_line_edit = QtWidgets.QLineEdit()
+        spacing_line_edit.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        spacing_line_edit.setValidator(QtGui.QIntValidator())
+        spacing_line_edit.setEnabled(False)
+        self.spacing_line_edit = spacing_line_edit
 
         #
         layout = QtWidgets.QFormLayout()
 
         layout.addRow("Are images Z-stacks?", check_box_layout)
         layout.addRow("Z-stack regex", regex_line_edit)
+        layout.addRow("Spacing (μm)", spacing_line_edit)
 
         self.setLayout(layout)
 
@@ -445,12 +455,12 @@ class ZStackFrame(TitleFrame):
         )
 
     @property
-    def regex(self) -> str | None:
-        regex = None
-        if self.regex_line_edit.isEnabled():
-            regex = self.regex_line_edit.text() or None
+    def regex(self) -> str:
+        return self.regex_line_edit.text()
 
-        return regex
+    @property
+    def spacing(self) -> str:
+        return self.spacing_line_edit.text()
 
 
 class StructureFrame(TitleFrame):

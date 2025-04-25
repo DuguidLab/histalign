@@ -273,6 +273,7 @@ class VolumeBuildingSettings(BaseModel, validate_assignment=True):
     original_directory: DirectoryPath
     resolution: Resolution
     z_stack_regex: str
+    z_spacing: int
     channel_regex: str
     channel_substitution: str
 

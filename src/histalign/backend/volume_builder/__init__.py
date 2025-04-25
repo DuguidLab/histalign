@@ -40,6 +40,7 @@ class VolumeBuilderThread(QtCore.QThread):
         #       to user. Alternatively, add a callback parameter for reporting.
         build_aligned_array(
             settings.alignment_directory,
+            z_spacing=settings.z_spacing,
             projection_regex=settings.z_stack_regex,
             channel_regex=settings.channel_regex,
             channel_substitution=settings.channel_substitution,

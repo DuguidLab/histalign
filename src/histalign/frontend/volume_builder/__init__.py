@@ -67,6 +67,27 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
 
         # Create left column
         parameters_frame = QuantificationParametersFrame()
+        parameters_frame.directory_widget.currentTextChanged.connect(
+            self.update_add_job_button_state
+        )
+        parameters_frame.z_stack_frame.check_box.checkStateChanged.connect(
+            self.update_add_job_button_state
+        )
+        parameters_frame.z_stack_frame.regex_line_edit.textChanged.connect(
+            self.update_add_job_button_state
+        )
+        parameters_frame.z_stack_frame.spacing_line_edit.textChanged.connect(
+            self.update_add_job_button_state
+        )
+        parameters_frame.multichannel_frame.check_box.checkStateChanged.connect(
+            self.update_add_job_button_state
+        )
+        parameters_frame.multichannel_frame.regex_line_edit.textChanged.connect(
+            self.update_add_job_button_state
+        )
+        parameters_frame.multichannel_frame.substitution_line_edit.textChanged.connect(
+            self.update_add_job_button_state
+        )
         self.parameters_frame = parameters_frame
 
         add_job_button = QtWidgets.QPushButton("Add job")
@@ -115,6 +136,7 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
 
         run_jobs_button = QtWidgets.QPushButton("Run jobs")
         run_jobs_button.clicked.connect(self.start_jobs)
+        run_jobs_button.setEnabled(False)
         run_jobs_button.setContentsMargins(0, 0, 0, 0)
         self.run_jobs_button = run_jobs_button
 
@@ -180,7 +202,54 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
         self.run_jobs_button.setEnabled(not enabled)
 
     @QtCore.Slot()
+    def update_add_job_button_state(self) -> None:
+        state = True  # Assume should be enabled
+        tool_tip = ""
+
+        # Check items from bottom to top so that tool tip is for the first item from top
+        # to bottom.
+
+        frame = self.parameters_frame.multichannel_frame
+        # If requested to handle multi-channel images,
+        if frame.check_box.isChecked():
+            # force having a channel substitution
+            if frame.substitution == "":
+                state = False
+                tool_tip = "Please provide a channel substitution"
+            # force having a channel regex
+            if frame.regex == "":
+                state = False
+                tool_tip = "Please provide a channel regex"
+
+        frame = self.parameters_frame.z_stack_frame
+        # If requested to handle Z-stacks,
+        if frame.check_box.isChecked():
+            # force having a spacing
+            if frame.spacing == "":
+                state = False
+                tool_tip = "Please provide a Z spacing"
+            # force having a regex
+            if frame.regex == "":
+                state = False
+                tool_tip = "Please provide a Z-stack regex"
+
+        # Ensure a directory is selected
+        if self.parameters_frame.directory_widget.currentText() == "":
+            state = False
+            tool_tip = "No alignment directory selected"
+
+        # Ensure not currently running
+        if self.running:
+            state = False
+            tool_tip = "Currently building volume(s)"
+
+        self.add_job_button.setEnabled(state)
+        self.add_job_button.setToolTip(tool_tip)
+
+    @QtCore.Slot()
     def queue_job(self) -> None:
+        self.run_jobs_button.setEnabled(True)
+
         frame = self.parameters_frame
 
         widget = JobWidget(
@@ -193,11 +262,13 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
         directory_hash = Workspace.generate_directory_hash(
             frame.directory_widget.currentText()
         )
+        z_spacing = int(frame.z_stack_frame.spacing_line_edit.text() or "-1")
         self._jobs_map[widget] = VolumeBuildingSettings(
             alignment_directory=self.project_root / directory_hash,
             original_directory=frame.directory_widget.currentText(),
             resolution=self.resolution,
             z_stack_regex=frame.z_stack_frame.regex_line_edit.text(),
+            z_spacing=z_spacing,
             channel_regex=frame.multichannel_frame.regex,
             channel_substitution=frame.multichannel_frame.substitution,
         )
@@ -212,6 +283,8 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
         self._jobs_map.pop(widget)
         self.jobs_layout.takeAt(self.jobs_layout.indexOf(widget))
         widget.deleteLater()
+
+        self.run_jobs_button.setEnabled(len(self._jobs_map) > 0)
 
     @QtCore.Slot()
     def start_jobs(self) -> None:
