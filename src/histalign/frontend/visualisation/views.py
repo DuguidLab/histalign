@@ -104,9 +104,10 @@ class SliceViewer(QtWidgets.QWidget):
         histology_path = alignment_settings.histology_path
 
         handle = open_file(histology_path)
-        pixmap = np_to_qpixmap(
-            normalise_array(handle.read_image(handle.index), np.uint8)
-        )
+        image = normalise_array(handle.read_image(handle.index), np.uint8)
+        if "XY" in handle.dimension_order.value:
+            image = image.T
+        pixmap = np_to_qpixmap(image)
 
         self.set_pixmap(pixmap)
         self._alignment_settings = alignment_settings

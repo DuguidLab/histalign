@@ -56,6 +56,7 @@ def load_image(
     path: str | Path,
     normalise_dtype: Optional[np.dtype] = None,
     allow_stack: bool = False,
+    force_yx: bool = True,
 ) -> np.ndarray:
     """Loads a 2D image or 3D stack from disk.
 
@@ -65,7 +66,8 @@ def load_image(
             Data type to normalise to. Leave as `None` to disable normalisation. Note
             that normalisation happens on the whole array (for example, Z-stacks are
             normalised using min/max of the whole array).
-        allow_stack (bool): Whether to allow 3D image stacks.
+        allow_stack (bool, optional): Whether to allow 3D image stacks.
+        force_yx (bool, optional): Whether to transpose XY dimension order to YX.
 
     Returns:
         np.ndarray: The loaded file as a NumPy array.
@@ -91,6 +93,14 @@ def load_image(
     array = file.load()
     if normalise_dtype is not None:
         array = normalise_array(array, normalise_dtype)
+
+    if force_yx:
+        order = file.dimension_order
+
+        x_index = order.value.index("X")
+        y_index = order.value.index("Y")
+        if x_index < y_index:
+            array = array.swapaxes(x_index, y_index)
 
     return array
 

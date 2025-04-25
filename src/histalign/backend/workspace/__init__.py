@@ -783,6 +783,9 @@ class Workspace(QtCore.QObject):
 
         self.alignment_settings.histology_downsampling = downsampling_factor
 
+        if "XY" in image_handle.dimension_order.value:
+            image = image.T
+
         return image
 
     def swap_images(self, index1: int, index2: int) -> None:
