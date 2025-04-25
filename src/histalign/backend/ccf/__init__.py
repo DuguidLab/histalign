@@ -188,19 +188,24 @@ def get_annotation_path(resolution: Resolution, ensure_downloaded: bool = False)
     return path
 
 
-def get_structure_id(structure_name: str, resolution: Resolution) -> int:
+def get_structure_id(structure: str, resolution: Resolution) -> int:
     """Returns the ID of the given structure.
 
     Args:
-        structure_name (str): Name of the structure.
+        structure (str): Name or acronym of the structure.
         resolution (Resolution): Resolution of the structure tree to use.
 
     Returns:
         int: The ID of the structure.
     """
-    return get_structure_tree(resolution).get_structures_by_name([structure_name])[0][
-        "id"
-    ]
+    try:
+        return get_structure_tree(resolution).get_structures_by_name([structure])[0][
+            "id"
+        ]
+    except KeyError:
+        return get_structure_tree(resolution).get_structures_by_acronym([structure])[0][
+            "id"
+        ]
 
 
 def get_structure_name_by_acronym(acronym: str, resolution: Resolution) -> str:
