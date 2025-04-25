@@ -494,6 +494,9 @@ class RegistrationWidget(QtWidgets.QWidget):
         self.settings_widget.volume_settings_widget.blockSignals(False)
         self.settings_widget.histology_settings_widget.blockSignals(False)
 
+        self.update_completed_thumbnails()
+
+    def update_completed_thumbnails(self) -> None:
         for index, hash in enumerate(self.workspace.list_hashes()):
             if not Path(self.workspace.build_alignment_path(hash)).exists():
                 continue

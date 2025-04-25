@@ -530,6 +530,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.workspace.parse_image_directory(path)
         self.workspace.start_thumbnail_generation()
 
+        # Synchronise with registration thumbnails
+        self.registration_tab.update_completed_thumbnails()
+
         # Update workspace state
         self.workspace_is_dirty = True
 
