@@ -591,11 +591,6 @@ class RegistrationWidget(QtWidgets.QWidget):
     def open_atlas_in_aligner(self) -> None:
         _module_logger.debug("Opening atlas.")
 
-        # noinspection PyTypeChecker
-        self.workspace.alignment_settings.volume_settings.shape = (
-            self.alignment_widget.volume_slicer.volume.shape
-        )
-
         try:
             self.alignment_widget.update_volume_pixmap(rescale=True)
         except ValueError as error:

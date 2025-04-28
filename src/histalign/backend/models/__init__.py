@@ -16,7 +16,6 @@ from pydantic import (
     field_validator,
     FilePath,
     model_validator,
-    ValidationInfo,
 )
 
 
@@ -117,18 +116,23 @@ class HistologySettings(BaseModel, validate_assignment=True):
 class VolumeSettings(BaseModel, validate_assignment=True):
     orientation: Orientation
     resolution: Resolution
-    shape: tuple[int, int, int] = (0, 0, 0)
     pitch: int = 0
     yaw: int = 0
     offset: int = 0
 
-    @field_validator("shape")
-    @classmethod
-    def validate_shape(cls, value: tuple[int, int, int]) -> tuple[int, int, int]:
-        for dimension in value:
-            if dimension < 1:
-                raise ValueError("shape axes should all be positive and non-zero")
-        return value
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        match self.resolution:
+            case Resolution.MICRONS_100:
+                return 132, 80, 114
+            case Resolution.MICRONS_50:
+                return 264, 160, 228
+            case Resolution.MICRONS_25:
+                return 528, 320, 456
+            case Resolution.MICRONS_10:
+                return 1320, 800, 114
+            case _:
+                raise Exception("ASSERT NOT REACHED")
 
     @field_validator("pitch", "yaw")
     @classmethod
@@ -137,25 +141,26 @@ class VolumeSettings(BaseModel, validate_assignment=True):
             raise ValueError("principle axes are limited to the range -90 to 90")
         return value
 
-    @field_validator("offset")
-    @classmethod
-    def validate_offset(cls, value: int, info: ValidationInfo) -> int:
-        match Orientation(info.data["orientation"]):
+    @model_validator(mode="after")
+    def ensure_valid_offset(self) -> VolumeSettings:
+        match self.orientation:
             case Orientation.CORONAL:
-                axis_length = info.data["shape"][0]
+                axis_length = self.shape[0]
             case Orientation.HORIZONTAL:
-                axis_length = info.data["shape"][1]
+                axis_length = self.shape[1]
             case Orientation.SAGITTAL:
-                axis_length = info.data["shape"][2]
+                axis_length = self.shape[2]
             case _:
                 raise Exception("Panic: assert not reached")
 
+        offset = self.offset
         if (
-            not -axis_length // 2 + (axis_length % 2 == 0) <= value <= axis_length // 2
-            and axis_length != value != 0
+            not -axis_length // 2 + (axis_length % 2 == 0) <= offset <= axis_length // 2
+            and axis_length != offset != 0
         ):
             raise ValueError("offset should be <= half of orientation-relevant axis")
-        return value
+
+        return self
 
 
 class AlignmentSettings(BaseModel, validate_assignment=True):
