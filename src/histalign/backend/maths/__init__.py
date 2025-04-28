@@ -148,11 +148,11 @@ def compute_normal_from_raw(
     return apply_rotation_from_raw(np.array(normal), pitch, yaw, orientation).reshape(3)
 
 
-def compute_origin(centre: Sequence[int], settings: VolumeSettings) -> np.ndarray:
+def compute_origin(centre: Sequence[float], settings: VolumeSettings) -> np.ndarray:
     """Computes the view plane origin from the given centre and settings.
 
     Args:
-        centre (Sequence[int]): Centre to work from.
+        centre (Sequence[float]): Centre to work from.
         settings (VolumeSettings): Alignment settings to use.
 
     Returns:

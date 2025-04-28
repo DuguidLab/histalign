@@ -13,7 +13,7 @@ import click
 import numpy as np
 from PIL import Image
 
-from histalign.io.language_helpers import classproperty
+from histalign.language_helpers import classproperty
 
 Extension = str
 Format = str

@@ -186,6 +186,9 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         self.widget().layout().replaceAt(index, thumbnail)
 
     def set_thumbnail_completed(self, index: int, completed: bool) -> None:
+        if not 0 < index < self.widget().layout().count():
+            return
+
         if index in self._complete_indices and not completed:
             self._complete_indices.remove(index)
         elif index not in self._complete_indices and completed:

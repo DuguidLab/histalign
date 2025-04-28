@@ -4,6 +4,7 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from PySide6 import QtCore, QtWidgets
@@ -20,12 +21,23 @@ from histalign.frontend.common_widgets import (
 from histalign.frontend.visualisation.information import InformationWidget
 from histalign.frontend.visualisation.views import SliceViewer, VolumeViewer
 from histalign.io import load_volume
+from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
 
 
 class VisualisationWidget(QtWidgets.QWidget):
+    project_root: Optional[Path]
+    resolution: Optional[Resolution]
+
+    central_view: SliceViewer | VolumeViewer
+    navigation_widget: NavigationWidget
+    information_widget: InformationWidget
+    left_tools_widget: CollapsibleWidgetArea
+    right_tools_widget: CollapsibleWidgetArea
+    splitter: PreferentialSplitter
+
     project_opened: QtCore.Signal = QtCore.Signal()
     project_closed: QtCore.Signal = QtCore.Signal()
     image_opened: QtCore.Signal = QtCore.Signal()
@@ -134,7 +146,7 @@ class VisualisationWidget(QtWidgets.QWidget):
         old_view = self.central_view
         new_view = old_view
 
-        if isinstance(old_view, SliceViewer):
+        if isinstance(new_view, SliceViewer):
             new_view.open_image(path)
         else:
             new_view = SliceViewer()
@@ -152,21 +164,21 @@ class VisualisationWidget(QtWidgets.QWidget):
         old_view = self.central_view
         new_view = old_view
 
-        volume = load_volume(path, normalise_dtype=np.uint16, as_array=True)
+        volume = load_volume(path, normalise_dtype=np.dtype(np.uint16), as_array=True)
 
         # Preprocessing would have been done beforehand
         volume = gaussian_filter(volume, sigma=5, radius=20)
-        volume = normalise_array(volume, dtype=np.uint8)
+        volume = normalise_array(volume, dtype=np.dtype(np.uint8))
         volume = np.digitize(volume, np.linspace(0, 255, 25)).astype(np.uint8)
-        volume = normalise_array(volume, dtype=np.uint16)
+        volume = normalise_array(volume, dtype=np.dtype(np.uint16))
 
         mask_path = get_structure_mask_path(
-            "root", self.resolution, ensure_downloaded=True
+            "root", unwrap(self.resolution), ensure_downloaded=True
         )
         mask = load_volume(mask_path, as_array=True)
         volume = np.where(mask, volume, 0)
 
-        if isinstance(old_view, VolumeViewer):
+        if isinstance(new_view, VolumeViewer):
             new_view.set_overlay_volume(volume)
         else:
             new_view = VolumeViewer(resolution=self.resolution, overlay_volume=volume)

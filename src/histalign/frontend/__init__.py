@@ -6,7 +6,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -28,6 +28,7 @@ from histalign.frontend.registration import RegistrationWidget
 from histalign.frontend.visualisation import VisualisationWidget
 from histalign.frontend.volume_builder import VolumeBuilderWidget
 from histalign.io import clear_directory
+from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         project_opened: Emitted when a project has been opened.
         project_closed: Emitted when the current project has been closed.
     """
+
+    workspace: Optional[Workspace]
+    workspace_is_dirty: bool
 
     project_opened: QtCore.Signal = QtCore.Signal()
     project_closed: QtCore.Signal = QtCore.Signal()
@@ -96,7 +100,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         """Builds the menu bar for this window."""
         menu_bar = self.menuBar()
 
-        project_required_group = []
+        project_required_group: list[QtWidgets.QMenu | QtGui.QAction] = []
 
         # File menu
         file_menu = menu_bar.addMenu("&File")
@@ -343,7 +347,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.propagate_workspace()
 
         # Begin generating thumbnails
-        self.workspace.start_thumbnail_generation()
+        unwrap(self.workspace).start_thumbnail_generation()
 
         # Update the registration tab
         tab = self.registration_tab
@@ -352,10 +356,10 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
     def propagate_workspace(self) -> None:
         """Ensures workspace models are properly shared with all that rely on it."""
-        self.registration_tab.update_workspace(self.workspace)
+        self.registration_tab.update_workspace(unwrap(self.workspace))
 
     # Event handlers
-    def closeEvent(self, event: QtGui.QShowEvent) -> None:
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """Handles close events.
 
         This ensures the user is prompted for a save/discard/cancel action when
@@ -475,7 +479,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         """Saves the current project and marks the workspace as clean."""
         _module_logger.debug("Saving project")
 
-        self.workspace.save()
+        unwrap(self.workspace).save()
         self.workspace_is_dirty = False
 
     @QtCore.Slot()
@@ -527,8 +531,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         self.registration_tab.clear_histology_state()
 
         # Process new images
-        self.workspace.parse_image_directory(path)
-        self.workspace.start_thumbnail_generation()
+        workspace = unwrap(self.workspace)
+        workspace.parse_image_directory(str(path))
+        workspace.start_thumbnail_generation()
 
         # Synchronise with registration thumbnails
         self.registration_tab.update_completed_thumbnails()
@@ -542,7 +547,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         _module_logger.debug("Volume export initiated.")
 
         # Build dialog pop-up to export to a specific directory
-        dialog = ExportVolumeDialog(self.workspace.project_settings.project_path, self)
+        dialog = ExportVolumeDialog(
+            unwrap(self.workspace).project_settings.project_path, self
+        )
         dialog.submitted.connect(self._export_volume)
         dialog.rejected.connect(
             lambda: _module_logger.debug("Volume export cancelled.")
@@ -552,7 +559,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def _export_volume(self, settings: VolumeExportSettings) -> None:
         exporter_thread = VolumeExporterThread(
-            self.workspace.project_settings.project_path, settings, self
+            unwrap(self.workspace).project_settings.project_path, settings, self
         )
 
         dialog = InfiniteProgressDialog("Exporting volume(s)", self)
@@ -584,6 +591,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         if index < 1 or self.workspace is None:
             return
 
+        tab: OpenProjectProtocol
         if index == 1:
             tab = self.volume_builder_tab
         elif index == 2:
@@ -597,3 +605,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             self.workspace.project_settings.project_path,
             resolution=self.workspace.project_settings.resolution,
         )
+
+
+class OpenProjectProtocol(Protocol):
+    def open_project(self, project_root: str | Path, *args, **kwargs) -> None: ...

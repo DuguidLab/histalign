@@ -34,6 +34,7 @@ from histalign.frontend.registration.alignment import (
 from histalign.frontend.registration.alpha import AlphaWidget
 from histalign.frontend.registration.settings import SettingsWidget
 from histalign.frontend.registration.thumbnails import ThumbnailsWidget
+from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
@@ -182,6 +183,8 @@ class RegistrationWidget(QtWidgets.QWidget):
 
         def disable_all(tool_bar: QtWidgets.QToolBar) -> None:
             for widget in tool_bar.children():
+                if not isinstance(widget, QtWidgets.QWidget):
+                    continue
                 widget.setEnabled(False)
 
         tool_bar = QtWidgets.QToolBar()
@@ -207,11 +210,13 @@ class RegistrationWidget(QtWidgets.QWidget):
             shortcut=QtGui.QKeySequence("CTRL+L"),
             tool_tip="Load the saved alignment for the current image.",
         )
-        load_alignment_button.clicked.connect(lambda: self.workspace.load_alignment())
+        load_alignment_button.clicked.connect(
+            lambda: unwrap(self.workspace).load_alignment()
+        )
         load_alignment_button.clicked.connect(self.load_alignment)
         self.histology_opened.connect(
             lambda: load_alignment_button.setEnabled(
-                os.path.exists(self.workspace.build_alignment_path())
+                os.path.exists(unwrap(unwrap(self.workspace).build_alignment_path()))
             )
         )
         self.alignment_saved.connect(lambda: load_alignment_button.setEnabled(True))
@@ -226,7 +231,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         delete_alignment_button.clicked.connect(self.delete_alignment)
         self.histology_opened.connect(
             lambda: delete_alignment_button.setEnabled(
-                os.path.exists(self.workspace.build_alignment_path())
+                os.path.exists(unwrap(unwrap(self.workspace).build_alignment_path()))
             )
         )
         self.alignment_saved.connect(lambda: delete_alignment_button.setEnabled(True))
@@ -329,7 +334,7 @@ class RegistrationWidget(QtWidgets.QWidget):
     def clear_status(self) -> None:
         """Clears the temporary message on the status bar."""
         with suppress(AttributeError):
-            self.window().statusBar().clearMessage()
+            self.window().statusBar().clearMessage()  # type: ignore[attr-defined]
 
     def clear_volume_state(self) -> None:
         """Clears any atlas on the GUI."""
@@ -342,16 +347,15 @@ class RegistrationWidget(QtWidgets.QWidget):
         # Gather the volumes.
         # Sneak the annotation volume in here. It doesn't usually take long but if
         # it turns out to in the future, we can give feedback to the user.
+        resolution = unwrap(self.workspace).resolution
         annotation_volume = AnnotationVolume(
-            get_annotation_path(self.workspace.resolution),
-            self.workspace.resolution,
-            lazy=True,
+            get_annotation_path(resolution), resolution, lazy=True
         )
         annotation_volume.loaded.connect(
             lambda: _module_logger.debug("Annotations loaded.")
         )
         self.annotation_volume = annotation_volume
-        atlas_volume = self.alignment_widget.volume_slicer.volume
+        atlas_volume = unwrap(self.alignment_widget.volume_slicer).volume
 
         # Set up the dialog and loader threads
         dialog = AtlasProgressDialog(self)
@@ -387,9 +391,8 @@ class RegistrationWidget(QtWidgets.QWidget):
             return
 
         widget = self.alignment_widget
-        orientation = widget.volume_settings.orientation
-        pitch = widget.volume_settings.pitch
-        yaw = widget.volume_settings.yaw
+        volume_settings = unwrap(widget.volume_settings)
+        orientation = volume_settings.orientation
 
         # Get global cursor position
         global_position = QtGui.QCursor.pos()
@@ -401,60 +404,64 @@ class RegistrationWidget(QtWidgets.QWidget):
         scene_position = widget.view.mapToScene(view_position)
 
         # Convert it to a pixmap position
-        pixmap_position = widget.volume_pixmap.mapFromScene(scene_position).toTuple()
+        pixmap_position_tuple = widget.volume_pixmap.mapFromScene(
+            scene_position
+        ).toTuple()
+        pixmap_position = np.array(pixmap_position_tuple)
         # NOTE: there is no need to flip the X coordinate of the pixmap position even
         #       though the image undergoes `np.fliplr` when slicing. That is because
         #       pixmap coordinates increase from left to right which is correct for
         #       volume coordinates.
 
         # Compute position of pixmap centre
-        pixmap_centre_position = widget.volume_pixmap.pixmap().size().toTuple()
-        pixmap_centre_position = np.array(pixmap_centre_position) // 2
+        pixmap_size = widget.volume_pixmap.pixmap().size().toTuple()
+        pixmap_centre_position = np.array(pixmap_size) // 2
 
         # Compute relative cursor pixmap position from centre
         relative_pixmap_position = pixmap_position - pixmap_centre_position
-        relative_pixmap_position = relative_pixmap_position  # X x Y not I x J
 
         # Convert to non-rotated coordinates
         match orientation:
             case Orientation.CORONAL:
-                pixmap_coordinates = [
+                coordinates = [
                     0,
                     relative_pixmap_position[1],
                     relative_pixmap_position[0],
                 ]
             case Orientation.HORIZONTAL:
-                pixmap_coordinates = [
+                coordinates = [
                     relative_pixmap_position[1],
                     0,
                     relative_pixmap_position[0],
                 ]
             case Orientation.SAGITTAL:
-                pixmap_coordinates = [
+                coordinates = [
                     relative_pixmap_position[0],
                     relative_pixmap_position[1],
                     0,
                 ]
             case other:
                 raise Exception(f"ASSERT NOT REACHED: {other}")
-        pixmap_coordinates = np.array(pixmap_coordinates)
+        pixmap_coordinates = np.array(coordinates)
 
         # Apply rotation
-        rotated_coordinates = apply_rotation(pixmap_coordinates, widget.volume_settings)
+        rotated_coordinates = apply_rotation(pixmap_coordinates, volume_settings)
 
         # Add to slicing plane origin
-        volume_centre = compute_centre(widget.volume_settings.shape)
-        volume_origin = compute_origin(volume_centre, widget.volume_settings)
+        volume_centre = compute_centre(volume_settings.shape)
+        volume_origin = compute_origin(volume_centre, volume_settings)
 
         volume_coordinates = volume_origin + rotated_coordinates
         volume_coordinates = np.array(list(map(int, volume_coordinates)))
 
         # Get the name of the structure at coordinates
-        structure_name = self.annotation_volume.get_name_from_voxel(volume_coordinates)
+        structure_name = self.annotation_volume.get_name_from_voxel(
+            volume_coordinates.tolist()
+        )
         structure_string = f" ({structure_name})" if structure_name else ""
 
         # Convert volume coordinates to CCF coordinates
-        ccf_coordinates = volume_coordinates * widget.volume_settings.resolution.value
+        ccf_coordinates = volume_coordinates * volume_settings.resolution.value
 
         # Display output in status bar
         try_show_status_message(
@@ -466,16 +473,18 @@ class RegistrationWidget(QtWidgets.QWidget):
         )
 
     def share_workspace_models(self) -> None:
-        alignment_settings = self.workspace.alignment_settings
-        volume_settings = self.workspace.alignment_settings.volume_settings
-        histology_settings = self.workspace.alignment_settings.histology_settings
+        workspace = unwrap(self.workspace)
+
+        alignment_settings = workspace.alignment_settings
+        volume_settings = workspace.alignment_settings.volume_settings
+        histology_settings = workspace.alignment_settings.histology_settings
 
         self.alignment_widget.alignment_settings = alignment_settings
         self.alignment_widget.volume_settings = volume_settings
         self.alignment_widget.histology_settings = histology_settings
 
         self.settings_widget.volume_settings_widget.settings = (
-            self.workspace.alignment_settings.volume_settings
+            workspace.alignment_settings.volume_settings
         )
         self.settings_widget.histology_settings_widget.settings = histology_settings
 
@@ -497,8 +506,11 @@ class RegistrationWidget(QtWidgets.QWidget):
         self.update_completed_thumbnails()
 
     def update_completed_thumbnails(self) -> None:
+        self.workspace = unwrap(self.workspace)
+
         for index, hash in enumerate(self.workspace.list_hashes()):
-            if not Path(self.workspace.build_alignment_path(hash)).exists():
+            alignment_path = self.workspace.build_alignment_path(hash)
+            if alignment_path is None or not Path(alignment_path).exists():
                 continue
 
             self.thumbnails_widget.set_thumbnail_completed(index, True)
@@ -508,10 +520,11 @@ class RegistrationWidget(QtWidgets.QWidget):
     def save_alignment(self) -> None:
         _module_logger.debug("Saving alignment.")
 
-        self.workspace.save_alignment()
+        workspace = unwrap(self.workspace)
+        workspace.save_alignment()
         try_show_status_message(self.window(), "Alignment saved.")
         self.thumbnails_widget.set_thumbnail_completed(
-            self.workspace.current_aligner_image_index, True
+            unwrap(workspace.current_aligner_image_index), True
         )
 
         self.alignment_saved.emit()
@@ -520,7 +533,7 @@ class RegistrationWidget(QtWidgets.QWidget):
     def load_alignment(self) -> None:
         _module_logger.debug("Loading alignment.")
 
-        self.workspace.load_alignment()
+        unwrap(self.workspace).load_alignment()
         try_show_status_message(self.window(), "Alignment loaded.")
         self.share_workspace_models()
         self.settings_widget.reload_settings()
@@ -539,14 +552,15 @@ class RegistrationWidget(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def _delete_alignment(self) -> None:
+        workspace = unwrap(self.workspace)
         _module_logger.debug(
-            f"Deleting alignment for: {self.workspace.current_aligner_image_hash}"
+            f"Deleting alignment for: {workspace.current_aligner_image_hash}"
         )
 
-        self.workspace.delete_alignment()
+        workspace.delete_alignment()
         try_show_status_message(self.window(), "Deleted alignment", 2000)
         self.thumbnails_widget.set_thumbnail_completed(
-            self.workspace.current_aligner_image_index, False
+            unwrap(workspace.current_aligner_image_index), False
         )
 
         self.alignment_deleted.emit()
@@ -555,7 +569,7 @@ class RegistrationWidget(QtWidgets.QWidget):
     def begin_landmark_registration(self) -> None:
         window = LandmarkRegistrationWindow(self)
 
-        match self.workspace.alignment_settings.volume_settings.orientation:
+        match unwrap(self.workspace).alignment_settings.volume_settings.orientation:
             case Orientation.CORONAL:
                 general_zoom = 2.0
             case Orientation.HORIZONTAL:
@@ -615,9 +629,11 @@ class RegistrationWidget(QtWidgets.QWidget):
     def open_image_in_aligner(self, index: int) -> None:
         _module_logger.debug("Opening histology.")
 
-        old_index = self.workspace.current_aligner_image_index
+        workspace = unwrap(self.workspace)
 
-        image = self.workspace.get_image(index)
+        old_index = workspace.current_aligner_image_index
+
+        image = workspace.get_image(index)
         if image is None:
             return
 

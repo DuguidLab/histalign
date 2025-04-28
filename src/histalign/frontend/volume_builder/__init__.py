@@ -28,6 +28,7 @@ from histalign.frontend.common_widgets import (
 )
 from histalign.frontend.pyside_helpers import lua_aware_shift
 from histalign.frontend.quantification.prepare import ChannelFrame, ZStackFrame
+from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
@@ -264,9 +265,9 @@ class VolumeBuilderWidget(QtWidgets.QWidget):
         )
         z_spacing = int(frame.z_stack_frame.spacing_line_edit.text() or "-1")
         self._jobs_map[widget] = VolumeBuildingSettings(
-            alignment_directory=self.project_root / directory_hash,
-            original_directory=frame.directory_widget.currentText(),
-            resolution=self.resolution,
+            alignment_directory=unwrap(self.project_root) / directory_hash,
+            original_directory=Path(frame.directory_widget.currentText()),
+            resolution=unwrap(self.resolution),
             z_stack_regex=frame.z_stack_frame.regex_line_edit.text(),
             z_spacing=z_spacing,
             channel_regex=frame.multichannel_frame.regex,

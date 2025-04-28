@@ -75,3 +75,23 @@ dependencies = [
 [tool.hatch.envs.docs.scripts]
 build = "mkdocs build --clean --strict"
 serve = "mkdocs serve --dev-addr localhost:8888"
+
+[tool.hatch.envs.type]
+dependencies = [
+  "mypy",
+]
+[tool.hatch.envs.type.scripts]
+check = "mypy --install-types --non-interactive {args:src/histalign}"
+
+[tool.mypy]
+ignore_missing_imports = true
+follow_imports = "normal"
+pretty = true
+allow_redefinition = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+disable_error_code = [
+  "call-overload",
+]

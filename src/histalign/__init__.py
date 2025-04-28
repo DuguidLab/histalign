@@ -15,7 +15,7 @@ if __name__ == "histalign":
     import typing_extensions
 
     Self = TypeVar("Self")
-    typing_extensions.Self = Self
+    typing_extensions.Self = Self  # type: ignore[assignment]
 
 import logging
 import sys

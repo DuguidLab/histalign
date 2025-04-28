@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 import os
+from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Optional
 
@@ -79,7 +80,7 @@ class QuantificationThread(QtCore.QThread):
 
         self.settings = settings
 
-    def run(self) -> pd.DataFrame:
+    def run(self) -> None:
         _module_logger.debug("Starting quantification.")
         settings = self.settings
 
@@ -88,22 +89,22 @@ class QuantificationThread(QtCore.QThread):
         os.makedirs(results_directory, exist_ok=True)
 
         # Prepare handles to the relevant data
-        input_handles: dict[str, ImageFile] = {}
+        input_handles: dict[Path, ImageFile] = {}
         alignment_settings_list: list[AlignmentSettings] = []
         if settings.on_volume:
             # Side-step `load_volume` since volumes should be using HDF5 by now and this
             # streamlines file handling with single slices.
             path = settings.alignment_directory / "volumes" / "interpolated"
-            path = list(path.iterdir())
-            if len(path) != 1:
+            paths = list(path.iterdir())
+            if len(paths) != 1:
                 _module_logger.error(
                     f"Failed to find the interpolated volume for "
                     f"'{settings.alignment_directory}'. Aborting quantification."
                 )
-                return pd.DataFrame()
+                return
 
-            input_handles[str(path[0])] = open_file(
-                path[0], dimension_order=DimensionOrder.XYZ
+            input_handles[paths[0]] = open_file(
+                paths[0], dimension_order=DimensionOrder.XYZ
             )
         else:
             # Gather alignment paths
@@ -113,13 +114,13 @@ class QuantificationThread(QtCore.QThread):
                 alignment_settings = load_alignment_settings(path)
                 alignment_settings_list.append(alignment_settings)
                 image_path = replace_path_parts(
-                    alignment_settings.histology_path,
+                    alignment_settings.histology_path,  # type: ignore[arg-type]
                     settings.channel_regex,
                     settings.channel_substitution,
                     "",
                 )
 
-                input_handles[str(image_path)] = open_file(image_path)
+                input_handles[image_path] = open_file(image_path)
 
         # Load structure masks
         # TODO: Decide whether to keep all loaded into memory or load/drop/load/...
@@ -187,4 +188,3 @@ class QuantificationThread(QtCore.QThread):
         )
 
         _module_logger.debug("Finished quantification.")
-        return results

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -26,6 +27,7 @@ from histalign.frontend.common_widgets import (
     StructureTagHolderWidget,
     TitleFrame,
 )
+from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
 
@@ -142,9 +144,9 @@ class PrepareWidget(QtWidgets.QWidget):
             frame.directory_widget.currentText()
         )
         self._jobs_map[widget] = QuantificationSettings(
-            source_directory=frame.directory_widget.currentText(),
-            alignment_directory=self.project_root / directory_hash,
-            resolution=self.resolution,
+            source_directory=Path(frame.directory_widget.currentText()),
+            alignment_directory=unwrap(self.project_root) / directory_hash,
+            resolution=unwrap(self.resolution),
             quantification=Quantification(frame.quantification_combo_box.currentText()),
             on_volume=frame.run_on_volume_check_box.isChecked(),
             structures=frame.structures_frame.structure_tag_holder.get_tag_names(),
@@ -159,8 +161,10 @@ class PrepareWidget(QtWidgets.QWidget):
         if user_made and self.running:
             return
 
+        layout = unwrap(self.jobs_frame.layout())
+        layout.takeAt(layout.indexOf(widget))
+
         self._jobs_map.pop(widget)
-        self.jobs_frame.layout().takeAt(self.jobs_frame.layout().indexOf(widget))
         widget.deleteLater()
 
     @QtCore.Slot()
@@ -217,6 +221,15 @@ class PrepareWidget(QtWidgets.QWidget):
 
 
 class QuantificationParametersFrame(TitleFrame):
+    project_root: Optional[Path]
+
+    quantification_combo_box: QtWidgets.QComboBox
+    directory_widget: ProjectDirectoriesComboBox
+    run_on_volume_label: QtWidgets.QLabel
+    run_on_volume_check_box: AnimatedCheckBox
+    channel_frame: ChannelFrame
+    structures_frame: StructureFrame
+
     def __init__(
         self,
         title: str = "Quantification parameters",
@@ -251,7 +264,7 @@ class QuantificationParametersFrame(TitleFrame):
 
         run_on_volume_check_box = AnimatedCheckBox()
         run_on_volume_check_box.checkStateChanged.connect(
-            lambda x: multi_channel_frame.setEnabled(x != QtCore.Qt.CheckState.Checked)
+            lambda x: self.channel_frame.setEnabled(x != QtCore.Qt.CheckState.Checked)
         )
         self.run_on_volume_check_box = run_on_volume_check_box
 
@@ -321,6 +334,10 @@ class QuantificationParametersFrame(TitleFrame):
 
 
 class ChannelFrame(TitleFrame):
+    check_box: AnimatedCheckBox
+    regex_line_edit: QtWidgets.QLineEdit
+    substitution_line_edit: QtWidgets.QLineEdit
+
     def __init__(
         self,
         title: str = "Multichannel images",
@@ -398,6 +415,10 @@ class ChannelFrame(TitleFrame):
 
 
 class ZStackFrame(TitleFrame):
+    check_box: AnimatedCheckBox
+    regex_line_edit: QtWidgets.QLineEdit
+    spacing_line_edit: QtWidgets.QLineEdit
+
     def __init__(
         self,
         title: str = "Z-stacks",
@@ -414,7 +435,9 @@ class ZStackFrame(TitleFrame):
             lambda x: self.regex_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
         )
         check_box.checkStateChanged.connect(
-            lambda x: spacing_line_edit.setEnabled(x == QtCore.Qt.CheckState.Checked)
+            lambda x: self.spacing_line_edit.setEnabled(
+                x == QtCore.Qt.CheckState.Checked
+            )
         )
 
         self.check_box = check_box
