@@ -12,6 +12,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from histalign.backend.workspace import Workspace
 from histalign.frontend.common_widgets import ThumbnailsContainerWidget, ThumbnailWidget
 from histalign.frontend.pyside_helpers import find_parent
+from histalign.language_helpers import unwrap
 
 SCROLL_THRESHOLD: int = 50
 
@@ -25,7 +26,7 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
 
         #
         self._active_thumbnail = None
-        self._complete_indices = []
+        self._complete_indices: list[int] = []
 
         self._start_drag_position = None
         self._scroll_distance = 0
@@ -73,7 +74,7 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         if not isinstance(source, ThumbnailWidget):
             if not isinstance(source, QtWidgets.QWidget):
                 return
-            source = find_parent(source, ThumbnailWidget)
+            source = unwrap(find_parent(source, ThumbnailWidget))
         target = self.childAt(event.position().toPoint())
         if target is not None and not isinstance(target, ThumbnailWidget):
             target = find_parent(target, ThumbnailWidget)
@@ -92,7 +93,10 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         # Force a hover event on the source to highlight it.
         # Required to process events to "eat up" an enter event that otherwise gets
         # processed after our custom leave event.
-        QtWidgets.QApplication.instance().processEvents()
+        unwrap(
+            QtWidgets.QApplication.instance(),
+            "Using a widget outside of a QApplication.",
+        ).processEvents()
         target.leaveEvent(QtCore.QEvent(QtCore.QEvent.Type.Leave))
         source.enterEvent(
             event=QtGui.QEnterEvent(
@@ -133,6 +137,9 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
         if item is None:
             return
         widget = item.widget()
+
+        if not isinstance(widget, ThumbnailWidget):
+            return
 
         if self._active_thumbnail is not None:
             self._active_thumbnail.set_active(False)
@@ -195,10 +202,14 @@ class ThumbnailsWidget(QtWidgets.QScrollArea):
             self._complete_indices.append(index)
 
         thumbnail_item = self.widget().layout().itemAt(index)
-        if thumbnail_item is not None:
-            thumbnail_item.widget().set_completed(completed)
+        if (
+            thumbnail_item is not None
+            and (widget := thumbnail_item.widget()) is not None
+        ):
+            if isinstance(widget, ThumbnailWidget):
+                widget.set_completed(completed)
 
-    def setWidget(self, widget: ThumbnailsContainerWidget) -> None:
+    def setWidget(self, widget: ThumbnailsContainerWidget) -> None:  # type: ignore[override]
         if not isinstance(widget, ThumbnailsContainerWidget):
             raise ValueError(
                 "ThumbnailsWidget only accepts _ThumbnailsContainerWidget as a widget."
