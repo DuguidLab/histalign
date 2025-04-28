@@ -22,14 +22,14 @@ from threading import Event
 import time
 from typing import Any, get_type_hints, Literal, Optional
 
-from allensdk.core.structure_tree import StructureTree  # type: ignore[import]
+from allensdk.core.structure_tree import StructureTree
 import numpy as np
 from PIL import Image
 from PySide6 import QtCore
 from scipy import ndimage
 from scipy.spatial.distance import euclidean
 from scipy.spatial.transform import Rotation
-import vedo  # type: ignore[import]
+import vedo
 
 from histalign.backend.ccf import (
     download_annotation_volume,
@@ -99,7 +99,7 @@ class ThumbnailGeneratorThread(QtCore.QThread):
             )
         except FileNotFoundError:
             thumbnail = handle.generate_thumbnail()
-            thumbnail = normalise_array(thumbnail, np.uint8)
+            thumbnail = normalise_array(thumbnail, np.dtype(np.uint8))
             Image.fromarray(thumbnail).save(cache_path)
             _module_logger.debug(
                 f"Cached thumbnail for '{handle.file_path}' at '{cache_path}'."
@@ -244,10 +244,13 @@ class AnnotationVolume(Volume):
         if not hasattr(self, "_structure_tree") or not self.is_loaded:
             return ""
 
-        if isinstance(coordinates, np.ndarray):
-            coordinates = coordinates.tolist()
         if isinstance(coordinates, list):
             coordinates = tuple(map(int, coordinates))
+
+        # I'm not sure why but `unwrap` does not work here, type is inferred to be
+        # `Never` rather than `Any` when used.
+        if self._volume is None:
+            raise ValueError("Annotation volume is not loaded.")
 
         for i in range(len(coordinates)):
             if coordinates[i] < 0 or coordinates[i] >= self._volume.shape[i]:
@@ -258,6 +261,7 @@ class AnnotationVolume(Volume):
         node_details = self._structure_tree.get_structures_by_id(
             [self._id_translation_table[value]]
         )[0]
+        name: str
         if node_details is not None:
             name = node_details["name"]
         else:
@@ -367,7 +371,7 @@ class VolumeExporterThread(QtCore.QThread):
 
         # Try to generate a user-friendly name for the export files
         alignment_directory = self.project_root / Workspace.generate_directory_hash(
-            self.settings.image_directory
+            str(self.settings.image_directory)
         )
         metadata_path = alignment_directory / "metadata.json"
         destination_file_name = alignment_directory.name
@@ -440,7 +444,7 @@ class VolumeSlicer:
         volume: Optional[Volume | vedo.Volume] = None,
         path: Optional[Path] = None,
         resolution: Optional[Resolution] = None,
-        convert_dtype: np.dtype = np.uint8,
+        convert_dtype: np.dtype = np.dtype(np.uint8),
         lazy: bool = True,
     ) -> None:
         if volume is not None:
@@ -457,7 +461,9 @@ class VolumeSlicer:
         return_display_plane: bool = False,
         origin: Optional[list[float]] = None,
     ) -> np.ndarray | vedo.Mesh:
-        origin = origin or compute_origin(compute_centre(self.volume.shape), settings)
+        origin = np.array(origin) or compute_origin(
+            compute_centre(self.volume.shape), settings
+        )
         normal = compute_normal(settings)
         plane_mesh = self.volume.slice_plane(
             origin=origin, normal=normal.tolist(), mode=interpolation
@@ -1014,12 +1020,8 @@ def compute_downsampling_factor(shape: tuple[int, ...]) -> int:
             The downsampling factor that scales shape down to fit inside
             DOWNSAMPLE_TARGET_SHAPE.
     """
-    return math.ceil(
-        max(
-            1.0,
-            (np.array(shape) / DOWNSAMPLE_TARGET_SHAPE).max(),
-        )
-    )
+    max_: float = (np.array(shape) / DOWNSAMPLE_TARGET_SHAPE).max()
+    return math.ceil(max(1.0, max_))
 
 
 def alignment_directory_has_volumes(directory: Path) -> bool:
