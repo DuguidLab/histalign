@@ -14,6 +14,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.ccf import get_atlas_path
 from histalign.backend.maths import normalise_array
+from histalign.backend.models import AlignmentSettings, Resolution
 from histalign.backend.registration import ContourGeneratorThread
 from histalign.frontend.common_widgets import BinaryAlphaPixmap, ZoomAndPanView
 from histalign.frontend.pyside_helpers import (
@@ -25,6 +26,7 @@ from histalign.io import (
     load_volume,
     open_file,
 )
+from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
 _module_logger = logging.getLogger(__name__)
@@ -35,14 +37,14 @@ class SliceViewer(QtWidgets.QWidget):
         super().__init__(parent)
 
         #
-        self._alignment_settings = None
-        self._histology_item = None
+        self._alignment_settings: Optional[AlignmentSettings] = None
+        self._histology_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
 
-        self._contours = {}
-        self._contours_threads = {}
+        self._contours: dict[str, QtWidgets.QGraphicsPixmapItem] = {}
+        self._contours_threads: dict[str, ContourGeneratorThread] = {}
 
-        self._processing_count = 0
-        self._status_bar_label = None
+        self._processing_count: int = 0
+        self._status_bar_label: Optional[QtWidgets.QLabel] = None
 
         #
         scene = QtWidgets.QGraphicsScene(-100_000, -100_000, 200_000, 200_000, self)
@@ -103,8 +105,8 @@ class SliceViewer(QtWidgets.QWidget):
         alignment_settings = load_alignment_settings(alignment_path)
         histology_path = alignment_settings.histology_path
 
-        handle = open_file(histology_path)
-        image = normalise_array(handle.read_image(handle.index), np.uint8)
+        handle = open_file(unwrap(histology_path))
+        image = normalise_array(handle.read_image(handle.index), np.dtype(np.uint8))
         if "XY" in handle.dimension_order.value:
             image = image.T
         pixmap = np_to_qpixmap(image)
@@ -145,8 +147,8 @@ class SliceViewer(QtWidgets.QWidget):
 
         painter = QtGui.QPainter(pixmap)
 
-        width = 1
-        width *= 100 / self._alignment_settings.volume_settings.resolution.value
+        width = 1.0
+        width *= 100 / unwrap(self._alignment_settings).volume_settings.resolution.value
         painter.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.white, width))
 
         for contour in contours:
@@ -201,10 +203,10 @@ class VolumeViewer(QtWidgets.QWidget):
         #
         self.reference_volume = None
 
-        self._primary_view = None
-        self._coronal_pixmap_item = None
-        self._horizontal_pixmap_item = None
-        self._sagittal_pixmap_item = None
+        self._primary_view: Optional[FMRIPreview] = None
+        self._coronal_pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
+        self._horizontal_pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
+        self._sagittal_pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
 
         self._slicing_indices = np.array([0, 0, 0])
 
@@ -274,7 +276,7 @@ class VolumeViewer(QtWidgets.QWidget):
 
             path = get_atlas_path(resolution, ensure_downloaded=True)
             reference_volume = load_volume(
-                path, normalise_dtype=np.uint16, as_array=True
+                path, normalise_dtype=np.dtype(np.uint16), as_array=True
             )
 
         self.overlay_volume = overlay_volume
@@ -428,7 +430,7 @@ class VolumeViewer(QtWidgets.QWidget):
             self.make_primary(self.sagittal_view)
 
     @QtCore.Slot()
-    def make_primary(self, view: ZoomAndPanView) -> None:
+    def make_primary(self, view: FMRIPreview) -> None:
         self.primary_view.set_focus_rect(
             view.focus_rect, centre_on=True, reset_general_zoom=True
         )
