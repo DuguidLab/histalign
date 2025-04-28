@@ -34,3 +34,30 @@ class classproperty(Generic[T, RT]):
         if owner is None:
             owner = type(instance)
         return self.__wrapped__(owner)
+
+
+def unwrap(value: Optional[T], message: Optional[str] = None) -> T:
+    """Unwraps a maybe-`None` value, raising if it is `None`.
+
+    Args:
+        value (Optional[T]): Value to unwrap.
+        message (Optional[str], optional):
+            Custom message to display if `value` is `None`.
+
+    Returns:
+        T: The unwrapped value, guaranteed to be non-`None`.
+
+    Raises:
+        ValueError: When `value` is `None`.
+
+    Examples:
+    ```
+    foo: Optional[int]
+    reveal_type(foo)  # Union[builtins.int, None]
+    reveal_type(unwrap(foo))  # builtins.int
+    ```
+    """
+    if value is None:
+        raise ValueError(message or "Attempted to unwrap `None` value.")
+
+    return value
