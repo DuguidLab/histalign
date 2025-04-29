@@ -9,6 +9,6 @@ from pathlib import Path
 
 # noinspection PyTypeChecker
 RESOURCES_ROOT = Path(
-    importlib.resources.files("histalign.resources").joinpath(".")
+    importlib.resources.files("histalign.resources").joinpath(".")  # type: ignore[arg-type]
 ).resolve()
 ICONS_ROOT = RESOURCES_ROOT / "icons"

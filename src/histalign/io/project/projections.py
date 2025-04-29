@@ -10,6 +10,7 @@ import numpy as np
 import psutil
 
 from histalign.io.image import ImageFile
+from histalign.language_helpers import unwrap
 
 ProjectionKind = Literal["max", "min", "mean", "std"]
 
@@ -41,6 +42,9 @@ def maximum_intensity_projection(
         else:
             projection = np.max([projection, image], axis=0)
 
+    if projection is None:
+        return source_file.read_image(source_file.index)
+
     return projection
 
 
@@ -54,6 +58,9 @@ def minimum_intensity_projection(
             projection = image
         else:
             projection = np.min([projection, image], axis=0)
+
+    if projection is None:
+        return source_file.read_image(source_file.index)
 
     return projection
 
@@ -123,6 +130,8 @@ def chunked_projection(
                     array = cropped_image
                 else:
                     array = np.vstack([array, cropped_image])
+
+            array = unwrap(array, "No iteration indices provided.")
 
             projection[cropped_index] = np.round(function(array, axis=0)).astype(
                 array.dtype

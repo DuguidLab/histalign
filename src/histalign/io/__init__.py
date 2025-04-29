@@ -28,7 +28,7 @@ from histalign.io.image import (
 )
 
 data_directories = QtCore.QStandardPaths.standardLocations(
-    QtCore.QStandardPaths.GenericDataLocation
+    QtCore.QStandardPaths.StandardLocation.GenericDataLocation
 )
 if not data_directories:
     raise ValueError("Cannot find a data directory.")
@@ -286,7 +286,6 @@ def list_alignment_directories(
 ) -> list[str]:
     directories = []
     for path in project_root.iterdir():
-        path: Path
         if (
             path.is_file()
             or re.fullmatch(HASHED_DIRECTORY_NAME_PATTERN, path.name) is None

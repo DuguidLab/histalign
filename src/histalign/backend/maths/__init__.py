@@ -66,7 +66,8 @@ def apply_rotation_from_raw(
         case other:
             raise InvalidOrientationError(other)
 
-    return rotation.apply(vector)
+    rotated: np.ndarray = rotation.apply(vector)
+    return rotated
 
 
 def compute_centre(shape: Sequence[int], floor: bool = True) -> tuple[int | float, ...]:
@@ -226,7 +227,9 @@ def find_plane_mesh_corners(
     # vedo.Volume.slice_plane returns points in image coordinates, indexing into
     # the points works as-if indexing into the image.
     shape = plane_mesh.metadata["shape"]
-    corners = plane_mesh.points[[0, shape[1] - 1, -shape[1], -1]]
+    corners: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] = plane_mesh.points[
+        [0, shape[1] - 1, -shape[1], -1]
+    ]
 
     return corners
 
@@ -424,12 +427,12 @@ def simulate_auto_contrast_passes(
     pixel_count = np.prod(image.shape)
     limit = pixel_count / 10
 
-    auto_threshold = 0
+    auto_threshold = 0.0
     for i in range(1, passes + 1):
-        if auto_threshold < 10:
-            auto_threshold = 5_000
+        if auto_threshold < 10.0:
+            auto_threshold = 5_000.0
         else:
-            auto_threshold /= 2
+            auto_threshold /= 2.0
     threshold = pixel_count / auto_threshold
 
     histogram = np.histogram(image, bins=256, range=(0, get_dtype_maximum(image.dtype)))

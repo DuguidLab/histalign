@@ -69,7 +69,7 @@ class StructureNode(BaseModel):
     parent: Optional[StructureNode] = None
     children: list[StructureNode] = []
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def displayable(self) -> bool:
         return tuple(sorted(self.structure_set_ids)) not in MAGIC_ID_SETS
@@ -107,7 +107,7 @@ class ABAStructureModel(QtCore.QAbstractItemModel):
 
         #
         self._root = build_structure_tree(json_path or get_structures_hierarchy_path())
-        self._checked_indices = []
+        self._checked_indices: list[IndexType] = []
 
         if root:
             self._replace_root(root)
@@ -214,14 +214,14 @@ class ABAStructureListModel(ABAStructureModel):
         if not self.hasIndex(row, column, parent):
             return Index()
 
-        return self.createIndex(row, column, self._root[row])
+        return self.createIndex(row, column, self._data[row])
 
     # noinspection PyMethodOverriding
     def parent(self, child: IndexType) -> Index:  # type: ignore[override]
         return Index()
 
     def rowCount(self, parent: IndexType = Index()) -> int:
-        return len(self._root)
+        return len(self._data)
 
     def columnCount(self, parent: IndexType = Index()) -> int:
         return 2
@@ -242,11 +242,13 @@ class ABAStructureListModel(ABAStructureModel):
         for item in data:
             data.extend(item.children)
 
-        self._root = data
+        self._data = data
 
 
 class ABAStructureTreeModel(ABAStructureModel):
     """A model for the Allen Mouse Brain Atlas structure hierarchy in tree form."""
+
+    _data: StructureNode
 
     def index(self, row: int, column: int, parent: IndexType = Index()) -> Index:
         if not self.hasIndex(row, column, parent):

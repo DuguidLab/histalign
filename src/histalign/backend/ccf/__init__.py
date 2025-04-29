@@ -199,11 +199,11 @@ def get_structure_id(structure: str, resolution: Resolution) -> int:
         int: The ID of the structure.
     """
     try:
-        return get_structure_tree(resolution).get_structures_by_name([structure])[0][
+        return get_structure_tree(resolution).get_structures_by_name([structure])[0][  # type: ignore[no-any-return]
             "id"
         ]
     except KeyError:
-        return get_structure_tree(resolution).get_structures_by_acronym([structure])[0][
+        return get_structure_tree(resolution).get_structures_by_acronym([structure])[0][  # type: ignore[no-any-return]
             "id"
         ]
 
@@ -218,9 +218,11 @@ def get_structure_name_by_acronym(acronym: str, resolution: Resolution) -> str:
     Returns:
         str: Name of the structure with acronym `acronym`.
     """
-    return get_structure_tree(resolution).get_structures_by_acronym([acronym.strip()])[
+    return get_structure_tree(resolution).get_structures_by_acronym([acronym.strip()])[  # type: ignore[no-any-return]
         0
-    ]["name"]
+    ][
+        "name"
+    ]
 
 
 def get_structure_mask_path(

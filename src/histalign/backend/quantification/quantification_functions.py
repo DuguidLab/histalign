@@ -15,7 +15,7 @@ def quantify_average_fluorescence(array: np.ndarray, mask: np.ndarray) -> float:
     if not mask.any():
         return 0.0
 
-    return np.mean(array, where=mask > 0).astype(float)
+    return float(np.mean(array, where=mask > 0))
 
 
 def quantify_cell_count(array: np.ndarray, mask: np.ndarray) -> int:

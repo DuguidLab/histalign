@@ -32,6 +32,10 @@ class classproperty(Generic[T, RT]):
 
     def __get__(self, instance: Optional[T], owner: Optional[type[T]] = None) -> RT:
         if owner is None:
+            instance = unwrap(
+                instance,
+                "Descriptor `__get__` called with neither an instance nor an owner.",
+            )
             owner = type(instance)
         return self.__wrapped__(owner)
 

@@ -110,6 +110,7 @@ def get_dtype_maximum(dtype: np.dtype) -> int | float:
     Returns:
         int | float: The maximum value allowed for `dtype`.
     """
+    maximum: int | float
     try:
         maximum = np.iinfo(dtype).max
     except ValueError:
@@ -127,6 +128,7 @@ def get_dtype_minimum(dtype: np.dtype) -> int | float:
     Returns:
         int | float: The minimum value allowed for `dtype`.
     """
+    minimum: int | float
     try:
         minimum = np.iinfo(dtype).min
     except ValueError:

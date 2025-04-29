@@ -51,6 +51,7 @@ class AlphaWidget(QtWidgets.QWidget):
         self.global_alpha_slider = global_alpha_slider
 
         #
+        layout: QtWidgets.QLayout
         if orientation == QtCore.Qt.Orientation.Vertical:
             layout = QtWidgets.QVBoxLayout()
         else:

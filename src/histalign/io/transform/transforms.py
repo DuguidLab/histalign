@@ -29,10 +29,11 @@ def downscaling_transform(
     if naive:
         return image[::downscaling_factor, ::downscaling_factor]
 
-    return rescale(
+    array: np.ndarray = rescale(
         image,
         1 / downscaling_factor,
         order=downscaling_order,
         preserve_range=True,
         anti_aliasing=True,
     )
+    return array
