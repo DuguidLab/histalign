@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from enum import Enum, IntEnum
 from functools import lru_cache
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
@@ -17,6 +18,8 @@ from pydantic import (
     FilePath,
     model_validator,
 )
+
+_module_logger = logging.getLogger(__name__)
 
 
 class Orientation(str, Enum):
