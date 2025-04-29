@@ -82,6 +82,23 @@ dependencies = [
 ]
 [tool.hatch.envs.type.scripts]
 check = "mypy --install-types --non-interactive {args:src/histalign}"
+hunt = "check 2>&1 > /dev/null | grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r"
+fewest = "hunt | awk 'END{{print}}' | rev | cut -d ' ' -f 1 | rev"
+# Very ugly, no sure how to have script expansion after the first word of a script.
+# This prints the errors for the file with the fewest errors and copies the path to the WSL clipboard.
+next = """
+mypy --install-types --non-interactive \
+$(bash -c "mypy --install-types --non-interactive src/histalign 2>&1 > /dev/null \
+| grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r \
+| awk 'END{{print}}' | rev | cut -d ' ' -f 1 | rev |  tr -d '\n' | tee >(clip.exe)")
+"""
+# Same but without copying, dropping bash and WSL dependencies
+next-no-copy = """
+mypy --install-types --non-interactive \
+$(mypy --install-types --non-interactive src/histalign 2>&1 > /dev/null \
+| grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r \
+| awk 'END{{print}}' | rev | cut -d ' ' -f 1 | rev)
+"""
 
 [tool.mypy]
 ignore_missing_imports = true
