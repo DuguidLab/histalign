@@ -73,6 +73,7 @@ try:
     registrator = Registrator(True, True)
 
     for transformation in [
+        "identity",
         "scale",
         "shear",
         "rotation",

@@ -24,6 +24,8 @@ from histalign.backend.workspace import VolumeSlicer
 @pytest.mark.parametrize(
     "parameter",
     [
+        # Identity
+        "identity",
         # Histology settings only
         "scale",
         "shear",
