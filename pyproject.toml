@@ -112,3 +112,8 @@ warn_unreachable = true
 disable_error_code = [
   "call-overload",
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:(?i).*swig.*:DeprecationWarning"
+]
