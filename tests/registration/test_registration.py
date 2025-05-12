@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from histalign.backend.ccf import get_atlas_path
-from histalign.io import load_alignment_settings, load_image, load_volume
+from histalign.io import load_alignment_settings, load_volume
 from histalign.backend.registration import Registrator
 from histalign.backend.workspace import VolumeSlicer
 
@@ -54,7 +54,7 @@ def test_registration(parameter: str) -> None:
 
     alignment_settings = load_alignment_settings(alignment_path)
 
-    image = load_image(alignment_settings.histology_path)
+    image = np.load(alignment_settings.histology_path)["array"]
 
     if (
         not alignment_settings.volume_path.is_file()
@@ -72,7 +72,7 @@ def test_registration(parameter: str) -> None:
     registrator = Registrator(True, True)
 
     forwarded_image = registrator.get_forwarded_image(image, alignment_settings)
-    expected_forwarded_image = load_image(forward_expected_path)
+    expected_forwarded_image = np.load(forward_expected_path)["array"]
     actual_forwarded_image = np.where(
         forwarded_image > 10, forwarded_image * 3, atlas_image
     )
@@ -80,7 +80,7 @@ def test_registration(parameter: str) -> None:
     assert np.all(np.equal(expected_forwarded_image, actual_forwarded_image))
 
     reversed_image = registrator.get_reversed_image(alignment_settings, "atlas", image)
-    expected_reversed_image = load_image(reverse_expected_path)
+    expected_reversed_image = np.load(reverse_expected_path)["array"]
     actual_reversed_image = np.where(reversed_image, reversed_image, image * 3)
 
     assert np.all(np.equal(expected_reversed_image, actual_reversed_image))
