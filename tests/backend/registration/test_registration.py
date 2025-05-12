@@ -45,13 +45,13 @@ def test_registration(parameter: str) -> None:
     See `registration-visual-test.ipynb` for details if this fails.
     """
     alignment_path = Path(
-        f"tests/registration/resources/{parameter}_alignment_settings.json"
+        f"tests/backend/registration/resources/{parameter}_alignment_settings.json"
     )
     forward_expected_path = Path(
-        f"tests/registration/resources/{parameter}_expected_output1.npz"
+        f"tests/backend/registration/resources/{parameter}_expected_output1.npz"
     )
     reverse_expected_path = Path(
-        f"tests/registration/resources/{parameter}_expected_output2.npz"
+        f"tests/backend/registration/resources/{parameter}_expected_output2.npz"
     )
 
     alignment_settings = load_alignment_settings(alignment_path)

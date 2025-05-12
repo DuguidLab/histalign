@@ -15,7 +15,7 @@ from histalign.io import load_alignment_settings, load_volume
 
 def re_baseline(transformation: str, volume_path: Path, volume: Volume) -> None:
     current_settings = load_alignment_settings(
-        f"tests/registration/resources/{transformation}_alignment_settings.json"
+        f"tests/backend/registration/resources/{transformation}_alignment_settings.json"
     )
     current_settings.volume_path = volume_path
 
@@ -26,26 +26,26 @@ def re_baseline(transformation: str, volume_path: Path, volume: Volume) -> None:
         forwarded_image > 10, forwarded_image * 3, volume_image
     )
     np.savez_compressed(
-        f"tests/registration/resources/{transformation}_expected_output1.npz",
+        f"tests/backend/registration/resources/{transformation}_expected_output1.npz",
         array=forward_composite_image,
     )
 
     reversed_image = registrator.get_reversed_image(current_settings, "atlas", image)
 
     np.savez_compressed(
-        f"tests/registration/resources/{transformation}_expected_output2.npz",
+        f"tests/backend/registration/resources/{transformation}_expected_output2.npz",
         array=np.where(reversed_image, reversed_image, image * 3),
     )
 
     with open(
-        f"tests/registration/resources/{transformation}_alignment_settings.json",
+        f"tests/backend/registration/resources/{transformation}_alignment_settings.json",
         "w",
     ) as handle:
         dump = current_settings.model_dump()
 
         dump["volume_path"] = ""
         dump["histology_path"] = (
-            "tests/registration/resources/"
+            "tests/backend/registration/resources/"
             "A2_mcherry555_mecp488_dapi_image0000_channel2_maximum_uint8.npz"
         )
 
@@ -54,7 +54,7 @@ def re_baseline(transformation: str, volume_path: Path, volume: Volume) -> None:
 
 try:
     alignment_settings = load_alignment_settings(
-        "tests/registration/resources/complete_alignment_settings.json"
+        "tests/backend/registration/resources/complete_alignment_settings.json"
     )
 
     volume_path = get_atlas_path(
@@ -63,7 +63,7 @@ try:
     alignment_settings.volume_path = volume_path
 
     image = np.load(
-        "tests/registration/resources/"
+        "tests/backend/registration/resources/"
         "A2_mcherry555_mecp488_dapi_image0000_channel2_maximum_uint8.npz"
     )
     image = image["array"]
