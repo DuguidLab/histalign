@@ -59,7 +59,7 @@ dependencies = [
   "pytest",
 ]
 [tool.hatch.envs.tests.scripts]
-run = "pytest --ignore=tests/backend/registration/resources/re_baseline_test.py"
+run = "pytest --ignore=tests/backend/registration/resources/re_baseline_test.py {args:tests}"
 
 [tool.hatch.envs.docs]
 dependencies = [
