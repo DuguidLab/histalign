@@ -81,6 +81,7 @@ class Hdf5ImagePlugin(MultiSeriesImageFile):
             name=f"series{self.series_index}",
             shape=shape,
             dtype=dtype,
+            compression="gzip",
         )
         self.query_datasets()
         if metadata is not None:
