@@ -145,8 +145,8 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         separator.setFrameShape(QtWidgets.QFrame.HLine)
 
         rotation_spin_box = DraggableDoubleSpinBox()
-        rotation_spin_box.setMinimum(-90.0)
-        rotation_spin_box.setMaximum(90.0)
+        rotation_spin_box.setMinimum(-360.0)
+        rotation_spin_box.setMaximum(360.0)
         rotation_spin_box.setSingleStep(0.1)
         rotation_spin_box.valueChanged.connect(self.update_rotation)
         rotation_spin_box.installEventFilter(self)
@@ -167,7 +167,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.translation_y_spin_box = translation_y_spin_box
 
         scale_x_spin_box = DraggableDoubleSpinBox()
-        scale_x_spin_box.setMinimum(0.01)
+        scale_x_spin_box.setMinimum(-3.0)
         scale_x_spin_box.setMaximum(3.0)
         scale_x_spin_box.setValue(1.0)
         scale_x_spin_box.setSingleStep(0.01)
@@ -176,7 +176,7 @@ class HistologySettingsWidget(QtWidgets.QWidget):
         self.scale_x_spin_box = scale_x_spin_box
 
         scale_y_spin_box = DraggableDoubleSpinBox()
-        scale_y_spin_box.setMinimum(0.01)
+        scale_y_spin_box.setMinimum(-3.0)
         scale_y_spin_box.setMaximum(3.0)
         scale_y_spin_box.setValue(1.0)
         scale_y_spin_box.setSingleStep(0.01)

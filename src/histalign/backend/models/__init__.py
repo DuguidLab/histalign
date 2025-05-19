@@ -90,8 +90,8 @@ class HistologySettings(BaseModel, validate_assignment=True):
     @field_validator("rotation")
     @classmethod
     def validate_rotation(cls, value: float) -> float:
-        if not -90.0 <= value <= 90.0:
-            raise ValueError("rotation is limited to the range -90 to 90")
+        if not -360.0 <= value <= 360.0:
+            raise ValueError("rotation is limited to the range -360 to 360")
         return value
 
     @field_validator("translation_x", "translation_y")
@@ -104,8 +104,8 @@ class HistologySettings(BaseModel, validate_assignment=True):
     @field_validator("scale_x", "scale_y")
     @classmethod
     def validate_scale(cls, value: float) -> float:
-        if not 0.01 <= value <= 3.0:
-            raise ValueError("scale is limited to the range 0.01 to 3.0")
+        if not -3.0 <= value <= 3.0:
+            raise ValueError("scale is limited to the range -3.0 to 3.0")
         return value
 
     @field_validator("shear_x", "shear_y")
