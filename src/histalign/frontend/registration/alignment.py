@@ -845,18 +845,23 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         apply_button.setEnabled(False)
 
         #
+        preview_button = QtWidgets.QPushButton("Preview")
+
+        preview_button.clicked.connect(self.show_preview)
+
+        preview_button.setEnabled(False)
+
+        #
         landmark_coordinates_widget = LandmarkCoordinatesWidget()
 
         landmark_coordinates_widget.count_changed.connect(
             lambda count: apply_button.setEnabled(count >= 9)
         )
+        landmark_coordinates_widget.count_changed.connect(
+            lambda count: preview_button.setEnabled(count >= 9)
+        )
 
         self.landmark_coordinates_widget = landmark_coordinates_widget
-
-        #
-        preview_button = QtWidgets.QPushButton("Preview")
-
-        preview_button.clicked.connect(self.show_preview)
 
         #
         cancel_button = QtWidgets.QPushButton("Cancel")
