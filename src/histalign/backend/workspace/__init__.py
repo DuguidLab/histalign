@@ -461,12 +461,14 @@ class VolumeSlicer:
         return_display_plane: bool = False,
         origin: Optional[list[float]] = None,
     ) -> np.ndarray | vedo.Mesh:
-        origin = np.array(origin) or compute_origin(
-            compute_centre(self.volume.shape), settings
+        origin = (
+            np.array(origin)
+            if origin
+            else compute_origin(compute_centre(self.volume.shape), settings)
         )
         normal = compute_normal(settings)
         plane_mesh = self.volume.slice_plane(
-            origin=origin, normal=normal.tolist(), mode=interpolation
+            origin=origin.tolist(), normal=normal.tolist(), mode=interpolation
         )
 
         # vedo cuts down the mesh in a way I don't fully understand. Therefore, the
