@@ -47,6 +47,15 @@ The volume building interface uses a system of jobs to allow queueing multiple o
 When you are happy with the queued jobs, you can click the "Run jobs" button. The progress bar at the bottom of the window will start displaying progress of the volume building. This step can take a few seconds to a few hours depending on the resolution that you used for the project and the hardware of your machine.  
 Once all the volumes have been built, the progress bar will show 100% completion and you can go back to using the application.
 
+## Exporting 3D volumes
+
+Once you have fully built the volumes for an image directory, you are given the option to export them to use them with other software or your own pipeline. To export the volumes, go to "file" in the menu bar, then ![An icon showing an arrow coming out of an empty square](../resources/icons/external-link-icon.svg) "Export volume". This will pop up a small dialog asking you which volume to export, and from which image directory, as well as where you want the exported volumes to go.
+
+![A dialog, showing a combo box with image directories for which volumes have been built, and checkboxes for aligned and interpolated volumes. An export directory line edit is empty, and the export button is greyed-out.](../resources/screenshots/export_dialog.png)
+
+Simply select or type the path to the folder to export to and the volume files will be copied over.   
+Said files will be in the [HDF5 format](https://www.hdfgroup.org/solutions/hdf5/) and can easily be opened in your own scripts using [`h5py`](https://docs.h5py.org/en/stable/index.html). Additionally, you can use the [`histalign` Python API](../../reference/API/histalign/io/index.html#histalign.io.load_volume) (with `as_array = True`) to load the volumes as NumPy arrays.
+
 ## What's next?
 
 If you're happy to keep going and run quantification on the volume, you can move on to the [quantifying](quantifying.md) tutorial.
