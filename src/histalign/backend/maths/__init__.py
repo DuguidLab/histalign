@@ -208,6 +208,52 @@ def convert_q_transform_to_sk_transform(
     )
 
 
+def decompose_sk_transform(transform: AffineTransform) -> tuple[float, ...]:
+    """Decomposes an `AffineTransform` into its components.
+
+    Although `AffineTransform` has properties to decompose its matrix, the sign of the
+    scaling is not extracted. This function essentially wraps property calls for its
+    properties but manages to compute the sign of the scaling.
+
+    Knowing the sign of the scaling is necessary when decomposing a matrix obtained from
+    landmark registration as the GUI spin boxes need to be updated with values that the
+    user can then further tweak.
+
+    Args:
+        transform (AffineTransform): Affine transform to decompose.
+
+    Returns:
+        tuple[float]:
+            The (scale_x, scale_y, shear_x, shear_y, rotation, translation_x,
+            translation_y) components of the transformation matrix. Note that rotation
+            is returned in degrees, shear_x is the factor, not the angle, and shear_y
+            is always 0.
+
+    References:
+        Formulas for signed scaling decomposition: https://stackoverflow.com/a/45392997
+    """
+    mirrored = math.cos(transform.shear) < 0
+
+    scale_x, scale_y = transform.scale
+    scale_y *= -1 if mirrored else 1
+
+    # Shear requires some more computation as scikit-image returns an angle and Qt
+    # expects a coordinate shift.
+    # See `maths.get_sk_transform_from_parameters` for more details.
+    shear_x = transform.shear
+    # This formula is obtained from rearranging CAH (SOHCAHTOA) to find A which
+    # corresponds to the coordinate shift derived from the shearing angle.
+    shear_x = math.sqrt((1 / math.cos(shear_x)) ** 2 - 1)
+    shear_x *= -1 if transform.shear > 0 else 1
+    shear_x *= -1 if mirrored else 1
+
+    rotation = math.degrees(transform.rotation)
+
+    translation_x, translation_y = transform.translation
+
+    return scale_x, scale_y, shear_x, 0, rotation, translation_x, translation_y
+
+
 def find_plane_mesh_corners(
     plane_mesh: vedo.Mesh,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

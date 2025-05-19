@@ -14,6 +14,7 @@ from skimage.transform import AffineTransform, estimate_transform
 from histalign.backend.maths import (
     convert_q_transform_to_sk_transform,
     convert_sk_transform_to_q_transform,
+    decompose_sk_transform,
     get_sk_transform_from_parameters,
     normalise_array,
     simulate_auto_contrast_passes,
@@ -344,23 +345,15 @@ class AlignmentWidget(QtWidgets.QWidget):
 
         settings = self.alignment_settings.histology_settings
 
-        settings.scale_x, settings.scale_y = transform.scale.tolist()
-        settings.rotation = math.degrees(transform.rotation)
+        components = decompose_sk_transform(transform)
+        settings.scale_x, settings.scale_y = components[:2]
+        settings.shear_x, settings.shear_y = components[2:4]
+        settings.rotation = components[4]
         settings.translation_x, settings.translation_y = (
-            np.round(transform.translation / self.alignment_settings.volume_scaling)
+            np.round(np.array(components[5:]) / self.alignment_settings.volume_scaling)
             .astype(int)
             .tolist()
         )
-
-        # Shear requires some more computation as scikit-image returns an angle and Qt
-        # expects a coordinate shift.
-        # See `maths.get_sk_transform_from_parameters` for more details.
-        shear_x = transform.shear
-        # This formula is obtained from rearranging CAH (SOHCAHTOA) to find A which
-        # corresponds to the coordinate shift derived from the shearing angle.
-        shear_x = math.sqrt((1 / math.cos(shear_x)) ** 2 - 1)
-        shear_x *= -1 if transform.shear > 0 else 1
-        settings.shear_x, settings.shear_y = shear_x, 0
 
         self.update_histology_pixmap()
 
