@@ -77,6 +77,40 @@ Additionally, you can drag your image around with left click to change the trans
 
 If you wish to move the atlas itself, you can drag it around using the middle mouse button and zoom in and out using Ctrl (Cmd)  and the mouse wheel.
 
+## Landmark registration
+
+If you find that your images require a lot of manual adjustment to align with the atlas, you might want to try the landmark registration window. By clicking the ![An icon showing a network of circular nodes linked to a central, larger one that it being hovered by a hand-like mouse cursor](../resources/icons/interactivity-icon.svg) button, you will be presented with the landmark registration window.
+
+![The landmark registration GUI with two vertically stacked views showing the atlas at the top and the histology at the bottom. On the right side, a widget that can store coordinates is empty and three buttons show "apply", "preview", and "cancel".](../resources/screenshots/landmark_registration_gui.png)
+
+This interface shows two views, stacked vertically. The top view shows the atlas while the bottom view shows the slice you currently have opened. Both views are zoomable and draggable using the wheel and the left mouse button.  
+Using this interface, you can identify landmarks that are recognisable on your histology and relate them to the atlas location. To do so, left click the landmark on the histology and left click the same landmark on the atlas. Doing so will create a blue circle on both the atlas and the histology views, as well as an entry on the right-hand side.  
+
+In order to complete the landmark registration, you need to create 9 pairs of points like described above. From there, the "Apply" and "Preview" button should become available. Pressing the "Preview" button will show a window which overlays the histology transformed according to your landmark registration on top of the atlas. If you are happy with the registration, you can close the preview and click on "Apply". If you think you can make it more accurate, have a look at the next section which describes the controls for the landmark interface.
+
+Once the registration has been applied, you will be taken back to the main GUI which will now mirror was was visible on the preview, along with updated scaling, rotation, etc, values. From there, you are free to fine-tune the alignment to fit your needs or leave it as-is if you're happy with it.
+
+## Landmark registration controls
+
+### Adding points
+
+As described above, adding points is as easy as left clicking on one of the views and then left clicking on the other one. This links the two points as representing the same landmark and adds an entry to the right of the views.
+
+### Selecting points
+
+There are two ways to select points that have already been added to the views:
+1. Clicking on a point will turn it from blue to green, meaning it is selected.
+2. Clicking on the row entry on the right-hand side for an existing pair of points will select them in the views.
+
+### Moving points
+
+To move an existing point, simply drag is around as you would the view itself. If the application detects you are trying to drag a point, the view will not be dragged.
+
+### Deleting points
+
+If you wish to delete points, you can do so using the right mouse button. Right-clicking an unpaired point will delete that point, while right-clicking a paired point will delete its pair on the other view. To make sure you are deleting the pair you mean to, make sure to select the pair with left mouse button.  
+Another option is to click the \[X\] button at the end of one of the row entries on the right-hand side.
+
 ## Saving the alignment
 
 When you feel that the the image is properly aligned to the atlas, you can save the alignment using Ctrl(Cmd)+S or by using the ![An icon showing a rectangular sheet with the top-right corner dog-eared](../resources/icons/file-black-icon.svg) button on the tool bar above the thumbnails pane.  
@@ -100,7 +134,7 @@ When working with dim images, it can be difficult to see the details in the slic
 
 The default LUT used by the application is grayscale. This leads to difficulty when trying to align with some transparency. To help mitigate this, you can change the LUT used for the histology (not the atlas).  
 
-To change the LUT, click on the "view" menu in the menu bar, then "LUT". There, you get a choice between reg, green, blue, yellow, cyan, magenta, and the default grey.
+To change the LUT, click on the "view" menu in the menu bar, then ![An icon showing a paint roller](../resources/icons/paint-roller-icon.svg) "LUT". There, you get a choice between reg, green, blue, yellow, cyan, magenta, and the default grey.
 
 ### Hiding the background
 
