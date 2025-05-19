@@ -618,7 +618,7 @@ class LandmarkCoordinatesWidget(QtWidgets.QScrollArea):
 
         #
         self.widgets_count = 0
-        self.coordinate_widgets = {}
+        self.coordinate_widgets: dict[str, CoordinatesWidget] = {}
 
         #
         headers_widget = CoordinatesWidget()
