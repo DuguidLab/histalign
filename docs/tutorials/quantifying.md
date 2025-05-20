@@ -65,3 +65,7 @@ Jobs that have been processed will produce an artifact that can be seen in the "
 
 In the "Results" tab, you can see a list of the quantifications you have run so far for the whole project. This allows you select (using the check boxes in the first column) the quantifications you are interested in and export them as one excel file using the "Export" button at the bottom of the window.  
 This excel file can then be used for your own analysis based on the quantification result(s).
+
+## What's next?
+
+The final functionality of `histalign` is basic 2D and 3D visualisation. For a guide on how to do that, see the [visualisation tutorial](visualisation.md).
