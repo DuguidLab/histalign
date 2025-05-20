@@ -36,8 +36,6 @@ class InformationWidget(QtWidgets.QTabWidget):
 
         #
         self.addTab(tab1, "Structures")
-        self.addTab(tab2, "PLACEHOLDER")
-        self.addTab(tab3, "PLACEHOLDER")
 
     def reset(self) -> None:
         self.structures_widget.reset()
