@@ -16,7 +16,6 @@ from histalign.backend.models import (
 )
 from histalign.backend.quantification import QuantificationThread
 from histalign.backend.workspace import Workspace
-from histalign.frontend import lua_aware_shift
 from histalign.frontend.common_widgets import (
     AnimatedCheckBox,
     ColumnsFrame,
@@ -27,6 +26,7 @@ from histalign.frontend.common_widgets import (
     StructureTagHolderWidget,
     TitleFrame,
 )
+from histalign.frontend.pyside_helpers import lua_aware_shift
 from histalign.language_helpers import unwrap
 from histalign.resources import ICONS_ROOT
 
