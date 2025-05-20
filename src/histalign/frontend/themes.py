@@ -6,6 +6,11 @@ from PySide6.QtGui import QColor, QPalette
 
 
 def build_light_theme() -> QPalette:
+    """Builds the palette of the light theme of the application.
+
+    Returns:
+        QPalette: The light theme palette.
+    """
     theme = QPalette()
 
     theme.setColor(
@@ -236,6 +241,11 @@ def build_light_theme() -> QPalette:
 
 
 def build_dark_theme() -> QPalette:
+    """Builds the palette of the dark theme of the application.
+
+    Returns:
+        QPalette: The dark theme palette.
+    """
     theme = QPalette()
 
     theme.setColor(
@@ -470,13 +480,14 @@ def build_dark_theme() -> QPalette:
 def is_light_colour(colour: QColor) -> bool:
     """Computes whether a colour is light or dark.
 
-    Taken from: https://en.wikipedia.org/wiki/Rec._709#Luma_coefficients
-
     Args:
         colour (QColor)): Colour to evaluate.
 
     Returns:
         bool: Whether the colour is light or not.
+
+    References:
+        Lua coefficients: https://en.wikipedia.org/wiki/Rec._709#Luma_coefficients
     """
     return (
         colour.red() * 0.2125 + colour.green() * 0.7152 + colour.blue() * 0.0722
@@ -484,4 +495,7 @@ def is_light_colour(colour: QColor) -> bool:
 
 
 LIGHT_THEME: QPalette = build_light_theme()
+"""A convenience light theme palette."""
+
 DARK_THEME: QPalette = build_dark_theme()
+"""A convenience dark theme palette."""
