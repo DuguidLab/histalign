@@ -74,7 +74,20 @@ def get_appropriate_plugin_class(
     file_path: Path,
     mode: str,
 ) -> type["ImageFile"]:
-    """Returns appropriate image plugin for `file_path` based on extension and mode."""
+    """Returns appropriate image plugin for `file_path` based on extension and mode.
+
+    Args:
+        file_path (Path): File for which to find a plugin class.
+        mode (str):
+            Mode which will be used to open a file with the returned plugin class. This
+            is used to make sure the appropriate plugin supports the mode.
+
+    Returns:
+        The plugin class that can be used to open `file_path`.
+
+    Raises:
+        ModeNotSupportedError: When the mode provided does not have a matching plugin.
+    """
     suffixes = file_path.suffixes
     for i in range(len(suffixes)):
         current_combination = "".join(suffixes[i:])
@@ -192,17 +205,18 @@ class ImageFile(ABC):
     """ABC for plugins wrapping different file formats on disk with a common interface.
 
     Attributes:
+        file_path (Path): File path of the opened file.
         format (str): Common name of the plugin format (e.g., PNG, JPEG, TIFF).
         extensions (tuple[str, ...]): Extensions the plugin supports.
-        dimension_order (DimensionOrder): Order in which the dimensions are
-                                          organised in the image's array.
+        dimension_order (DimensionOrder):
+            Order in which the dimensions are organised in the image's array.
         index (tuple[slice, ...]): Current index the wrapper can read.
-        series_support (int): Level of series support of the plugin. A support of 0
-                              means only single images are supported. A support of 1
-                              means single series are supported. A support of 2 means
-                              multiple series are supported. This is not usually
-                              accessed directly but through one of the convenience
-                              properties (e.g., 'supports_series').
+        series_support (int):
+            Level of series support of the plugin. A support of 0 means only single
+            images are supported. A support of 1 means single series are supported. A
+            support of 2 means multiple series are supported. This is not usually
+            accessed directly but through one of the convenience properties
+            (e.g., 'supports_series').
     """
 
     format: str
@@ -542,8 +556,8 @@ def generate_indices(
             iterate as if using nested loops in order C->Z->XY, while
             DimensionOrder.ZCYX will iterate in order Z->C->YX.
 
-    Returns:
-        Generator over the indices that index into `shape`` in `iteration_order` order.
+    Yields:
+        The next index into `shape` in iteration order.
     """
     if iteration_order is None:
         iteration_order: DimensionOrder = dimension_order

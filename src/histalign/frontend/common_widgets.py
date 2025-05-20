@@ -721,15 +721,15 @@ class CollapsibleWidget(QtWidgets.QWidget):
     Adapted from a StackOverflow answer[1].
 
     Attributes:
-        animation_duration (int): Duration for the expand/collapse animation. Set to 0
-                                  to make it instantaneous.
-        toggle_button (QtWidgets.QToolButton): Button on which the user clicks to
-                                               trigger the animation.
-        toggle_animation (QtCore.QParallelAnimationGroup): Animation group for the
-                                                           transition between collapsed
-                                                           and expanded.
-        content_area (QtWidgets.QScrollArea): Widget containing the inner layout. This
-                                              is where new row widgets get added.
+        animation_duration (int):
+            Duration for the expand/collapse animation. Set to 0 to make it
+            instantaneous.
+        toggle_button (QtWidgets.QToolButton):
+            Button on which the user clicks to trigger the animation.
+        toggle_animation (QtCore.QParallelAnimationGroup):
+            Animation group for the transition between collapsed and expanded.
+        content_area (QtWidgets.QScrollArea):
+            Widget containing the inner layout. This is where new row widgets get added.
 
     References:
         [1]: https://stackoverflow.com/a/52617714
@@ -753,9 +753,9 @@ class CollapsibleWidget(QtWidgets.QWidget):
 
         Args:
             title (str, optional): Title used for the toggle button of the widget.
-            animation_duration (int, optional): Duration of the collapse/expand
-                                                animation. Set to 0 to make it
-                                                instantaneous.
+            animation_duration (int, optional):
+                Duration of the collapse/expand animation. Set to 0 to make it
+                instantaneous.
             expanded (bool, optional): Whether to start expanded.
             parent (Optional[QtWidgets.QWidget], optional): Parent of the widget.
         """
@@ -1121,7 +1121,8 @@ class DynamicThemeIcon(QtGui.QIcon):
     Note that this relies on the input images being "binarisable" to background versus
     foreground (e.g., SVGs).
 
-    Adapted from: https://stackoverflow.com/a/37213313.
+    References:
+        Adapted from: https://stackoverflow.com/a/37213313.
     """
 
     _pixmap: QtGui.QPixmap
@@ -1206,7 +1207,8 @@ class ShortcutAwareToolButton(QtWidgets.QToolButton):
 class CircularPushButton(ShortcutAwarePushButton):
     """A class implementing a circular version of PushButtons.
 
-    Adapted from: https://forum.qt.io/post/579342.
+    References:
+        Adapted from: https://forum.qt.io/post/579342.
     """
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -1555,20 +1557,32 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
         painter.drawPixmap(self.boundingRect(), pixmap, pixmap.rect().toRectF())
 
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
-        """Handles mouse press events."""
+        """Handles mouse press events.
+
+        Args:
+            event (QtWidgets.QGraphicsSceneMouseEvent): Event to handle.
+        """
         super().mousePressEvent(event)
 
         self._button = event.button()
         self._dragging = False
 
     def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
-        """Handles mouse move events."""
+        """Handles mouse move events.
+
+        Args:
+            event (QtWidgets.QGraphicsSceneMouseEvent): Event to handle.
+        """
         super().mouseMoveEvent(event)
 
         self._dragging = True
 
     def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
-        """Handles mouse release events."""
+        """Handles mouse release events.
+
+        Args:
+            event (QtWidgets.QGraphicsSceneMouseEvent): Event to handle.
+        """
         super().mouseReleaseEvent(event)
 
         if not self._dragging:
@@ -1601,7 +1615,11 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
         return super().itemChange(change, value)
 
     def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
-        """Handles focus out events."""
+        """Handles focus out events.
+
+        Args:
+            event (QtGui.QFocusEvent): Event to handle.
+        """
         super().focusOutEvent(event)
         self.setSelected(False)
 
@@ -1638,8 +1656,9 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
         focus_zoom (float):
             Level of zoom required to fit `focus_rect` into view. This makes
             `focus_rect` fill the view when `general_zoom` is 1.0.
-        view_centre (QtCore.QPointF):
+        view_centre (QtCore.QPointF): Centre of the view.
         focus_rect (QtCore.QRectF):
+            Rectangle that should always have at least a single pixel visible.
     """
 
     general_zoom: float = 1.0
@@ -1892,8 +1911,8 @@ class ZoomAndPanView(QtWidgets.QGraphicsView):
 class AnimatedCheckBox(QtWidgets.QCheckBox):
     """Animated toggle checkbox widget.
 
-    This is slightly adapted from the following tutorial:
-    https://www.pythonguis.com/tutorials/pyside-animated-widgets/
+    References:
+        Adapted from the following tutorial: https://www.pythonguis.com/tutorials/pyside-animated-widgets/
     """
 
     _transparent_pen = QtGui.QPen(QtCore.Qt.GlobalColor.transparent)
@@ -2275,8 +2294,8 @@ class ToggleWidget(QtWidgets.QFrame):
 class FlowLayout(QtWidgets.QLayout):
     """A flow layout that rearranges children in rows if they would overflow.
 
-    Adapted from the official PySide documentation:
-    https://doc.qt.io/qtforpython-6/examples/example_widgets_layouts_flowlayout.html
+    References:
+        Adapted from the official PySide documentation: https://doc.qt.io/qtforpython-6/examples/example_widgets_layouts_flowlayout.html
     """
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
@@ -2434,8 +2453,8 @@ class PixmapFlowLayout(QtWidgets.QLayout):
     space for missing widgets. Additionally, it has helpers for replacing widgets or
     swapping two widgets based on indices.
 
-    Adapted from the official PySide documentation:
-    https://doc.qt.io/qtforpython-6/examples/example_widgets_layouts_flowlayout.html
+    References:
+        Adapted from the official PySide documentation: https://doc.qt.io/qtforpython-6/examples/example_widgets_layouts_flowlayout.html
     """
 
     def __init__(
@@ -2741,6 +2760,8 @@ class HoverMixIn:
     Args:
         shift (int | QtGui.QColor, optional):
             Shift of the background colour or new background colour.
+        roles (Optional[list[QtGui.QPalette.ColorRole]], optional):
+            Role for which to change the colour when hovering.
 
     Attributes:
         shift (int | QtGui.QColor, optional):
@@ -4397,15 +4418,15 @@ class FilePickerWidget(QtWidgets.QWidget):
         """Builds a file dialog pop-up to show when the [...] button is clicked.
 
         Args:
-            directory_mode (bool, optional):
+            directory_mode (bool):
                 Whether the file dialog pop-up should request a directory.
-            save_mode (bool, optional):
+            save_mode (bool):
                 Whether the file dialog pop-up should request a save location.
-            directory (str, optional): Starting directory of the file dialog pop-up.
-            filters (str, optional):
+            directory (str): Starting directory of the file dialog pop-up.
+            filters (str):
                 File filters of the file dialog pop-up. If `directory_mode` is set, this
                 is ignored.
-            options (Optional[QtWidgets.QFileDialog.Option], optional):
+            options (Optional[QtWidgets.QFileDialog.Option]):
                 File dialog options to set on the file dialog pop-up.
 
         Returns:

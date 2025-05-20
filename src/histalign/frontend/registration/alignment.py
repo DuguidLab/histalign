@@ -547,7 +547,7 @@ class CoordinatesWidget(QtWidgets.QFrame):
         """Updates reference coordinates with new coordinates.
 
         Args:
-            coordinates (QtCore.QPoint): New coordinates.
+            coordinates (Optional[QtCore.QPoint]): New coordinates.
         """
         if coordinates is None:
             text = "Reference coordinates"
@@ -562,7 +562,7 @@ class CoordinatesWidget(QtWidgets.QFrame):
         """Updates histology coordinates with new coordinates.
 
         Args:
-            coordinates (QtCore.QPoint): New coordinates.
+            coordinates (Optional[QtCore.QPoint]): New coordinates.
         """
         if coordinates is None:
             text = "Histology coordinates"
@@ -1135,7 +1135,13 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         item.setSelected(True)
 
     def collect_transform_points(self) -> tuple[np.ndarray, np.ndarray]:
-        """Collects the current transformation points pairs."""
+        """Collects the current transformation points pairs.
+
+        Returns:
+            A tuple of (`reference_points`, `histology_points`) where `reference_points`
+                are the points located on the reference view and `histology_points` are
+                the paired points on the histology view.
+        """
         reference_points = []
         histology_points = []
 
@@ -1154,7 +1160,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         """Estimates the histology transform from the current transform points.
 
         Args:
-            as_sk_transform (bool):
+            as_sk_transform (bool, opional):
                 Whether to return the transform as a `scikit-image` transform.
 
         Returns:
@@ -1176,7 +1182,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         """Estimates the histology transform relative to the transformed reference.
 
         Args:
-            as_sk_transform (bool):
+            as_sk_transform (bool, optional):
                 Whether to return the transform as a `scikit-image` transform.
 
         Returns:
@@ -1219,7 +1225,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         coordinates.
 
         Args:
-            position (QtCore.QPointF):
+            position (QtCore.QPointF): Scene position to convert to grid coordinates.
 
         Returns:
             The grid coordinates.

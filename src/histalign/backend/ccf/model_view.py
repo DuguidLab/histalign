@@ -380,8 +380,8 @@ def iterate_tree_model_dfs(model: QtCore.QAbstractItemModel) -> Iterator[Index]:
     Args:
         model (QtCore.QAbstractItemModel): Model to traverse.
 
-    Returns:
-        An iterator over the structure tree.
+    Yields:
+        The next model index in iteration order.
     """
     queue = [model.index(0, 0)]
     while len(queue) > 0:

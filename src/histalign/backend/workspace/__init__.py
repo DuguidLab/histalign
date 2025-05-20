@@ -223,8 +223,8 @@ class AnnotationVolume(Volume):
     of memory and not really incurring any loading cost (around 2 seconds on my
     machine for the 25um annotated volume).
 
-    The algorithm to efficiently replace the values in the annotated volume is taken
-    from here: https://stackoverflow.com/a/29408060.
+    References:
+        Algorithm for efficient value replacement: https://stackoverflow.com/a/29408060
     """
 
     _id_translation_table: np.ndarray
@@ -234,8 +234,8 @@ class AnnotationVolume(Volume):
         """Returns the name of the brain structure at `coordinates`.
 
         Args:
-            coordinates (Sequence): Integer coordinates of the voxel to return the name
-                                    of.
+            coordinates (Sequence):
+                Integer coordinates of the voxel to return the name of.
 
         Returns:
             The name of the structure at `coordinates`.

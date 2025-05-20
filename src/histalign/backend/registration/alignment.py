@@ -81,8 +81,10 @@ def build_aligned_array(
         alignment_directory (str | Path):
             Path to the directory containing the alignment settings of the images to use
             to build the array.
-        z_spacing (int):
-            Spacing to use when building a volume from Z stacks.
+        z_spacing (int, optional):
+            Spacing to use when building a volume from Z-stacks. Note that, to avoid
+            using a potentially inadequate default, you should provide the Z spacing
+            when working with Z-stacks.
         channel_regex (str, optional):
             Channel regex identifying the channel part of `path`'s name. Use in
             conjunction with `channel_index`.

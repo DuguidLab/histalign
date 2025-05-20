@@ -439,11 +439,12 @@ def simulate_auto_contrast_passes(
 
     Args:
         image (np.ndarray): Image to apply the algorithm to.
-        passes (int, optional): How many passes to simulate. This correspond to how
-                                many presses of the "auto" button will be simulated.
-        normalise (bool, optional): Whether to normalise the image values to the full
-                                    range allowed by its dtype after applying the auto
-                                    contrast.
+        passes (int, optional):
+            How many passes to simulate. This correspond to how many presses of the
+            "auto" button will be simulated.
+        normalise (bool, optional):
+            Whether to normalise the image values to the full range allowed by its dtype
+            after applying the auto contrast.
         inplace (bool, optional): Whether to carry out the modification in place.
 
     Returns:

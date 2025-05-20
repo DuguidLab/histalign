@@ -66,7 +66,7 @@ def count_parents(
 
     Args:
         widget (QtWidgets.QWidget): Widget leaf to climb the tree from.
-        parent_type (type[QtWidgets.QWidget): Type of the parent to count.
+        parent_type (type[QtWidgets.QWidget, optional): Type of the parent to count.
 
     Returns:
         How many parents of type `parent_type` exist in `widget`'s parent hierarchy.
@@ -225,7 +225,7 @@ def lua_aware_shift(
 
     Args:
         colour (QtGui.QColor): Colour to shift.
-        shift (int): Positive shift value to modify the colour by.
+        shift (int, optional): Positive shift value to modify the colour by.
         away (bool, optional):
             Whether the colour should be shifted towards the opposite lua category or
             towards its own.

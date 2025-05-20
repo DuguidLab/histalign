@@ -481,7 +481,7 @@ def is_light_colour(colour: QColor) -> bool:
     """Computes whether a colour is light or dark.
 
     Args:
-        colour (QColor)): Colour to evaluate.
+        colour (QColor): Colour to evaluate.
 
     Returns:
         Whether the colour is light or not.

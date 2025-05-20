@@ -153,14 +153,15 @@ def convert_tiff_resolution_unit_to_ome(value: RESUNIT) -> UnitsLength:
     CENTIMETER. However, `tifffile` has more variants, and this function tries to
     support them as well.
 
-    See: https://web.archive.org/web/20200809235709/https://www.awaresystems.be/imaging/tiff/tifftags/resolutionunit.html
-    See: https://github.com/cgohlke/tifffile/blob/8a25a0d4738390af0a1f693705f29875d88fc320/tifffile/tifffile.py#L17285
-
     Args:
         value (RESUNIT): Value of the RESUNIT variant to convert.
 
     Returns:
         The variant `value` corresponds to.
+
+    References:
+        TIFF tags specs: https://web.archive.org/web/20200809235709/https://www.awaresystems.be/imaging/tiff/tifftags/resolutionunit.html
+        `tifffile` enum: https://github.com/cgohlke/tifffile/blob/8a25a0d4738390af0a1f693705f29875d88fc320/tifffile/tifffile.py#L17285
     """
     match value:
         case RESUNIT.NONE:
@@ -213,9 +214,6 @@ def convert_imagej_tiff_z_unit_to_ome(value: str) -> UnitsLength:
 def convert_tiff_axes_to_dimension_order(axes: str) -> Optional[DimensionOrder]:
     """Converts a `TiffPageSeries.axes` to a `DimensionOrder`.
 
-    For details of `tifffile`'s conventions on naming axes, see this issue:
-    and this source code:
-
     Args:
         axes (str): String representation of the dimensions.
 
@@ -223,8 +221,8 @@ def convert_tiff_axes_to_dimension_order(axes: str) -> Optional[DimensionOrder]:
         The converted dimension order or `None` if the conversion failed.
 
     References:
-        https://github.com/cgohlke/tifffile/issues/293
-        https://github.com/cgohlke/tifffile/blob/78b57cf84bd92528ba8877ea4972769bb4d43600/tifffile/tifffile.py#L18594-L18618
+        `tifffile`'s conventions on naming axes discussion: https://github.com/cgohlke/tifffile/issues/293
+        `tifffile`'s axes legend: https://github.com/cgohlke/tifffile/blob/78b57cf84bd92528ba8877ea4972769bb4d43600/tifffile/tifffile.py#L18594-L18618
     """
     # Check axes only contains supported dimensions
     if not re.fullmatch(r"^[XYZCS]+$", axes).group() == axes:

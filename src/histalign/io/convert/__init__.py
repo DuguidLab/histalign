@@ -111,23 +111,28 @@ def convert(
     """Converts from `source` to `destination` as determined by extensions.
 
     Args:
-        source (Path): Path to the source file or directory to convert. If a file, that
-                       single file is converted.
-        destination (Optional[Path], optional):
+        source (Path):
+            Path to the source file or directory to convert. If a file, that single file
+            is converted.
+        destination (Optional[Path]):
             Directory to output converted files in. If not provided, this defaults to
             `source` if it is a file or its parent otherwise.
-        source_extension (str): Extension to glob `source` with when it is a directory.
-                                This is ignored when `source` is a file.
-        destination_extension (str): Extension to use when converting to the new format.
-                                     This dictates which plugin to use.
-        from_order (str): Order of the dimensions of `source`. If `source` is a
-                          directory, all files should have the same order.
-        to_order (str): Order to use for the converted files. Pass an empty string to
-                        use `from_order` as the default.
-        series_support_override (int): Override the level of support of the destination
-                                       format.
-        force (bool): Whether to overwrite files during conversion if they already
-                      exist.
+        source_extension (str):
+            Extension to glob `source` with when it is a directory. This is ignored
+            when `source` is a file.
+        destination_extension (str):
+            Extension to use when converting to the new format. This dictates which
+            plugin to use.
+        from_order (str):
+            Order of the dimensions of `source`. If `source` is a directory, all files
+            should have the same order.
+        to_order (str):
+            Order to use for the converted files. Pass an empty string to use
+            `from_order` as the default.
+        series_support_override (int):
+            Override the level of support of the destination format.
+        force (bool):
+            Whether to overwrite files during conversion if they already exist.
     """
     if source.is_dir() and not source_extension:
         raise ValueError(
@@ -396,18 +401,22 @@ def generate_jobs(
     """Generates pairs of source-destination paths with proper extensions.
 
     Args:
-        source (Path): Path to use as the basis for jobs. If this is a file, a single
-                       pair is generated. If this is a directory, all files with
-                       `source_extension` will generate their own pair.
-        destination (Optional[Path]): Path to use as the output root. If this is `None`,
-                                      `source` is used if it is a file, its parent
-                                      otherwise.
-        source_extension (str): Extension to use when globbing `source` when it is a
-                                file. This is ignore otherwise.
+        source (Path):
+            Path to use as the basis for jobs. If this is a file, a single pair is
+            generated. If this is a directory, all files with `source_extension` will
+            generate their own pair.
+        destination (Optional[Path]):
+            Path to use as the output root. If this is `None`, `source` is used if it is
+            a file, its parent otherwise.
+        source_extension (str):
+            Extension to use when globbing `source` when it is a file. This is ignore
+            otherwise.
         destination_extension (str): Extension to set on the destination files.
 
     Returns:
-        A list of (source, destination) path tuples.
+        A list of (`source`, `destination`) path tuples where `source` is a path with
+        `source_extension` and `destination` is the corresponding destination with
+        `destination_extension`.
     """
     source_extension = source_extension.lower()
     destination_extension = destination_extension.lower()

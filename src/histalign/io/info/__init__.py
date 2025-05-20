@@ -54,6 +54,9 @@ def info(
         source (Path): File to print info for.
         order (str): Order of the dimensions of 'SOURCE'.
         system (Literal["binary", "decimal"]): System to use when computing sizes.
+
+    References:
+        Byte-sizing systems: https://en.wikipedia.org/wiki/Byte#Multiple-byte_units
     """
     order: Optional[DimensionOrder] = DimensionOrder(order.upper()) if order else None
 

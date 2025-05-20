@@ -67,7 +67,7 @@ class QuantificationThread(QtCore.QThread):
 
     Args:
         settings (QuantificationSettings): Quantification settings to use.
-        parent (Optional[QtCore.QObject]): Parent of this object.
+        parent (Optional[QtCore.QObject], optional): Parent of this object.
 
     Attributes:
         settings (QuantificationSettings): Quantification settings to use.
