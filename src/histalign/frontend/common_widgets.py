@@ -254,6 +254,9 @@ class StructureFinderDialog(QtWidgets.QDialog):
 
         self.setLayout(layout)
 
+        #
+        self.setWindowTitle("Structure picker")
+
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         """Handles key press events.
 

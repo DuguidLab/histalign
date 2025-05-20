@@ -723,6 +723,9 @@ class PreviewWindow(QtWidgets.QMainWindow):
         #
         self.setCentralWidget(view)
 
+        #
+        self.setWindowTitle("Preview")
+
     def update_reference_pixmap(
         self, pixmap: QtGui.QPixmap, transform: QtGui.QTransform
     ) -> None:
