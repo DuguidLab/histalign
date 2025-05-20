@@ -404,10 +404,10 @@ def generate_jobs(
                                       otherwise.
         source_extension (str): Extension to use when globbing `source` when it is a
                                 file. This is ignore otherwise.
-        destination_extension (str):
+        destination_extension (str): Extension to set on the destination files.
 
     Returns:
-
+        list[tuple[Path, Path]]: A list of (source, destination) path tuples.
     """
     source_extension = source_extension.lower()
     destination_extension = destination_extension.lower()
