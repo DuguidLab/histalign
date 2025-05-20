@@ -13,7 +13,7 @@ It should also be noted that only bright tissue on dark background is supported.
 
 The recommended way to install `histalign` is to use [`pipx`](https://pipx.pypa.io/latest/). These instructions will guide you through installing both `pipx` and `histalign`.  
 
-If you run into troubles when trying to install `pipx`, refer to the latest documentation from [their website](https://pipx.pypa.io/latest/installation/#installing-pipx) to see if it fixes the problem. If you run into troubles when trying to install `histalign` itself, have a look at the [open and closed issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue%20state%3Aclosed) on the package's GitHub. If you do not find an answer after looking through those, feel free to [open a new one](https://github.com/DuguidLab/histalign/issues/new), detailing your problem as best you can.
+If you run into troubles when trying to install `pipx`, refer to the latest documentation from [their website](https://pipx.pypa.io/latest/installation/#installing-pipx) to see if it fixes the problem. If you run into troubles when trying to install `histalign` itself, have a look at the [open and closed issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue) on the package's GitHub. If you do not find an answer after looking through those, feel free to [open a new one](https://github.com/DuguidLab/histalign/issues/new), detailing your problem as best you can.
 
 ### Installing `pipx`
 

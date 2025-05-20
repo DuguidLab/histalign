@@ -6,7 +6,7 @@ Clicking it will open a dialog to allow you to pick which directory to open. Onc
 
 !!! info
     If you find that there aren't any thumbnails being populated, have a look at the command line you started the application from. If you see a warning message mentioning that no images were found, make sure that the images in the folder were properly prepared as indicated in the [data preparation](data-preparation.md) tutorial.  
-    If after double checking your data is properly formed you still don't see any thumbnails appearing when opening the folder, you should have a look at the [GitHub issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue%20state%3Aclosed) and [open your own](https://github.com/DuguidLab/histalign/issues/new) if you do not find an answer.
+    If after double checking your data is properly formed you still don't see any thumbnails appearing when opening the folder, you should have a look at the [GitHub issues](https://github.com/DuguidLab/histalign/issues?q=is%3Aissue) and [open your own](https://github.com/DuguidLab/histalign/issues/new) if you do not find an answer.
 
 If all went well, you should have a similar-looking interface with your own thumbnails in the left pane.
 
