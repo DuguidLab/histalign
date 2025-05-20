@@ -107,12 +107,11 @@ class ResultsTableModel(QtCore.QAbstractTableModel):
             *source, quantification, timestamp_ymd, timestamp_hm = path.stem.split("_")
             source = "_".join(source)
             quantification = Quantification(quantification).display_value.capitalize()
-            timestamp_ymd = timestamp_ymd[::-1]
             full_timestamp = (
                 f"{timestamp_hm[:2]}:{timestamp_hm[2:]} "
-                f"{timestamp_ymd[:2]}"
-                f"/{timestamp_ymd[2:4]}"
-                f"/{timestamp_ymd[4:]}"
+                f"{timestamp_ymd[6:]}"
+                f"/{timestamp_ymd[4:6]}"
+                f"/{timestamp_ymd[:4]}"
             )
 
             data.append([False, full_timestamp, quantification, source, df])
