@@ -80,6 +80,10 @@ if __name__ == "histalign":
 def histalign(
     context: click.Context, verbosity: int, fullscreen: bool, dark: bool, debug_ui: bool
 ) -> None:
+    """Root command with which to start the main GUI application.
+
+    To use the command-line interface for IO, refer to the subcommands.
+    """
     # Handle setting up plugins for IO subcommands
     load_plugins()
 
