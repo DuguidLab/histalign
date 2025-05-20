@@ -72,14 +72,12 @@ Once `pipx` has been installed, run the following command:
 pipx install histalign
 ```
 
-And that should be you sorted! From there, running `histalign` from the command line should start the application GUI.
+And that should be you sorted! From there, [running `histalign`](reference/CLI/index.md#histalign) from the command line should start the application GUI.
 
 ## What's next?
 
-For your first time working with the app, you should start by reading the [tutorials](tutorials/index.md) section which guide you through the interface and what a typical workflow looks like when using `histalign`.  
+For your first time working with the app, you should start by reading the [typical workflow](typical-workflow.md) to get an overview of what you can do with the app.
 
-For typical uses of the application, see the [how-to guides]().
+For more in-depth guides once you've got a good grid on the main goals of the application, see the [tutorials](tutorials/index.md) which guide you through the interface and in-depth explanations of what each step entails.  
 
-For documentation of the `histalign` API to use in your own project, see the [reference]() section.
-
-For more in-depth guides to each step of the workflow, see the [tutorials](tutorials/index.md)
+For documentation of the `histalign` API to use in your own project, see the [reference](../reference/API/histalign/index.html) section.
