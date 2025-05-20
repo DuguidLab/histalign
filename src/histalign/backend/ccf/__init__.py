@@ -127,7 +127,7 @@ def get_ssl_context(
         check_certificate (bool, optional): Whether to enable certificate checking.
 
     Returns:
-        ssl.SSLContext: An SSL context with the given options.
+        An SSL context with the given options.
     """
     context = ssl.create_default_context()
     if not check_hostname:
@@ -157,7 +157,7 @@ def get_atlas_path(
             already available.
 
     Returns:
-        str: The path to the would-be file.
+        The path to the would-be file.
     """
     path = str(ATLAS_ROOT_DIRECTORY / f"{atlas_type}_{resolution.value}.nrrd")
     if ensure_downloaded and not Path(path).exists():
@@ -179,7 +179,7 @@ def get_annotation_path(resolution: Resolution, ensure_downloaded: bool = False)
             is not already available.
 
     Returns:
-        str: The path to the would-be file.
+        The path to the would-be file.
     """
     path = str(ANNOTATION_ROOT_DIRECTORY / f"annotation_{resolution}.nrrd")
     if ensure_downloaded and not Path(path).exists():
@@ -196,7 +196,7 @@ def get_structure_id(structure: str, resolution: Resolution) -> int:
         resolution (Resolution): Resolution of the structure tree to use.
 
     Returns:
-        int: The ID of the structure.
+        The ID of the structure.
     """
     try:
         return get_structure_tree(resolution).get_structures_by_name([structure])[0][  # type: ignore[no-any-return]
@@ -216,7 +216,7 @@ def get_structure_name_by_acronym(acronym: str, resolution: Resolution) -> str:
         resolution (Resolution): Resolution of the structure tree to use.
 
     Returns:
-        str: Name of the structure with acronym `acronym`.
+        Name of the structure with acronym `acronym`.
     """
     return get_structure_tree(resolution).get_structures_by_acronym([acronym.strip()])[  # type: ignore[no-any-return]
         0
@@ -241,7 +241,7 @@ def get_structure_mask_path(
             already available.
 
     Returns:
-        str: The path to the would-be file.
+        The path to the would-be file.
     """
     structure_id = get_structure_id(structure_name, resolution)
     mask_directory = MASK_ROOT_DIRECTORY / f"structure_masks_{resolution.value}"
@@ -260,7 +260,7 @@ def get_structure_tree(resolution: Resolution) -> StructureTree:
         resolution (Resolution): Resolution of the tree.
 
     Returns:
-        StructureTree: The structure tree for the given resolution.
+        The structure tree for the given resolution.
     """
     # This takes a long time to import (~4 seconds on my machine) so only "lazily"
     # import it.
@@ -279,7 +279,7 @@ def get_structures_hierarchy_path() -> str:
     Note this automatically downloads the file if it doesn't exist.
 
     Returns:
-        str: The path to the `structures.json` hierarchy file.
+        The path to the `structures.json` hierarchy file.
     """
     path = DATA_ROOT / f"structures.json"
 

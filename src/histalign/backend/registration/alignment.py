@@ -454,7 +454,7 @@ def replace_path_parts(
             The shortest of the two argument dictates how many elements are replaced.
 
     Returns:
-        Path: The path with the parts removed.
+        The path with the parts removed.
 
     Examples:
         >>> replace_path_parts(Path("/data/filename_C123_max.h5"), "C123", "C456", "_max")

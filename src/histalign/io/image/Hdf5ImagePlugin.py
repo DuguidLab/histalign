@@ -166,7 +166,7 @@ def convert_to_microns(value: float, unit: UnitsLength) -> float:
         unit (UnitsLength): Unit of `value`.
 
     Returns:
-        float: The converted value.
+        The converted value.
     """
     match UnitsLength(unit):
         case UnitsLength.nano:

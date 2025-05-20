@@ -160,7 +160,7 @@ def convert_tiff_resolution_unit_to_ome(value: RESUNIT) -> UnitsLength:
         value (RESUNIT): Value of the RESUNIT variant to convert.
 
     Returns:
-        UnitsLength: The variant `value` corresponds to.
+        The variant `value` corresponds to.
     """
     match value:
         case RESUNIT.NONE:
@@ -193,7 +193,7 @@ def convert_imagej_tiff_z_unit_to_ome(value: str) -> UnitsLength:
         value (str): String representation of the unit.
 
     Returns:
-        UnitsLength: The UnitsLength variant corresponding to `value`.
+        The UnitsLength variant corresponding to `value`.
     """
     # I'm not aware of any documentation of the possible values of the spacing unit (it
     # might even be user-defined), hence try to support the most common ones.
@@ -220,8 +220,7 @@ def convert_tiff_axes_to_dimension_order(axes: str) -> Optional[DimensionOrder]:
         axes (str): String representation of the dimensions.
 
     Returns:
-        Optional[DimensionOrder]:
-            The converted dimension order or `None` if the conversion failed.
+        The converted dimension order or `None` if the conversion failed.
 
     References:
         https://github.com/cgohlke/tifffile/issues/293

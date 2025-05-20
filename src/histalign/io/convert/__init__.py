@@ -363,7 +363,7 @@ def extract_file_extension(
         allowed_extensions (Sequence[str]): Sequence of extensions to look for.
 
     Returns:
-        str: The longest extension from `allowed_extensions` found in `file_path`.
+        The longest extension from `allowed_extensions` found in `file_path`.
 
     Raises:
         ValueError: When none of the allowed extensions are found in the path.
@@ -407,7 +407,7 @@ def generate_jobs(
         destination_extension (str): Extension to set on the destination files.
 
     Returns:
-        list[tuple[Path, Path]]: A list of (source, destination) path tuples.
+        A list of (source, destination) path tuples.
     """
     source_extension = source_extension.lower()
     destination_extension = destination_extension.lower()

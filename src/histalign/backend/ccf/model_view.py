@@ -304,7 +304,7 @@ def build_structure_tree(json_path: str | Path) -> StructureNode:
         json_path (str | Path): Path to the JSON file containing the hierarchy.
 
     Returns:
-        StructureNode: The root node of the tree.
+        The root node of the tree.
     """
     with open(json_path) as handle:
         contents = json.load(handle)
@@ -322,7 +322,7 @@ def parse_structure_list(structure_list: list[dict[str, Any]]) -> StructureNode:
         structure_list (list[dict[str, Any]]): List of structure dictionaries.
 
     Returns:
-        StructureNode: The root node of the tree.
+        The root node of the tree.
 
     Raises:
         ValueError:
@@ -360,8 +360,7 @@ def find_parent(structure: StructureNode, id: int) -> Optional[StructureNode]:
         id (int): ID of the parent node to look for.
 
     Returns:
-        Optional[StructureNode]:
-            The node with the given ID or `None` if such a node was not found.
+        The node with the given ID or `None` if such a node was not found.
     """
     if structure.id == id:
         return structure
@@ -382,7 +381,7 @@ def iterate_tree_model_dfs(model: QtCore.QAbstractItemModel) -> Iterator[Index]:
         model (QtCore.QAbstractItemModel): Model to traverse.
 
     Returns:
-        Iterator[Index]: An iterator over the structure tree.
+        An iterator over the structure tree.
     """
     queue = [model.index(0, 0)]
     while len(queue) > 0:
@@ -399,7 +398,7 @@ def get_checked_items(model: ABAStructureTreeModel) -> list[Index]:
         model (ABAStructureListModel): Model to iterate.
 
     Returns:
-        list[Index]: List of checked indices.
+        List of checked indices.
     """
     checked_items = []
     for index in iterate_tree_model_dfs(model):

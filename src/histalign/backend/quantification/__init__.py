@@ -48,7 +48,7 @@ def get_appropriate_quantification_function(
         quantification (Quantification): Quantification for which to find a function.
 
     Returns:
-        Callable[[np.ndarray, np.ndarray], Any]: A function matching the quantification.
+        A function matching the quantification.
 
     Raises:
         ValueError: When the quantification does not have a matching function.

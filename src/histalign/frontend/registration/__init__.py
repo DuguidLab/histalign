@@ -178,7 +178,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         """Builds the main registration tool bar.
 
         Returns:
-            QtWidgets.QToolBar: The built tool bar, already connected to relevant slots.
+            The built tool bar, already connected to relevant slots.
         """
 
         def disable_all(tool_bar: QtWidgets.QToolBar) -> None:

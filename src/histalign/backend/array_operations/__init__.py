@@ -37,8 +37,8 @@ def safe_add_to_array(
         inplace (bool, optional): Whether to carry out the addition in place.
 
     Returns:
-        np.ndarray: The result of the addition. If `inplace` is True, returns a
-                    reference to `array`. Otherwise, this is a completely new array.
+        The result of the addition. If `inplace` is True, returns a reference to
+            `array`. Otherwise, this is a completely new array.
     """
     if inplace:
         target_array = array
@@ -84,8 +84,8 @@ def safe_subtract_from_array(
         inplace (bool, optional): Whether to carry out the subtraction in place.
 
     Returns:
-        np.ndarray: The result of the subtraction. If `inplace` is True, returns a
-                    reference to `array`. Otherwise, this is a completely new array.
+        The result of the subtraction. If `inplace` is True, returns a reference to
+            `array`. Otherwise, this is a completely new array.
     """
     if inplace:
         target_array = array
@@ -108,7 +108,7 @@ def get_dtype_maximum(dtype: np.dtype) -> int | float:
         dtype (np.dtype): Datatype whose minimum to find.
 
     Returns:
-        int | float: The maximum value allowed for `dtype`.
+        The maximum value allowed for `dtype`.
     """
     maximum: int | float
     try:
@@ -126,7 +126,7 @@ def get_dtype_minimum(dtype: np.dtype) -> int | float:
         dtype (np.dtype): Datatype whose minimum to find.
 
     Returns:
-        int | float: The minimum value allowed for `dtype`.
+        The minimum value allowed for `dtype`.
     """
     minimum: int | float
     try:

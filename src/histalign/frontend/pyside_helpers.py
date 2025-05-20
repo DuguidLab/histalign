@@ -69,8 +69,7 @@ def count_parents(
         parent_type (type[QtWidgets.QWidget): Type of the parent to count.
 
     Returns:
-        int:
-            How many parents of type `parent_type` exist in `widget`'s parent hierarchy.
+        How many parents of type `parent_type` exist in `widget`'s parent hierarchy.
     """
     count = 0
     parent = widget
@@ -129,7 +128,7 @@ def get_actual_background_colour(widget: QtWidgets.QWidget) -> QtGui.QColor:
         widget (QtWidgets.QWidget): Widget to find the background of.
 
     Returns:
-        QtGui.QColor: The background colour of the widget.
+        The background colour of the widget.
     """
 
     tab_widget_distance = get_parent_distance(widget, QtWidgets.QTabWidget)
@@ -201,8 +200,7 @@ def get_parent_distance(
         parent_type (type[QtWidgets.QWidget): Type of the parent to find.
 
     Returns:
-        int:
-            How many layers to step up in the widget tree to reach a parent of
+        How many layers to step up in the widget tree to reach a parent of
             `parent_type`, or 9999 if no parent of that type exist.
     """
     distance = 0
@@ -233,7 +231,7 @@ def lua_aware_shift(
             towards its own.
 
     Returns:
-        QtGui.QColor: The shifted colour.
+        The shifted colour.
     """
     shift = 100 + shift
 
@@ -289,7 +287,7 @@ def try_show_status_message(
             until someone else posts a message.
 
     Returns:
-        bool: Whether a status bar was found (and hence whether the message was posted).
+        Whether a status bar was found (and hence whether the message was posted).
     """
     try:
         status_bar: QtWidgets.QStatusBar = widget.statusBar()
@@ -312,7 +310,7 @@ def try_show_permanent_status_message(
         index (int, optional): Index of the permanent widget.
 
     Returns:
-        Optional[QtWidgets.QLabel]: Permanent widget or None if no status bar found.
+        Permanent widget or None if no status bar found.
     """
     try:
         status_bar: QtWidgets.QStatusBar = widget.statusBar()

@@ -306,7 +306,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         calling this right after opening a project will always return True).
 
         Returns:
-            bool: True if the user saved/discarded, False if they cancelled.
+            True if the user saved/discarded, False if they cancelled.
         """
         if not self.workspace_is_dirty:
             return True
@@ -487,7 +487,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         """Starts the project closing process.
 
         Returns:
-            bool: True if the user saved/discarded the project, False if they cancelled.
+            True if the user saved/discarded the project, False if they cancelled.
         """
         _module_logger.debug("Project closing initiated.")
 

@@ -238,7 +238,7 @@ class AnnotationVolume(Volume):
                                     of.
 
         Returns:
-            str: The name of the structure at `coordinates`.
+            The name of the structure at `coordinates`.
         """
 
         if not hasattr(self, "_structure_tree") or not self.is_loaded:
@@ -512,8 +512,7 @@ class VolumeSlicer:
             settings (VolumeSettings): Settings used for alignment.
 
         Returns:
-            vedo.Plane:
-                A plane centred at `origin` and whose normal is the same as the plane
+            A plane centred at `origin` and whose normal is the same as the plane
                 described by `settings`.
         """
         orientation = settings.orientation
@@ -593,8 +592,7 @@ class VolumeSlicer:
             settings (VolumeSettings): Settings used for alignment.
 
         Returns:
-            np.ndarray:
-                The cropped and padded image from `image_plane` fit to `display_plane`'s
+            The cropped and padded image from `image_plane` fit to `display_plane`'s
                 shape.
         """
         orientation = settings.orientation
@@ -666,8 +664,7 @@ class VolumeSlicer:
             theta_prime (float): Signed angle between cb and cC.
 
         Returns:
-            tuple[int, int, int, int]:
-                The cropping and padding values.
+            The cropping and padding values.
         """
         x = round(e * math.cos(math.radians(theta)))
         y = round(e * math.sin(math.radians(theta)))
@@ -820,7 +817,7 @@ class Workspace(QtCore.QObject):
             handle (ImageFile): ImageFile handle to find the index of.
 
         Returns:
-            int: The index of the handle or -1 if it is not found.
+            The index of the handle or -1 if it is not found.
         """
         try:
             return self._file_handles.index(handle)
@@ -1018,8 +1015,7 @@ def compute_downsampling_factor(shape: tuple[int, ...]) -> int:
         shape (tuple[int, ...]): Shape to downsample.
 
     Returns:
-        int:
-            The downsampling factor that scales shape down to fit inside
+        The downsampling factor that scales shape down to fit inside
             DOWNSAMPLE_TARGET_SHAPE.
     """
     max_: float = (np.array(shape) / DOWNSAMPLE_TARGET_SHAPE).max()
@@ -1033,8 +1029,7 @@ def alignment_directory_has_volumes(directory: Path) -> bool:
         directory (Path): Alignment directory to check.
 
     Returns:
-        bool:
-            Whether the alignment directory has both aligned and interpolated volumes.
+        Whether the alignment directory has both aligned and interpolated volumes.
     """
     aligned_path = directory / "volumes" / "aligned"
     has_aligned = aligned_path.exists() and len(list(aligned_path.iterdir())) > 0

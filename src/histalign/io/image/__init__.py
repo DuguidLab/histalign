@@ -307,7 +307,7 @@ class ImageFile(ABC):
                 aspect ratio.
 
         Returns:
-            np.ndarray: A thumbnail of the current image
+            A thumbnail of the current image
         """
         _module_logger.debug(f"Generating thumbnail for '{self.file_path}'.")
 
@@ -355,7 +355,7 @@ class ImageFile(ABC):
             dimensions (tuple[int, int]): Dimensions of the target thumbnail.
 
         Returns:
-            np.ndarray: The image to thumbnail.
+            The image to thumbnail.
         """
         display_shape = np.array(self.shape)[np.array(self.index) == slice(None)]
         if "YX" in self.dimension_order.value:
@@ -377,8 +377,7 @@ class ImageFile(ABC):
         """Attempts to get the dimension order from metadata.
 
         Returns:
-            Optional[DimensionOrder]:
-                The retrieved dimension order or `None` if it could not be determined.
+            The retrieved dimension order or `None` if it could not be determined.
         """
 
     @abstractmethod
@@ -544,8 +543,7 @@ def generate_indices(
             DimensionOrder.ZCYX will iterate in order Z->C->YX.
 
     Returns:
-        Iterator[tuple[slice, ...]]: Generator over the indices that index into `shape``
-                                     in `iteration_order` order.
+        Generator over the indices that index into `shape`` in `iteration_order` order.
     """
     if iteration_order is None:
         iteration_order: DimensionOrder = dimension_order
@@ -605,7 +603,7 @@ def translate_between_orders(
         to_order (DimensionOrder): Dimension order to translate to.
 
     Returns:
-        tuple[_T, ...]: The translated sequence. This is always a subset of 'sequence'.
+        The translated sequence. This is always a subset of 'sequence'.
 
     Raises:
         ValueError: When `to_order` has dimensions that are not present in `from_order`.
@@ -642,7 +640,7 @@ def remove_extra_dimensions(
         to_order (DimensionOrder): Dimension order to prune to.
 
     Returns:
-        tuple[_T, ...]: The pruned sequence.
+        The pruned sequence.
     """
     if len(sequence) != len(from_order.value):
         raise ValueError(
@@ -668,7 +666,7 @@ def attempt_guess_dimension_order(shape: Sequence[int]) -> DimensionOrder:
         shape (Sequence[int]): Shape on which to make a guess.
 
     Returns:
-        DimensionOrder: The dimension order of `shape` as determined by the heuristic.
+        The dimension order of `shape` as determined by the heuristic.
 
     Raises:
         FailedGuessingDimensionOrderError:

@@ -9,7 +9,7 @@ def build_light_theme() -> QPalette:
     """Builds the palette of the light theme of the application.
 
     Returns:
-        QPalette: The light theme palette.
+        The light theme palette.
     """
     theme = QPalette()
 
@@ -244,7 +244,7 @@ def build_dark_theme() -> QPalette:
     """Builds the palette of the dark theme of the application.
 
     Returns:
-        QPalette: The dark theme palette.
+        The dark theme palette.
     """
     theme = QPalette()
 
@@ -484,7 +484,7 @@ def is_light_colour(colour: QColor) -> bool:
         colour (QColor)): Colour to evaluate.
 
     Returns:
-        bool: Whether the colour is light or not.
+        Whether the colour is light or not.
 
     References:
         Lua coefficients: https://en.wikipedia.org/wiki/Rec._709#Luma_coefficients

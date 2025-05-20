@@ -517,7 +517,7 @@ class StructureTagWidget(QtWidgets.QFrame):
             event (QtCore.QEvent): Event to handle.
 
         Returns:
-            bool: Whether the event was handled.
+            Whether the event was handled.
         """
         # Handle mouse events here rather than override signal handlers as QFrame does
         # not normally receive mouse events.
@@ -1514,7 +1514,7 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
         """Returns the item's bounding rectangle.
 
         Returns:
-            QtCore.QRectF: The bounding rectangle.
+            The bounding rectangle.
         """
         return QtCore.QRectF(-self.size / 2, -self.size / 2, self.size, self.size)
 
@@ -1522,7 +1522,7 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
         """Returns the item's collision/interactable area.
 
         Returns:
-            QtGui.QPainterPath: The collision/interactable area.
+            The collision/interactable area.
         """
         path = QtGui.QPainterPath()
         path.addEllipse(self.boundingRect())
@@ -1585,7 +1585,7 @@ class PointGraphicsItem(QtWidgets.QGraphicsObject):
             value (Any): Change-relevant input value.
 
         Returns:
-            Any: Change-relevant return value.
+            Change-relevant return value.
         """
         match change:
             case QtWidgets.QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
@@ -2695,7 +2695,7 @@ class CutOffLabel(QtWidgets.QLabel):
         """Returns the size hint for this widget.
 
         Returns:
-            QtCore.QSize: The size hint for this widget.
+            The size hint for this widget.
         """
         return QtCore.QSize(
             self.fontMetrics().horizontalAdvance(self._text),
@@ -3099,7 +3099,7 @@ class VisibleHandleSplitter(QtWidgets.QSplitter):
         """Creates a visible handle.
 
         Returns:
-            VisibleSplitterHandle: The newly created handle.
+            The newly created handle.
         """
         return VisibleSplitterHandle(self.orientation(), self)
 
@@ -3379,7 +3379,7 @@ class DoubleClickMixIn:
             event (QtCore.QEvent): Event to filer
 
         Returns:
-            bool: Whether the event was handled.
+            Whether the event was handled.
         """
         if event.type() == QtCore.QEvent.Type.MouseButtonPress:
             return True
@@ -3987,7 +3987,7 @@ class PreferentialSplitter(QtWidgets.QSplitter):
         """Computes starting sizes based on ratios provided at construction.
 
         Returns:
-            list[int]: The baseline sizes weighed by the ratios.
+            The baseline sizes weighed by the ratios.
         """
         if self.orientation() == QtCore.Qt.Orientation.Horizontal:
             dimension = self.width()
@@ -4075,7 +4075,7 @@ class PreferentialSplitter(QtWidgets.QSplitter):
             event (QtCore.QEvent): Event to filter.
 
         Returns:
-            bool: Whether the event was handled.
+            Whether the event was handled.
         """
         if (
             self._widgets is None
@@ -4161,7 +4161,7 @@ class DraggableSpinBoxMixIn:
             event (QtCore.QEvent): Event to filter
 
         Returns:
-            bool: Whether the event was handled.
+            Whether the event was handled.
         """
         if watched is not self.lineEdit() or not watched.isEnabled():
             return super().eventFilter(watched, event)
@@ -4409,7 +4409,7 @@ class FilePickerWidget(QtWidgets.QWidget):
                 File dialog options to set on the file dialog pop-up.
 
         Returns:
-            QtWidgets.QFileDialog: A QFileDialog built according to input parameters.
+            A QFileDialog built according to input parameters.
         """
         dialog = QtWidgets.QFileDialog(self)
 
@@ -4462,9 +4462,8 @@ class FilePickerWidget(QtWidgets.QWidget):
             filter (str): Filter set on the file dialog pop-up.
 
         Returns:
-            str:
-                The path with the filter's first extension added if the input path was
-                a file, otherwise `path` as-is.
+            The path with the filter's first extension added if the input path was a
+                file, otherwise `path` as-is.
         """
         if filter == "Directories":
             return path
@@ -4537,7 +4536,7 @@ def file_picker_overwrite_validator(path: str, widget: FilePickerWidget) -> str:
         widget (FilePickerWidget): Widget to validate.
 
     Returns:
-        str: The path unchanged.
+        The path unchanged.
     """
     # Keep a separate variable instead of shadowing to allow trailing slashes that
     # otherwise get eaten by `pathlib`. Also use a dummy path so that clearing the

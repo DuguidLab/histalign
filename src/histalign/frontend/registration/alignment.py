@@ -579,7 +579,7 @@ class CoordinatesWidget(QtWidgets.QFrame):
             event (QtCore.QEvent): Event received by the watched widget.
 
         Returns:
-            bool: Whether the event wa handled or should be propagated.
+            Whether the event wa handled or should be propagated.
         """
         match event.type():
             case QtCore.QEvent.Type.MouseButtonPress:
@@ -652,7 +652,7 @@ class LandmarkCoordinatesWidget(QtWidgets.QScrollArea):
             histology_coordinates (QtCore.QPoint): Coordinates of the histology point.
 
         Returns:
-            CoordinatesWidget: The newly-created widget.
+            The newly-created widget.
         """
         coordinates_widget = CoordinatesWidget(
             reference_coordinates, histology_coordinates
@@ -1158,7 +1158,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
                 Whether to return the transform as a `scikit-image` transform.
 
         Returns:
-            AffineTransform | QtGui.QTransform: The raw histology transform.
+            The raw histology transform.
         """
         reference_points, histology_points = self.collect_transform_points()
         sk_transform: AffineTransform = estimate_transform(
@@ -1180,7 +1180,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
                 Whether to return the transform as a `scikit-image` transform.
 
         Returns:
-            AffineTransform | QtGui.QTransform: The histology transform.
+            The histology transform.
         """
         transform = AffineTransform(
             convert_q_transform_to_sk_transform(
@@ -1222,7 +1222,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
             position (QtCore.QPointF):
 
         Returns:
-            QtCore.QPoint: The grid coordinates.
+            The grid coordinates.
         """
         position = position.__copy__()
 

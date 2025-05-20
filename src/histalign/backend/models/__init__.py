@@ -61,7 +61,7 @@ class Quantification(Enum):
         """Returns the values of the enum's variants.
 
         Returns:
-            list[str]: The list of values of the enum's variants.
+            The list of values of the enum's variants.
         """
         return [key.value for key in cls]
 
@@ -238,7 +238,7 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
         """Clears channel index and regex when `on_volume` is set.
 
         Returns:
-            QuantificationSettings: Self with fields cleared.
+            Self with fields cleared.
         """
         # Avoid potential errors down the line by clearing fields that should not be
         # used.
@@ -258,7 +258,7 @@ class QuantificationSettings(BaseModel, validate_assignment=True):
         If not, they are both cleared.
 
         Returns:
-            QuantificationSettings: Self with sanitised fields.
+            Self with sanitised fields.
         """
         if self.channel_regex and not self.channel_substitution:
             _module_logger.warning(
@@ -292,7 +292,7 @@ class VolumeBuildingSettings(BaseModel, validate_assignment=True):
         If not, they are both cleared.
 
         Returns:
-            QuantificationSettings: Self with sanitised fields.
+            Self with sanitised fields.
         """
         if self.channel_regex and not self.channel_substitution:
             _module_logger.warning(

@@ -49,7 +49,7 @@ def unwrap(value: Optional[T], message: Optional[str] = None) -> T:
             Custom message to display if `value` is `None`.
 
     Returns:
-        T: The unwrapped value, guaranteed to be non-`None`.
+        The unwrapped value, guaranteed to be non-`None`.
 
     Raises:
         ValueError: When `value` is `None`.

@@ -33,7 +33,7 @@ def prune_metadata(
         to_order (DimensionOrder): Dimension order to prune for.
 
     Returns:
-        OmeXml: The pruned metadata.
+        The pruned metadata.
     """
     pruned_metadata = metadata.model_copy(deep=True)
 
@@ -57,9 +57,9 @@ def validate_none_as_default(cls, value: Any, info: ValidationInfo) -> Any:
         info (ValidationInfo): Validation info for the current field.
 
     Returns:
-        Any: The validated value. This is `None` if the field is a Union containing
-             `None`, the field's default value if it does not, the input value if the
-             input is not `None`.
+        The validated value. This is `None` if the field is a Union containing `None`,
+            the field's default value if it does not, the input value if the input is
+            not `None`.
     """
     if (
         value is None

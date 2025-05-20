@@ -70,7 +70,7 @@ def load_image(
         force_yx (bool, optional): Whether to transpose XY dimension order to YX.
 
     Returns:
-        np.ndarray: The loaded file as a NumPy array.
+        The loaded file as a NumPy array.
     """
     file = open_file(path)
 
@@ -122,7 +122,7 @@ def load_volume(
             Whether to return a NumPy array instead of a vedo.Volume.
 
     Returns:
-        np.ndarray | vedo.Volume: NumPy array or vedo.Volume object with the file data.
+        NumPy array or vedo.Volume object with the file data.
     """
     # TODO: Write NRRD plugin
     try:
@@ -175,7 +175,7 @@ def open_file(
             based on dimension sizes.
 
     Returns:
-        ImageFile: A handle to the opened file.
+        A handle to the opened file.
     """
     path = Path(path)
 
@@ -190,7 +190,7 @@ def load_alignment_settings(path: str | Path) -> AlignmentSettings:
         path (str | Path): Path to the alignment settings file.
 
     Returns:
-        AlignmentSettings: A model with fields initialised to the parsed values.
+        A model with fields initialised to the parsed values.
     """
     with open(path) as handle:
         return AlignmentSettings(**json.load(handle))
@@ -203,7 +203,7 @@ def is_alignment_file(path: str | Path) -> bool:
         path (str | Path): Path to the file to check.
 
     Returns:
-        bool: Whether the file path points to an alignment settings file.
+        Whether the file path points to an alignment settings file.
     """
 
     path = Path(path)
@@ -226,7 +226,7 @@ def gather_alignment_paths(alignment_directory: str | Path) -> list[Path]:
         alignment_directory (str | Path): Directory to iterate to find alignment paths.
 
     Returns:
-        list[Path]: The gathered alignment paths.
+        The gathered alignment paths.
     """
     alignment_directory = Path(alignment_directory)
 
@@ -249,7 +249,7 @@ def is_empty_directory(path: Path) -> bool:
         path (Path): Path to the directory.
 
     Returns:
-        bool: Whether the path points to a valid, empty directory.
+        Whether the path points to a valid, empty directory.
     """
     if not path.exists() or not path.is_dir():
         return False

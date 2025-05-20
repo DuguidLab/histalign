@@ -33,7 +33,7 @@ def apply_rotation(vector: np.ndarray, settings: VolumeSettings) -> np.ndarray:
         settings (VolumeSettings): Alignment settings to use.
 
     Returns:
-        np.ndarray: The rotated vector.
+        The rotated vector.
     """
     pitch = settings.pitch
     yaw = settings.yaw
@@ -54,7 +54,7 @@ def apply_rotation_from_raw(
         orientation (Orientation): Orientation of the view.
 
     Returns:
-        np.ndarray: The rotated vector.
+        The rotated vector.
     """
     match orientation:
         case Orientation.CORONAL:
@@ -78,7 +78,7 @@ def compute_centre(shape: Sequence[int], floor: bool = True) -> tuple[int | floa
         floor (bool, optional): Whether to return an integer centre or keep it as float.
 
     Returns:
-        tuple[int | float, ...: The centre coordinate of the array.
+        The centre coordinate of the array.
     """
     centre = tuple((np.array(shape) - 1) / 2)
     if floor:
@@ -94,7 +94,7 @@ def compute_mesh_centre(mesh: vedo.Mesh) -> np.ndarray:
         mesh (vedo.Mesh): Mesh to find the centre of.
 
     Returns:
-        np.ndarray: The centre coordinate of the mesh.
+        The centre coordinate of the mesh.
     """
     bounds = mesh.metadata["original_bounds"]
 
@@ -114,7 +114,7 @@ def compute_normal(settings: VolumeSettings) -> np.ndarray:
         settings (VolumeSettings): Alignment settings to use.
 
     Returns:
-        np.ndarray: Normal to the view plane.
+        Normal to the view plane.
     """
     return compute_normal_from_raw(
         settings.pitch,
@@ -134,7 +134,7 @@ def compute_normal_from_raw(
         orientation (Orientation): Orientation of the view.
 
     Returns:
-        np.ndarray: Normal to the view plane.
+        Normal to the view plane.
     """
     match orientation:
         case Orientation.CORONAL:
@@ -157,7 +157,7 @@ def compute_origin(centre: Sequence[float], settings: VolumeSettings) -> np.ndar
         settings (VolumeSettings): Alignment settings to use.
 
     Returns:
-        np.ndarray: The origin computed from the centre and the alignment offset.
+        The origin computed from the centre and the alignment offset.
     """
     if len(centre) != 3:
         raise ValueError(f"Centre should be 3 coordinates. Got {len(centre)}.")
@@ -187,7 +187,7 @@ def convert_sk_transform_to_q_transform(
         transformation (AffineTransform): Transform object to convert.
 
     Returns:
-        QtGui.QTransform: The equivalent QTransform to the input AffineTransform.
+        The equivalent QTransform to the input AffineTransform.
     """
     return QtGui.QTransform(*transformation.params.T.flatten().tolist())
 
@@ -201,7 +201,7 @@ def convert_q_transform_to_sk_transform(
         transformation (QtGui.QTransform): Transform object to convert.
 
     Returns:
-        AffineTransform: The equivalent AffineTransform to the input QTransform.
+        The equivalent AffineTransform to the input QTransform.
     """
     return AffineTransform(
         matrix=get_transformation_matrix_from_q_transform(transformation)
@@ -223,11 +223,9 @@ def decompose_sk_transform(transform: AffineTransform) -> tuple[float, ...]:
         transform (AffineTransform): Affine transform to decompose.
 
     Returns:
-        tuple[float]:
-            The (scale_x, scale_y, shear_x, shear_y, rotation, translation_x,
-            translation_y) components of the transformation matrix. Note that rotation
-            is returned in degrees, shear_x is the factor, not the angle, and shear_y
-            is always 0.
+        The (scale_x, scale_y, shear_x, shear_y, rotation, translation_x, translation_y)
+            components of the transformation matrix. Note that rotation is returned in
+            degrees, shear_x is the factor, not the angle, and shear_y is always 0.
 
     References:
         Formulas for signed scaling decomposition: https://stackoverflow.com/a/45392997
@@ -267,8 +265,7 @@ def find_plane_mesh_corners(
         plane_mesh (vedo.Mesh): Plane mesh to find the corners of.
 
     Returns:
-        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            The corners of `plane_mesh`.
+        The corners of `plane_mesh`.
     """
     # vedo.Volume.slice_plane returns points in image coordinates, indexing into
     # the points works as-if indexing into the image.
@@ -291,7 +288,7 @@ def get_transformation_matrix_from_q_transform(
         invert (bool): Whether to invert the matrix.
 
     Returns:
-        np.ndarray: The transformation matrix.
+        The transformation matrix.
     """
     if invert:
         transformation, success = transformation.inverted()
@@ -348,8 +345,7 @@ def get_sk_transform_from_parameters(
 
 
     Returns:
-        AffineTransform:
-            The 2D affine transform whose matrix is obtained from the given parameters.
+        The 2D affine transform whose matrix is obtained from the given parameters.
     """
     # `AffineTransform` uses shearing angles instead of coordinate shift. We therefore
     # compute the equivalent angles on the trigonometric circle. Since the shearing is
@@ -405,7 +401,7 @@ def normalise_array(array: np.ndarray, dtype: Optional[np.dtype] = None) -> np.n
             Target dtype. If `None`, the dtype will be inferred as the dtype of `array`.
 
     Returns:
-        np.ndarray: The normalised array.
+        The normalised array.
     """
     dtype = dtype or array.dtype
     maximum = get_dtype_maximum(dtype)
@@ -429,7 +425,7 @@ def signed_vector_angle(
         axis (np.ndarray): Axis from which to determine the sign of the angle.
 
     Returns:
-        float: The signed angle between the two vectors.
+        The signed angle between the two vectors.
     """
     return math.degrees(
         math.atan2(np.dot((np.cross(vector1, vector2)), axis), np.dot(vector1, vector2))
@@ -451,12 +447,13 @@ def simulate_auto_contrast_passes(
         inplace (bool, optional): Whether to carry out the modification in place.
 
     Returns:
-        np.ndarray: The result of applying `passes` number of passes on `image` using
-                    the auto-contrast algorithm.
-        bool: Whether the algorithm was successful. Passing `passes=0` returns False.
+        A tuple of (`new_image`, `success`) where `new_image` is the result of applying
+            `passes` number of passes on `image` using the auto-contrast algorithm and
+            `success` is whether the algorithm was successful. Passing `passes=0` makes
+            this always `False`. If `success` is `False`, `new_image == image`.
 
     References:
-        https://github.com/imagej/ImageJ/blob/master/ij/plugin/frame/ContrastAdjuster.java#L815
+        ImageJ Java source code: https://github.com/imagej/ImageJ/blob/master/ij/plugin/frame/ContrastAdjuster.java#L815
     """
     if passes < 1:
         if passes < 0:
