@@ -395,7 +395,9 @@ class AlignmentWidget(QtWidgets.QWidget):
                     self.view.general_zoom = 1.7
 
         self.view.set_focus_rect(
-            self.volume_pixmap.sceneBoundingRect(), reset_general_zoom=False
+            self.volume_pixmap.sceneBoundingRect(),
+            reset_general_zoom=False,
+            centre_on=False,
         )
 
         if rescale:

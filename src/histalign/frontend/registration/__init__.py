@@ -259,6 +259,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         reset_volume_button.clicked.connect(
             self.settings_widget.volume_settings_widget.reset_to_defaults
         )
+        reset_volume_button.clicked.connect(self.alignment_widget.view.centre_on_focus)
         self.volume_opened.connect(lambda: reset_volume_button.setEnabled(True))
         tool_bar.addWidget(reset_volume_button)
 
