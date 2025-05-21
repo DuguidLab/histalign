@@ -108,13 +108,21 @@ class StructureTreeView(QtWidgets.QTreeView):
 
     selection_hidden: QtCore.Signal = QtCore.Signal()
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, only_displayable: bool = True, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
 
         #
         model = ABAStructureTreeModel()
         model.item_checked.connect(self.item_checked.emit)
         model.item_unchecked.connect(self.item_unchecked.emit)
+
+        if only_displayable:
+            proxy = DisplayableSortFilterProxyModel()
+            proxy.setSourceModel(model)
+            model = proxy
+
         self.setModel(model)
 
         #

@@ -27,7 +27,7 @@ from histalign.backend.ccf import get_structures_hierarchy_path
 # can be shown in Brain Explorer.
 # Note that the mesh for UVUgr is not available either from the official Brain Explorer
 # meshes directory (ccf_2017).
-MAGIC_ID_SETS = [
+VOLUME_UNAVAILABLE_MAGIC_ID_SETS = [
     (),
     (10,),
     (10, 12),
@@ -72,7 +72,11 @@ class StructureNode(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def displayable(self) -> bool:
-        return tuple(sorted(self.structure_set_ids)) not in MAGIC_ID_SETS
+        """Whether the structure has a mask volume available through the Allen SDK."""
+        return (
+            tuple(sorted(self.structure_set_ids))
+            not in VOLUME_UNAVAILABLE_MAGIC_ID_SETS
+        )
 
 
 class ABAStructureModel(QtCore.QAbstractItemModel):
