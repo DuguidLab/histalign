@@ -1,0 +1,48 @@
+{
+  "keymap": [
+    {
+      "id": "MenuBar.NewProject",
+      "key_sequence": "CTRL+N"
+    },
+    {
+      "id": "MenuBar.OpenProject",
+      "key_sequence": "CTRL+O"
+    },
+    {
+      "id": "MenuBar.SaveProject",
+      "key_sequence": "CTRL+S"
+    },
+    {
+      "id": "MenuBar.CloseProject",
+      "key_sequence": "CTRL+W"
+    },
+    {
+      "id": "MenuBar.OpenImagesFolder",
+      "key_sequence": "CTRL+SHIFT+O"
+    },
+    {
+      "id": "MenuBar.ExportVolume",
+      "key_sequence": "CTRL+E"
+    },
+    {
+      "id": "MenuBar.QuitApplication",
+      "key_sequence": "CTRL+Q"
+    },
+    {
+      "id": "ToolBar.SaveAlignment",
+      "key_sequence": "CTRL+SHIFT+S"
+    },
+    {
+      "id": "ToolBar.LoadAlignment",
+      "key_sequence": "CTRL+L"
+    },
+    {
+      "id": "ToolBar.AutoContrast",
+      "key_sequence": "CTRL+SHIFT+C"
+    },
+    {
+      "id": "ToolBar.ToggleGlobalAlpha",
+      "key_sequence": "CTRL+T"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ from histalign.frontend.dialogs import (
     OpenProjectDialog,
     SaveProjectConfirmationDialog,
 )
+from histalign.frontend.keymap import Keymap, Shortcuts
 from histalign.frontend.pyside_helpers import lua_aware_shift
 from histalign.frontend.quantification import QuantificationWidget
 from histalign.frontend.registration import RegistrationWidget
@@ -109,7 +110,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         new_project_action = QtGui.QAction(
             DynamicThemeIcon(ICONS_ROOT / "add-note-icon.png"),
             "New Project",
-            shortcut=QtGui.QKeySequence("CTRL+N"),
+            shortcut=Keymap()[Shortcuts.NEW_PROJECT],
             statusTip="Create a new project",
             parent=file_menu,
         )
@@ -117,7 +118,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         open_project_action = QtGui.QAction(
             DynamicThemeIcon(ICONS_ROOT / "desktop-file-import-icon.png"),
             "Open Project",
-            shortcut=QtGui.QKeySequence("CTRL+O"),
+            shortcut=Keymap()[Shortcuts.OPEN_PROJECT],
             statusTip="Open an existing project",
             parent=file_menu,
         )
@@ -126,7 +127,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             DynamicThemeIcon(ICONS_ROOT / "download-to-storage-icon.png"),
             "Save Project",
             enabled=False,
-            shortcut=QtGui.QKeySequence("CTRL+S"),
+            shortcut=Keymap()[Shortcuts.SAVE_PROJECT],
             statusTip="Save the current project",
             parent=file_menu,
         )
@@ -136,7 +137,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             DynamicThemeIcon(ICONS_ROOT / "close-square-line-icon.png"),
             "Close Project",
             enabled=False,
-            shortcut=QtGui.QKeySequence("CTRL+W"),
+            shortcut=Keymap()[Shortcuts.CLOSE_PROJECT],
             statusTip="Close the current project",
             parent=file_menu,
         )
@@ -158,7 +159,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             DynamicThemeIcon(ICONS_ROOT / "folders-icon.png"),
             "Open images folder",
             enabled=False,
-            shortcut=QtGui.QKeySequence("CTRL+SHIFT+O"),
+            shortcut=Keymap()[Shortcuts.OPEN_IMAGES_FOLDER],
             statusTip="Open a folder of images for alignment",
             parent=file_menu,
         )
@@ -173,7 +174,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
             DynamicThemeIcon(ICONS_ROOT / "external-link-icon.png"),
             "Export volume",
             enabled=False,
-            shortcut=QtGui.QKeySequence("CTRL+E"),
+            shortcut=Keymap()[Shortcuts.EXPORT_VOLUME],
             statusTip="Export a volume from the current project",
             parent=file_menu,
         )
@@ -187,7 +188,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         quit_application_action = QtGui.QAction(
             DynamicThemeIcon(ICONS_ROOT / "logout-line-icon.png"),
             "Quit",
-            shortcut=QtGui.QKeySequence("CTRL+Q"),
+            shortcut=Keymap()[Shortcuts.QUIT_APPLICATION],
             statusTip="Quit the application",
             parent=file_menu,
         )

@@ -4,9 +4,10 @@
 
 import typing
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from histalign.frontend.common_widgets import CircularPushButton, DynamicThemeIcon
+from histalign.frontend.keymap import Keymap, Shortcuts
 from histalign.resources import ICONS_ROOT
 
 
@@ -34,7 +35,7 @@ class AlphaWidget(QtWidgets.QWidget):
         global_alpha_button.setStatusTip(
             "Toggle general transparency of current image."
         )
-        global_alpha_button.setShortcut(QtGui.QKeySequence("Ctrl+t"))
+        global_alpha_button.setShortcut(Keymap()[Shortcuts.TOGGLE_GLOBAL_ALPHA])
 
         global_alpha_button.clicked.connect(self.toggle_global_alpha)
 
