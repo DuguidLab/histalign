@@ -350,7 +350,7 @@ class StructureFinderWidget(QtWidgets.QWidget):
         """
         text = text.lower()
 
-        if len(text) < 3:
+        if len(text) < 2:
             return
 
         repeat = text == self._previous_search  # Is this a repeat search
