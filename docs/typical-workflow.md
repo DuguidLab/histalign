@@ -1,7 +1,9 @@
-A typical workflow for `histalign` consists of three main steps:  
+A typical workflow for `histalign` consists of four main steps:  
+
 1. Data preparation  
 2. Image registration  
-3. Volume building
+3. Volume building  
+4. Quantification/visualisation  
 
 ## [Data preparation](tutorials/data-preparation.md)
 
@@ -19,5 +21,11 @@ This is the main use of the application and you can use a mix of manual adjustme
 
 Once you have registered enough slices for a brain, you can move on to volume building. This generates a 3D volume from the registration data you provided by interpolating the sparse 3D reconstruction of your data.  
 
-This is typically the last step the application is used for as workflows very wildly for different users and you are free to export the raw and interpolated volumes to carry out further analysis yourself. How to work with the volumes is documented in the [export function tutorial](tutorials/volume-building.md#exporting-3d-volumes).  
-However, `histalign` can also be used for [average fluorescence quantification](tutorials/quantifying.md) and basic [2D and 3D visualisation](tutorials/visualisation.md).
+Usually, this is where you would move on to your own pipeline, but `histalign` also provides some basic quantification/visualisation.
+
+## [Quantification](tutorials/quantifying.md)/[visualisation](tutorials/visualisation.md)
+
+The final functionalities of `histalign` are quantification and visualisation.  
+They are currently fairly basic, allowing you to measure the average 2D or 3D fluorescence of slices/volumes, and allowing a quick 2D or 3D quality assurance of registered slices/generated volumes.
+
+Because the needs of different people/experiments will wildly differ, these two functionalities are there for convenience if your needs align with them but it is more likely that you will need to carry out your own quantification, in which case you can [export the generated volumes](tutorials/volume-building.md#exporting-3d-volumes).
