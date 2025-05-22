@@ -591,8 +591,6 @@ class RegistrationWidget(QtWidgets.QWidget):
                 round(self.height() * 0.95),
             )
         )
-        window.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-        window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
 
         window.applied.connect(
             self.alignment_widget.update_alignment_from_landmark_registration

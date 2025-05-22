@@ -688,7 +688,7 @@ class LandmarkCoordinatesWidget(QtWidgets.QScrollArea):
         self.count_changed.emit(self.widgets_count)
 
 
-class PreviewWindow(QtWidgets.QMainWindow):
+class PreviewWindow(QtWidgets.QDialog):
     """Landmark registration preview GUI window.
 
     This provides a way to display the current effect of the landmark registration
@@ -723,7 +723,10 @@ class PreviewWindow(QtWidgets.QMainWindow):
         self.histology_pixmap_item = scene.addPixmap(QtGui.QPixmap())
 
         #
-        self.setCentralWidget(view)
+        layout = QtWidgets.QHBoxLayout()
+        layout.addWidget(view)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
 
         #
         self.setWindowTitle("Preview")
@@ -757,7 +760,7 @@ class PreviewWindow(QtWidgets.QMainWindow):
         self.histology_pixmap_item.setTransform(transform)
 
 
-class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
+class LandmarkRegistrationWindow(QtWidgets.QDialog):
     """Landmark registration main GUI window.
 
     The window consists of two views stacked on top of each other on the left and a
@@ -892,13 +895,7 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         layout.setColumnStretch(1, 2)
         layout.setRowStretch(0, 1)
         layout.setRowStretch(1, 1)
-
-        #
-        widget = QtWidgets.QWidget()
-
-        widget.setLayout(layout)
-
-        self.setCentralWidget(widget)
+        self.setLayout(layout)
 
         #
         self.setWindowTitle("Landmark Registration")
@@ -1206,9 +1203,6 @@ class LandmarkRegistrationWindow(QtWidgets.QMainWindow):
         """Shows the preview GUI given the current transform points."""
         window = PreviewWindow(self)
         window.resize(self.size() * 0.95)
-
-        window.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-        window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
 
         window.update_reference_pixmap(
             self.reference_pixmap_item.pixmap(), self.reference_pixmap_item.transform()
