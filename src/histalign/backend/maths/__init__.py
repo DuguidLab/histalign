@@ -408,7 +408,7 @@ def normalise_array(array: np.ndarray, dtype: Optional[np.dtype] = None) -> np.n
 
     array = array.astype(np.float64)
     array -= array.min()
-    array /= array.max()
+    array /= max(array.max(), 1)
     array *= maximum
 
     return array.astype(dtype)
