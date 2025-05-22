@@ -56,6 +56,11 @@ Once you have fully built the volumes for an image directory, you are given the 
 Simply select or type the path to the folder to export to and the volume files will be copied over.   
 Said files will be in the [HDF5 format](https://www.hdfgroup.org/solutions/hdf5/) and can easily be opened in your own scripts using [`h5py`](https://docs.h5py.org/en/stable/index.html). Additionally, you can use the [`histalign` Python API](../../reference/API/histalign/io/index.html#histalign.io.load_volume) (with `as_array = True`) to load the volumes as NumPy arrays.
 
+!!! Info
+    The volumes are stored as the only group, named `array`, in their respective files.  
+    
+    The shape of the data is 3D with the most Anterior-Superior-Left (ASL) point being the origin, as per the Allen CCF coordinates. To find the coordinates of a point in that volume in CCF coordinates, simply take its index and multiply it by the resolution of your project.
+
 ## What's next?
 
 If you're happy to keep going and run quantification on the volume, you can move on to the [quantifying](quantifying.md) tutorial.
