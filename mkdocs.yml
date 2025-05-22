@@ -36,12 +36,14 @@ extra_css:
   - css/icons.css
 
 plugins:
+  - caption:
+      figure:
+        ignore_alt: True
   - gen-files:
       scripts:
         - scripts/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
-  - section-index
   - mkdocstrings:
       handlers:
         python:
@@ -50,6 +52,7 @@ plugins:
             extensions:
               - griffe_pydantic:
   - search
+  - section-index
 
 markdown_extensions:
   - admonition

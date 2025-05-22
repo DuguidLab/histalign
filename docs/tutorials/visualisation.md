@@ -2,7 +2,7 @@ Visualisation is the final functionality of `histalign`. It allows you to inspec
 
 ## The visualisation GUI
 
-![The main visualisation GUI. It consists of a central black view, a left column showing two folders labelled 2D and 3D, and a right column with a list of structures sorted alphabetically.](../resources/screenshots/visualisation_gui.png)
+![The main visualisation GUI. It consists of a central black view, a left column showing two folders labelled 2D and 3D, and a right column with a list of structures sorted alphabetically.](../resources/screenshots/visualisation_gui.png "The main visualisation GUI.")
 
 The GUI consists of a central view where either the 2D or 3D visualisation will take place.  
 On the left, you can pick to see 2D data for the project or 3D generated volumes.
@@ -19,7 +19,7 @@ By double-clicking an image, you can open it in the central view which will acti
 
 Similar to 2D visualisation, viewing volumes requires double-clicking the 3D folder icon. This will show you a list of the image folders for which a volume has been built. Each entry will be the path to an image folder that you have registered. Double-clicking any of the entries will open the volume in the central view.
 
-![The visualisation GUI with the central view replaced with a 4-part FMRI viewer. The viewer consists of 4 smaller views. 3 small views are on the right side and show coronal, horizontal, and sagittal point of views. The fourth view is larger and shows a zoomed version of the coronal view.](../resources/screenshots/visualisation_3d.png)
+![The visualisation GUI with the central view replaced with a 4-part FMRI viewer. The viewer consists of 4 smaller views. 3 small views are on the right side and show coronal, horizontal, and sagittal point of views. The fourth view is larger and shows a zoomed version of the coronal view.](../resources/screenshots/visualisation_3d.png "The 3D visualisation GUI.")
 
 Once a volume has been opened, you will see a simplified FMRI view showing coronal, horizontal, and sagittal slices of the volume. By default, the larger view shows a larger version of the corona slice.
 

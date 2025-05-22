@@ -2,7 +2,7 @@ Using the built-in quantification available in `histalign` is very much optional
 
 However, if the capabilities of `histalign` are suitable for your needs, you can click on the "Quantification" tab to be taken to a GUI that looks like this:
 
-![The quantification GUI. It is split into two columns. Left left column contains various quantification parameters fields and a structure section. The right column consist of an area that can contain slice or volume jobs.](../resources/screenshots/quantification_gui.png)
+![The quantification GUI. It is split into two columns. Left left column contains various quantification parameters fields and a structure section. The right column consist of an area that can contain slice or volume jobs.](../resources/screenshots/quantification_gui.png "The main quantification GUI.")
 
 ## Quantification parameters
 
@@ -31,7 +31,7 @@ This area allows you to specify which structures you are interested in, and sele
 
 Clicking the "Add/remove structures" button will pop up a small dialog allowing you to check target structures from the CCF hierarchy.
 
-![The structure picker dialog. It consists of a search bar and a hierarchical list of the CCF structures.](../resources/screenshots/structure_picker.png)
+![The structure picker dialog. It consists of a search bar and a hierarchical list of the CCF structures.](../resources/screenshots/structure_picker.png "The structure picker dialog.")
 
 You can navigate the hierarchy using the expand/collapse arrows or search structures using their name or acronym.  
 To select a structure for quantification, simply check the check box on the same line as the structure.

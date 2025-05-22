@@ -2,7 +2,7 @@ It is now time to explorer another tab of the application, the "Volume builder" 
 
 Clicking the tab will bring you to the following interface:
 
-![A new tab split into two sections. On the left, a frame titled "Quantification parameters" lists a few customisable options while the right is an empty frame titled "Jobs".](../resources/screenshots/volume_building_gui.png)
+![A new tab split into two sections. On the left, a frame titled "Quantification parameters" lists a few customisable options while the right is an empty frame titled "Jobs".](../resources/screenshots/volume_building_gui.png "The main volume building GUI.")
 
 This interface allows you to use the alignment settings you provided for your images and reconstruct a 3D volume from them. This volume can then be used for [quantification](quantifying.md) and can be [visualised](visualisation.md).
 
@@ -35,7 +35,7 @@ Similarly to Z-stacks, it is possible to align channel A and build a volume with
 
 Going by the examples presented above, you would set up the interface as follows to prepare to build the volume:
 
-![The previous volume building BUI with the different fields filled in and the right column now having a single job entry corresponding the filled in fields.](../resources/screenshots/volume_building_ready.png)
+![The previous volume building BUI with the different fields filled in and the right column now having a single job entry corresponding the filled in fields.](../resources/screenshots/volume_building_ready.png "After queueing a job.")
 
 You can see in the screenshot that there is now a job located in the right pane. It was added after filling in the input fields and pressing the "Add job" button.  
 
@@ -51,7 +51,7 @@ Once all the volumes have been built, the progress bar will show 100% completion
 
 Once you have fully built the volumes for an image directory, you are given the option to export them to use them with other software or your own pipeline. To export the volumes, go to "file" in the menu bar, then ![An icon showing an arrow coming out of an empty square](../resources/icons/external-link-icon.svg) "Export volume". This will pop up a small dialog asking you which volume to export, and from which image directory, as well as where you want the exported volumes to go.
 
-![A dialog, showing a combo box with image directories for which volumes have been built, and checkboxes for aligned and interpolated volumes. An export directory line edit is empty, and the export button is greyed-out.](../resources/screenshots/export_dialog.png)
+![A dialog, showing a combo box with image directories for which volumes have been built, and checkboxes for aligned and interpolated volumes. An export directory line edit is empty, and the export button is greyed-out.](../resources/screenshots/export_dialog.png "The export volume dialog.")
 
 Simply select or type the path to the folder to export to and the volume files will be copied over.   
 Said files will be in the [HDF5 format](https://www.hdfgroup.org/solutions/hdf5/) and can easily be opened in your own scripts using [`h5py`](https://docs.h5py.org/en/stable/index.html). Additionally, you can use the [`histalign` Python API](../../reference/API/histalign/io/index.html#histalign.io.load_volume) (with `as_array = True`) to load the volumes as NumPy arrays.

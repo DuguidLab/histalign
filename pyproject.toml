@@ -65,6 +65,7 @@ run = "pytest --ignore=tests/backend/registration/resources/re_baseline_test.py 
 dependencies = [
   "griffe-pydantic",
   "mkdocs",
+  "mkdocs-caption",
   "mkdocs-click",
   "mkdocs-gen-files",
   "mkdocs-literate-nav",

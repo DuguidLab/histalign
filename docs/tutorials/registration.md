@@ -1,6 +1,6 @@
 Now that you have a project open, you can go back to the same menu your used from the menu bar to create your project. The option to "open images folder" should not be available:
 
-![The top-left corner of the main application GUI with the File menu open which contains multiple options, one of which is "Open images folder".](../resources/screenshots/file_menu_2.png)
+![The top-left corner of the main application GUI with the File menu open which contains multiple options, one of which is "Open images folder".](../resources/screenshots/file_menu_2.png "The file menu in the menu bar.")
 
 Clicking it will open a dialog to allow you to pick which directory to open. Once you have navigated to the folder, click on it to select it and then click the "choose" button to submit the dialog. The left pane will now populate itself with thumbnails of the images that were discovered in that folder.
 
@@ -10,7 +10,7 @@ Clicking it will open a dialog to allow you to pick which directory to open. Onc
 
 If all went well, you should have a similar-looking interface with your own thumbnails in the left pane.
 
-![The main application GUI with the central view now filled with a coronal view of the atlas. The left panel is now filled with thumbnails.](../resources/screenshots/opened_image_folder.png)
+![The main application GUI with the central view now filled with a coronal view of the atlas. The left panel is now filled with thumbnails.](../resources/screenshots/opened_image_folder.png "The main registration GUI with a new open project.")
 
 ## Registering your first image
 
@@ -81,7 +81,7 @@ If you wish to move the atlas itself, you can drag it around using the middle mo
 
 If you find that your images require a lot of manual adjustment to align with the atlas, you might want to try the landmark registration window. By clicking the ![An icon showing a network of circular nodes linked to a central, larger one that it being hovered by a hand-like mouse cursor](../resources/icons/interactivity-icon.svg) button, you will be presented with the landmark registration window.
 
-![The landmark registration GUI with two vertically stacked views showing the atlas at the top and the histology at the bottom. On the right side, a widget that can store coordinates is empty and three buttons show "apply", "preview", and "cancel".](../resources/screenshots/landmark_registration_gui.png)
+![The landmark registration GUI with two vertically stacked views showing the atlas at the top and the histology at the bottom. On the right side, a widget that can store coordinates is empty and three buttons show "apply", "preview", and "cancel".](../resources/screenshots/landmark_registration_gui.png "The landmark registration GUI.")
 
 This interface shows two views, stacked vertically. The top view shows the atlas while the bottom view shows the slice you currently have opened. Both views are zoomable and draggable using the wheel and the left mouse button.  
 Using this interface, you can identify landmarks that are recognisable on your histology and relate them to the atlas location. To do so, left click the landmark on the histology and left click the same landmark on the atlas. Doing so will create a blue circle on both the atlas and the histology views, as well as an entry on the right-hand side.  
