@@ -63,6 +63,8 @@ While jobs are running, you will not be able to queue new jobs, and you should a
 
 Jobs that have been processed will produce an artifact that can be seen in the "Results" sub-tab of quantification.  
 
+![The results sub-tab inside the quantification tab. It consists of a table with each row being a quantification job result and columns listing the data, quantification run, and image directory used.](../resources/screenshots/quantification_results_tab.png "The results sub-tab of quantification.")
+
 In the "Results" tab, you can see a list of the quantifications you have run so far for the whole project. This allows you select (using the check boxes in the first column) the quantifications you are interested in and export them as one excel file using the "Export" button at the bottom of the window.  
 This excel file can then be used for your own analysis based on the quantification result(s).
 
