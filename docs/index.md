@@ -9,7 +9,7 @@ In order to carry out alignment, single-channel, two-dimensional images are need
 It should also be noted that only bright tissue on dark background is supported. The quantification pipeline should be able to handle dark on bright but the alignment experience will be much degraded. 
 
 ## Installation
-`histalign` is being developed with all major platforms in mind (Linux, macOS, Windows). However, due to hardware issues, testing on MacOS is limited. 
+`histalign` is being developed with all major platforms in mind (Linux, macOS, Windows). However, due to hardware issues, testing on macOS is limited. 
 
 The recommended way to install `histalign` is to use [`pipx`](https://pipx.pypa.io/latest/). These instructions will guide you through installing both `pipx` and `histalign`.  
 
