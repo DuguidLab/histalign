@@ -134,9 +134,13 @@ You'll notice that all the alignment settings stay the same when you open this n
 
 ## Controlling histology appearance
 
+![The main registration GUI with a barely visible sagittal image with a black background that covers the atlas.](../resources/screenshots/change_appearance_baseline.png "A baseline image to demonstrate the appearance changes.")
+
 ### Auto-contrasting
 
 When working with dim images, it can be difficult to see the details in the slice when opened in the central view. To help with this, the ![An icon showing a square striated diagonally from top-right to bottom-right](../resources/icons/background-icon.svg) button on the tool bar provides a way to apply an auto-contrast filter on the image. If you've ever used ImageJ, this is the same algorithm. Press the button as many times as you need to be able to properly see the details in your image. If you go too far and the image if over-saturated, keep pressing the button until you loop around to your original image.
+
+![The previous image but much brighter; its features are much clearer.](../resources/screenshots/change_appearance_auto_contrast.png "The same image with a few passes of auto-contrast.")
 
 ### Changing the lookup-table (LUT)
 
@@ -144,11 +148,15 @@ The default LUT used by the application is grayscale. This leads to difficulty w
 
 To change the LUT, click on the "view" menu in the menu bar, then ![An icon showing a paint roller](../resources/icons/paint-roller-icon.svg) "LUT". There, you get a choice between reg, green, blue, yellow, cyan, magenta, and the default grey.
 
+![The previous image but yellow now instead of grey.](../resources/screenshots/change_appearance_lut.png "The same image with a different LookUp Table (LUT).")
+
 ### Hiding the background
 
 Most of the time, the background of your images will be much dimmer than your tissue. For that reason, the next item in the tool bar, the input box to the right of ![An icon showing a circle split into two. The left side is empty and the right side is striated vertically.](../resources/icons/color-contrast-icon.svg), allows you to set a threshold under which the image will be fully transparent, regardless of the general alpha slider on the right.  
 
 For example, if your background is pure black (all 0s), settings the threshold to 1 will make any value below that transparent in your image. Because of the way images are displayed, threshold values can range from 0 to 255.
+
+![The previous image but with the black, opaque background now gone, making it much easier to see the atlas.](../resources/screenshots/change_appearance_no_background.png "The same image with the background removed.")
 
 ## What's next?
 
