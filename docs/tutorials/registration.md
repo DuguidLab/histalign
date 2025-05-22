@@ -86,7 +86,15 @@ If you find that your images require a lot of manual adjustment to align with th
 This interface shows two views, stacked vertically. The top view shows the atlas while the bottom view shows the slice you currently have opened. Both views are zoomable and draggable using the wheel and the left mouse button.  
 Using this interface, you can identify landmarks that are recognisable on your histology and relate them to the atlas location. To do so, left click the landmark on the histology and left click the same landmark on the atlas. Doing so will create a blue circle on both the atlas and the histology views, as well as an entry on the right-hand side.  
 
-In order to complete the landmark registration, you need to create 9 pairs of points like described above. From there, the "Apply" and "Preview" button should become available. Pressing the "Preview" button will show a window which overlays the histology transformed according to your landmark registration on top of the atlas. If you are happy with the registration, you can close the preview and click on "Apply". If you think you can make it more accurate, have a look at the next section which describes the controls for the landmark interface.
+![The same landmark registration GUI, this time zoomed in and with a blue point marking the same landmark on the reference and histology views.](../resources/screenshots/landmark_registration_points.png "An example of a pair of points pointing to the same landmark.")
+
+In order to complete the landmark registration, you will need to repeat this process 8 times to produce 9 pairs of points pointing to their respective landmarks. At any point, you can [delete a pair](#deleting-points) or [move it around](#moving-points).
+
+![The landmark registration GUI with a full set of landmark point pairs.](../resources/screenshots/landmark_registration_all_points.png "A complete set of landmarks.")
+
+Once you have enough points, the "Apply" and "Preview" button should become available. Pressing the "Preview" button will show a window which overlays the histology transformed according to your landmark registration on top of the atlas. If you are happy with the registration, you can close the preview and click on "Apply". If you think you can make it more accurate, have a look at the next section which describes the controls for the landmark interface.
+
+![The preview GUI with the registered histology overlaid on top of the atlas.](../resources/screenshots/landmark_registration_preview.png "The preview window for a perfectible registration.")
 
 Once the registration has been applied, you will be taken back to the main GUI which will now mirror was was visible on the preview, along with updated scaling, rotation, etc, values. From there, you are free to fine-tune the alignment to fit your needs or leave it as-is if you're happy with it.
 
