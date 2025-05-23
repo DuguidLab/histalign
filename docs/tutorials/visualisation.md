@@ -2,7 +2,7 @@ Visualisation is the final functionality of `histalign`. It allows you to inspec
 
 ## The visualisation GUI
 
-![The main visualisation GUI. It consists of a central black view, a left column showing two folders labelled 2D and 3D, and a right column with a list of structures sorted alphabetically.](../resources/screenshots/visualisation_gui.png "The main visualisation GUI.")
+![The main visualisation GUI. It consists of a central black view, a left column showing two folders labelled 2D and 3D, and a right column with a list of structures sorted alphabetically but currently greyed out.](../resources/screenshots/visualisation_gui.png "The main visualisation GUI.")
 
 The GUI consists of a central view where either the 2D or 3D visualisation will take place.  
 On the left, you can pick to see 2D data for the project or 3D generated volumes.
@@ -13,7 +13,12 @@ If you are interested in seeing contours of structures on your 2D slices, you sh
 
 By double-clicking an image, you can open it in the central view which will activate the "Structure" tab on the right-hand side.
 
-***TODO: Fix contour overlaying and complete documentation to include examples.***
+![The main visualisation GUI with a 2D slice now open in the central view. The right column is now enabled.](../resources/screenshots/visualisation_2d.png "The previous GUI with a registered slice now open in the 2D viewer.")
+
+This is where you can do some basic QA. By selecting a structure (checking its check box) in the right panel, a contour overlay of it will be shown over your registered slice. This can help you make sure the structures you are interested in are properly registered.  
+If you find that it doesn't look quite right, you can go back to the registration tab and fine-tune it before returning to visualisation.
+
+![The same visualisation GUI as previously but with an overlay of the Hippocampal region structure.](../resources/screenshots/visualisation_2d_with_contour.png "The same GUI with a contour of the Hippocampal region (HIP) structure.")
 
 ### 3D visualisation
 
