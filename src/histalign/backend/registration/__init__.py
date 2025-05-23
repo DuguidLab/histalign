@@ -4,7 +4,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import cv2
 import numpy as np
@@ -113,6 +113,7 @@ class Registrator:
         settings: AlignmentSettings,
         volume_name: str,
         histology_image: Optional[np.ndarray] = None,
+        interpolation: Literal["nearest", "linear", "cubic"] = "nearest",
     ) -> list[np.ndarray]:
         self._load_volume(volume_name, settings)
 
@@ -126,7 +127,7 @@ class Registrator:
 
         # Get the alignment slice
         volume_image = self._volume_slicer.slice(
-            settings.volume_settings, interpolation="linear"
+            settings.volume_settings, interpolation=interpolation
         )
 
         # Compute the contours on the small slice and convert them to a single array

@@ -63,6 +63,12 @@ _module_logger = logging.getLogger(__name__)
 
 DOWNSAMPLE_TARGET_SHAPE = (3000, 3000)  # IJ not XY
 
+vedo_interpolation_to_scipy_order_mapping = {
+    "nearest": 0,
+    "linear": 1,
+    "cubic": 3,
+}
+
 
 class ThumbnailGeneratorThread(QtCore.QThread):
     stop_event: Event
@@ -489,14 +495,22 @@ class VolumeSlicer:
         if settings.orientation == Orientation.CORONAL:
             # Correct the vedo rotation so that superior is at the top and anterior
             # is at the bottom.
-            plane_array = ndimage.rotate(plane_array, settings.pitch, reshape=False)
+            plane_array = ndimage.rotate(
+                plane_array,
+                settings.pitch,
+                reshape=False,
+                order=vedo_interpolation_to_scipy_order_mapping[interpolation],
+            )
             # Flip left-right so that the left hemisphere is on the left
             plane_array = np.fliplr(plane_array)
         elif settings.orientation == Orientation.HORIZONTAL:
             # Correct the vedo rotation and apply own so that anterior is at the top
             # and posterior is at the bottom.
             plane_array = ndimage.rotate(
-                plane_array, settings.pitch - 90, reshape=False
+                plane_array,
+                settings.pitch - 90,
+                reshape=False,
+                order=vedo_interpolation_to_scipy_order_mapping[interpolation],
             )
 
         return plane_array
