@@ -43,26 +43,20 @@ Documentation = "https://github.com/olivierdelree/histalign#readme"
 Issues = "https://github.com/olivierdelree/histalign/issues"
 Source = "https://github.com/olivierdelree/histalign"
 
-[tool.hatch.version]
-path = "src/histalign/__about__.py"
-
 [project.scripts]
 histalign = "histalign:histalign"
 
-[tool.hatch.envs.default]
-dependencies = [
+[tool.hatch.version]
+path = "src/histalign/__about__.py"
+
+[dependency-groups]
+dev = [
+  { include-group = "docs" },
+  { include-group = "test" },
+  { include-group = "type" },
   "jupyter",
 ]
-
-[tool.hatch.envs.tests]
-dependencies = [
-  "pytest",
-]
-[tool.hatch.envs.tests.scripts]
-run = "pytest --ignore=tests/backend/registration/resources/re_baseline_test.py {args:tests}"
-
-[tool.hatch.envs.docs]
-dependencies = [
+docs = [
   "griffe-pydantic",
   "mkdocs",
   "mkdocs-caption",
@@ -73,28 +67,33 @@ dependencies = [
   "mkdocs-section-index",
   "mkdocstrings-python",
 ]
-[tool.hatch.envs.docs.scripts]
-build = "mkdocs build --clean --strict"
-serve = "mkdocs serve --dev-addr localhost:8888"
-
-[tool.hatch.envs.type]
-dependencies = [
+test = [
+  "pytest",
+]
+type = [
   "mypy",
 ]
-[tool.hatch.envs.type.scripts]
-check = "mypy --install-types --non-interactive {args:src/histalign}"
-hunt = "check 2>&1 > /dev/null | grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r"
-fewest = "hunt | awk 'END{{print}}' | rev | cut -d ' ' -f 1 | rev"
+
+[tool.hatch.envs.default]
+path = ".venv"  # Use the environment provided by uv
+
+[tool.hatch.envs.default.scripts]
+docs-build = "mkdocs build --clean --strict"
+docs-serve = "mkdocs serve --dev-addr localhost:8888"
+test-run = "pytest --ignore=tests/backend/registration/resources/re_baseline_test.py {args:tests}"
+type-check = "mypy --install-types --non-interactive {args:src/histalign}"
+type-hunt = "check 2>&1 > /dev/null | grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r"
+type-fewest = "hunt | awk 'END{{print}}' | rev | cut -d ' ' -f 1 | rev"
 # Very ugly, no sure how to have script expansion after the first word of a script.
 # This prints the errors for the file with the fewest errors and copies the path to the WSL clipboard.
-next = """
+type-next = """
 mypy --install-types --non-interactive \
 $(bash -c "mypy --install-types --non-interactive src/histalign 2>&1 > /dev/null \
 | grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r \
 | awk 'END{{print}}' | rev | cut -d ' ' -f 1 | rev |  tr -d '\n' | tee >(clip.exe)")
 """
 # Same but without copying, dropping bash and WSL dependencies
-next-no-copy = """
+type-next-no-copy = """
 mypy --install-types --non-interactive \
 $(mypy --install-types --non-interactive src/histalign 2>&1 > /dev/null \
 | grep 'src/histalign' | cut -d ':' -f 1 | uniq -c | sort -r \
