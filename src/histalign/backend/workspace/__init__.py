@@ -20,7 +20,7 @@ import re
 import shutil
 from threading import Event
 import time
-from typing import Any, get_type_hints, Literal, Optional
+from typing import Any, Callable, get_type_hints, Literal, Optional
 
 from allensdk.core.structure_tree import StructureTree
 import numpy as np
@@ -175,6 +175,10 @@ class Volume(QtCore.QObject):
     def is_loaded(self) -> bool:
         return self._volume is not None
 
+    @property
+    def is_downloaded(self) -> bool:
+        return self.path.exists()
+
     def ensure_loaded(self) -> None:
         """Ensures the volume is loaded (and downloads it if necessary)."""
         self._ensure_downloaded()
@@ -189,13 +193,13 @@ class Volume(QtCore.QObject):
         return io.load_volume(self.path, self.dtype, as_array=True)
 
     def _ensure_downloaded(self) -> None:
-        if not self.path.exists() and not self.is_loaded:
+        if not self.is_downloaded and not self.is_loaded:
             self._download()
 
         self.downloaded.emit()
 
-    def _download(self) -> None:
-        download_atlas(self.resolution)
+    def _download(self, callback: Callable | None = None) -> bool:
+        return download_atlas(self.resolution, callback=callback)
 
     def _ensure_loaded(self) -> None:
         if not self.is_loaded:
@@ -212,7 +216,11 @@ class Volume(QtCore.QObject):
         return getattr(self._volume, name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in get_type_hints(type(self)).keys() or name in dir(self):
+        if (
+            name in get_type_hints(type(self)).keys()
+            or name in dir(self)
+            or name == "__METAOBJECT__"  # Used by PySide6 when multithreading?
+        ):
             return super().__setattr__(name, value)
 
         if not self.is_loaded:
@@ -285,8 +293,8 @@ class AnnotationVolume(Volume):
 
         super().update_from_array(replacement_array[array])
 
-    def _download(self) -> None:
-        download_annotation_volume(self.resolution)
+    def _download(self, callback: Callable | None = None) -> bool:
+        return download_annotation_volume(self.resolution, callback=callback)
 
 
 class VolumeLoaderThread(QtCore.QThread):
@@ -315,47 +323,63 @@ class VolumeLoaderThread(QtCore.QThread):
         super().start(priority)
 
     def run(self):
-        # Shortcircuit to avoid pickling an already-loaded volume
+        # Shortcircuit when trying to load an already-loaded volume
         if self.volume.is_loaded:
             self.volume.downloaded.emit()
             self.volume.loaded.emit()
             return
 
         # Download
-        process = Process(target=self.volume._ensure_downloaded)
-        process.start()
-        while process.is_alive():
-            if self.isInterruptionRequested():
-                process.terminate()
-                process.join()
-                return
-
-            time.sleep(0.25)
-
+        successful = self.volume.is_downloaded or self.volume._download(
+            self.isInterruptionRequested
+        )
+        if not successful:
+            _module_logger.debug("VolumeLoaderThread cancelled during download.")
+            return
         self.volume.downloaded.emit()
 
         # Load
-        queue = Queue()
-        process = Process(
-            target=partial(self._run, self.volume, queue),
+        secondary_thread = _VolumeLoaderThread(self.volume)
+        secondary_thread.loaded.connect(
+            self.volume.update_from_array,
+            type=QtCore.Qt.ConnectionType.QueuedConnection,
         )
 
-        process.start()
-        while process.is_alive():
+        secondary_thread.start()
+        while secondary_thread.isRunning():
             if self.isInterruptionRequested():
-                process.terminate()
-                process.join()
+                secondary_thread.terminate()
+                _module_logger.debug("VolumeLoaderThread cancelled during load.")
+                secondary_thread.wait()
+                _module_logger.debug("_VolumeLoaderThread waited.")
                 return
 
-            with contextlib.suppress(Empty):
-                self.volume.update_from_array(queue.get(block=False))
-                self.volume.loaded.emit()
+            time.sleep(0.25)
+        self.volume.loaded.emit()
 
-            time.sleep(0.1)
 
-    @staticmethod
-    def _run(volume: Volume, queue: Queue) -> None:
-        queue.put(volume.load())
+class _VolumeLoaderThread(QtCore.QThread):
+    """A QThread used to load volumes so that the process can be interrupted."""
+
+    volume: Volume
+
+    loaded: QtCore.Signal = QtCore.Signal(object)
+
+    def __init__(self, volume: Volume, parent: Optional[QtCore.QObject] = None) -> None:
+        super().__init__(parent)
+
+        self.volume = volume
+
+    def start(
+        self,
+        priority: QtCore.QThread.Priority = QtCore.QThread.Priority.InheritPriority,
+    ):
+        _module_logger.debug(f"Starting _VolumeLoaderThread ({hex(id(self))}).")
+        super().start(priority)
+
+    def run(self):
+        array = self.volume.load()
+        self.loaded.emit(array)
 
 
 class VolumeExporterThread(QtCore.QThread):
