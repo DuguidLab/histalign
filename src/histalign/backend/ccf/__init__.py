@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import ssl
-from typing import Literal
+from typing import Callable, Literal
 import urllib.error
 from urllib.request import urlopen
 
@@ -37,40 +37,72 @@ _module_logger = logging.getLogger(__name__)
 def download_atlas(
     resolution: Resolution,
     atlas_type: Literal["average_template", "ara_nissl"] = "average_template",
-) -> None:
+    callback: Callable | None = None,
+) -> bool:
     """Downloads the atlas file for the given type and resolution.
 
     Args:
         resolution (Resolution): Resolution of the atlas.
         atlas_type (Literal["average_template", "ara_nissl"], optional):
             Type of the atlas.
+        callback (Callable | None, optional):
+            Callback to run after every downloaded chunk. This is expected to return
+            a boolean indicating whether to cancel (`True`) or continue the download
+            (`False`).
+
+    Returns:
+        A boolean indicating whether the download finished successfully. `True` means
+        the file was downloaded, `False` means the download was cancelled or the URL
+        could not be found.
     """
     atlas_file_name = f"{atlas_type}_{resolution.value}.nrrd"
     url = "/".join([BASE_ATLAS_URL, atlas_type, atlas_file_name])
     atlas_path = ATLAS_ROOT_DIRECTORY / atlas_file_name
 
-    download(url, atlas_path)
+    return download(url, atlas_path, callback)
 
 
-def download_annotation_volume(resolution: Resolution) -> None:
+def download_annotation_volume(
+    resolution: Resolution, callback: Callable | None = None
+) -> bool:
     """Downloads the annotation volume file for the given resolution.
 
     Args:
         resolution (Resolution): Resolution of the atlas.
+        callback (Callable | None, optional):
+            Callback to run after every downloaded chunk. This is expected to return
+            a boolean indicating whether to cancel (`True`) or continue the download
+            (`False`).
+
+    Returns:
+        A boolean indicating whether the download finished successfully. `True` means
+        the file was downloaded, `False` means the download was cancelled or the URL
+        could not be found.
     """
     volume_file_name = f"annotation_{resolution}.nrrd"
     url = "/".join([BASE_ANNOTATION_URL, volume_file_name])
     volume_path = ANNOTATION_ROOT_DIRECTORY / volume_file_name
 
-    download(url, volume_path)
+    return download(url, volume_path, callback)
 
 
-def download_structure_mask(structure_name: str, resolution: Resolution) -> None:
+def download_structure_mask(
+    structure_name: str, resolution: Resolution, callback: Callable | None = None
+) -> bool:
     """Downloads the structure mask file for the given name and resolution.
 
     Args:
         structure_name (str): Name of the structure.
         resolution (Resolution): Resolution of the atlas.
+        callback (Callable | None, optional):
+            Callback to run after every downloaded chunk. This is expected to return
+            a boolean indicating whether to cancel (`True`) or continue the download
+            (`False`).
+
+    Returns:
+        A boolean indicating whether the download finished successfully. `True` means
+        the file was downloaded, `False` means the download was cancelled or the URL
+        could not be found.
     """
     structure_id = get_structure_id(structure_name, resolution)
     structure_file_name = f"structure_{structure_id}.nrrd"
@@ -85,15 +117,24 @@ def download_structure_mask(structure_name: str, resolution: Resolution) -> None
 
     os.makedirs(structure_path.parent, exist_ok=True)
 
-    download(url, structure_path)
+    return download(url, structure_path, callback)
 
 
-def download(url: str, file_path: str | Path) -> None:
+def download(url: str, file_path: str | Path, callback: Callable | None = None) -> bool:
     """Downloads a file from the given URL and saves it to the given path.
 
     Args:
         url (str): URL to fetch.
         file_path (str | Path): Path to save the result to.
+        callback (Callable | None, optional):
+            Callback to run after every downloaded chunk. This is expected to return
+            a boolean indicating whether to cancel (`True`) or continue the download
+            (`False`).
+
+    Returns:
+        A boolean indicating whether the download finished successfully. `True` means
+        the file was downloaded, `False` means the download was cancelled or the URL
+        could not be found.
     """
     # Thin guard to not just download anything...
     if not url.startswith(BASE_ATLAS_URL) and not url.startswith(BASE_MASK_URL):
@@ -106,15 +147,25 @@ def download(url: str, file_path: str | Path) -> None:
     # Allen SSL certificate is apparently not valid...
     context = get_ssl_context(check_hostname=False, check_certificate=False)
     try:
+        buffer_size = 1024 * 1024  # 1 MiB
         with (
             urlopen(url, context=context) as response,
             open(tmp_file_path, "wb") as handle,
         ):
-            shutil.copyfileobj(response, handle)
+            while True:
+                buffer = response.read(buffer_size)
+                if not buffer:
+                    break
+                handle.write(buffer)
+
+                if callback is not None and callback():
+                    return False
     except urllib.error.HTTPError:
         _module_logger.error(f"URL not found ('{url}').")
+        return False
 
     shutil.move(tmp_file_path, file_path)
+    return True
 
 
 def get_ssl_context(
