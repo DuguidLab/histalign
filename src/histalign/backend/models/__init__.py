@@ -133,7 +133,7 @@ class VolumeSettings(BaseModel, validate_assignment=True):
             case Resolution.MICRONS_25:
                 return 528, 320, 456
             case Resolution.MICRONS_10:
-                return 1320, 800, 114
+                return 1320, 800, 1140
             case _:
                 raise Exception("ASSERT NOT REACHED")
 
