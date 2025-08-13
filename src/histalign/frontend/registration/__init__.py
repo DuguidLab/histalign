@@ -341,7 +341,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         """Clears any atlas on the GUI."""
         self.alignment_widget.reset_volume()
 
-    def load_atlas(self) -> int:
+    def load_atlas(self) -> bool:
         """Loads the atlas and annotations volumes."""
         _module_logger.debug("Loading atlas and annotations.")
 
@@ -355,13 +355,18 @@ class RegistrationWidget(QtWidgets.QWidget):
         annotation_volume.loaded.connect(
             lambda: _module_logger.debug("Annotations loaded.")
         )
-        self.annotation_volume = annotation_volume
         atlas_volume = unwrap(self.alignment_widget.volume_slicer).volume
 
         # Set up the dialog and loader threads
         dialog = AtlasProgressDialog(self)
         annotation_loader_thread = VolumeLoaderThread(annotation_volume)
         atlas_loader_thread = VolumeLoaderThread(atlas_volume)
+
+        dialog.canceled.connect(annotation_loader_thread.requestInterruption)
+        dialog.canceled.connect(atlas_loader_thread.requestInterruption)
+        dialog.canceled.connect(
+            lambda: _module_logger.debug("Volume (down)loading cancelled by user.")
+        )
 
         atlas_volume.downloaded.connect(
             lambda: dialog.setLabelText("Loading atlas"),
@@ -379,13 +384,17 @@ class RegistrationWidget(QtWidgets.QWidget):
         annotation_loader_thread.start()
         atlas_loader_thread.start()
 
-        result = dialog.exec()  # Blocking
+        result = QtWidgets.QDialog.DialogCode(dialog.exec())  # Blocking
 
         # Ensure we wait for the threads to be destroyed
         annotation_loader_thread.wait()
         atlas_loader_thread.wait()
 
-        return result
+        successful = result == QtWidgets.QDialog.DialogCode.Accepted
+        if successful:
+            self.annotation_volume = annotation_volume
+
+        return successful
 
     def locate_mouse(self) -> None:
         if self.annotation_volume is None:
