@@ -320,7 +320,7 @@ def get_structure_tree(resolution: Resolution) -> StructureTree:
     return ReferenceSpaceCache(
         resolution=resolution.value,
         reference_space_key=os.path.join("annotation", "ccf_2017"),
-        manifest=str(DATA_ROOT / f"manifest.json"),
+        manifest=str(DATA_ROOT / "manifest.json"),
     ).get_structure_tree()
 
 
@@ -332,7 +332,7 @@ def get_structures_hierarchy_path() -> str:
     Returns:
         The path to the `structures.json` hierarchy file.
     """
-    path = DATA_ROOT / f"structures.json"
+    path = DATA_ROOT / "structures.json"
 
     # Easiest option to have the Allen SDK do the work for us
     if not path.exists():
