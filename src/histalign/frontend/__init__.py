@@ -335,7 +335,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         tab.alignment_widget.reset_volume()
         tab.alignment_widget.reset_histology()
 
-    def switch_workspace(self) -> None:
+    def switch_workspace(self) -> bool:
         """Handles a change in the current workspace.
 
         Note that when this function is called, the workspace should already have been
@@ -353,7 +353,7 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         # Update the registration tab
         tab = self.registration_tab
 
-        tab.load_atlas()
+        return tab.load_atlas()
 
     def propagate_workspace(self) -> None:
         """Ensures workspace models are properly shared with all that rely on it."""
@@ -412,7 +412,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
 
         # Initialise a new workspace
         self.workspace = Workspace(settings)
-        self.switch_workspace()
+        if not self.switch_workspace():
+            # The user cancelled the download/load of the atlas
+            return
 
         # Update workspace state
         self.workspace_is_dirty = True
@@ -455,7 +457,9 @@ class HistalignMainWindow(QtWidgets.QMainWindow):
         except ValueError as e:
             _module_logger.error(f"Failed to load project from '{path}': {e}")
             return InvalidProjectFileDialog(self).open()
-        self.switch_workspace()
+        if not self.switch_workspace():
+            # The user cancelled the download/load of the atlas
+            return
 
         # Restore registration saved state
         tab = self.registration_tab

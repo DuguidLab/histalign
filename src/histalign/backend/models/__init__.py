@@ -125,7 +125,11 @@ class VolumeSettings(BaseModel, validate_assignment=True):
 
     @property
     def shape(self) -> tuple[int, int, int]:
-        match self.resolution:
+        return self.get_shape_from_resolution(self.resolution)
+
+    @staticmethod
+    def get_shape_from_resolution(resolution: Resolution) -> tuple[int, int, int]:
+        match resolution:
             case Resolution.MICRONS_100:
                 return 132, 80, 114
             case Resolution.MICRONS_50:
@@ -133,7 +137,7 @@ class VolumeSettings(BaseModel, validate_assignment=True):
             case Resolution.MICRONS_25:
                 return 528, 320, 456
             case Resolution.MICRONS_10:
-                return 1320, 800, 114
+                return 1320, 800, 1140
             case _:
                 raise Exception("ASSERT NOT REACHED")
 

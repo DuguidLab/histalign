@@ -392,13 +392,18 @@ def get_sk_transform_from_parameters(
     return AffineTransform(matrix=matrix)
 
 
-def normalise_array(array: np.ndarray, dtype: Optional[np.dtype] = None) -> np.ndarray:
+def normalise_array(
+    array: np.ndarray, dtype: Optional[np.dtype] = None, fast: bool = False
+) -> np.ndarray:
     """Normalise an array to the range between 0 and the dtype's maximum value.
 
     Args:
         array (np.ndarray): Array to normalise.
         dtype (np.dtype, optional):
             Target dtype. If `None`, the dtype will be inferred as the dtype of `array`.
+        fast (bool, optional):
+            Whether to normalise without using intermediary float arrays. This will lead
+            to reduced accuracy but no extra memory usage.
 
     Returns:
         The normalised array.
@@ -406,10 +411,18 @@ def normalise_array(array: np.ndarray, dtype: Optional[np.dtype] = None) -> np.n
     dtype = dtype or array.dtype
     maximum = get_dtype_maximum(dtype)
 
-    array = array.astype(np.float64)
-    array -= array.min()
-    array /= max(array.max(), 1)
-    array *= maximum
+    if fast:
+        array -= array.min()
+        ratio = array.max() // maximum
+        if ratio > 1:
+            array[:] //= int(ratio)
+        else:
+            array[:] *= np.max(1, int(ratio))
+    else:
+        array = array.astype(np.float64)
+        array -= array.min()
+        array /= max(array.max(), 1)
+        array *= maximum
 
     return array.astype(dtype)
 

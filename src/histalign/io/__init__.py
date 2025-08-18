@@ -148,7 +148,16 @@ def load_volume(
     except UnknownFileFormatError:
         suffix = Path(path).suffix
         if suffix == ".nrrd":
+            # `nrrd` normally loads files in chunks of 4GiB but the `zlib` decompressor
+            # memory usage blows up (uses something around 10x the size of the array)
+            # when loading the 10 microns annotation volume. This reduces the chunk size
+            # significantly to reduce the memory usage to about the size of the array
+            # we're trying to load. `nrrd` still ends up using twice that temporarily
+            # when it creates the `numpy` array but not much we can do about that.
+            backup_value = nrrd.reader._READ_CHUNKSIZE
+            nrrd.reader._READ_CHUNKSIZE = 2**16
             array = nrrd.read(path)[0]
+            nrrd.reader._READ_CHUNKSIZE = backup_value
         else:
             # Continue raising
             raise
