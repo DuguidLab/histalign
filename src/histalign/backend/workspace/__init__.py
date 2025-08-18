@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
-import contextlib
-from functools import partial
 import hashlib
 import json
 import logging
@@ -15,7 +13,6 @@ import math
 from multiprocessing import Process, Queue
 import os
 from pathlib import Path
-from queue import Empty
 import re
 import shutil
 from threading import Event
@@ -23,6 +20,7 @@ import time
 from typing import Any, Callable, get_type_hints, Literal, Optional
 
 from allensdk.core.structure_tree import StructureTree
+import nrrd
 import numpy as np
 from PIL import Image
 from PySide6 import QtCore
@@ -186,6 +184,9 @@ class Volume(QtCore.QObject):
 
     def update_from_array(self, array: np.ndarray) -> None:
         """Updates the wrapped volume with a `vedo.Volume` of `array`."""
+        # Very ugly but override vedo's forced deep copy of the array to create a volume
+        # so we don't temporarily need twice the memory.
+        vedo.utils.numpy2vtk.__defaults__ = (None, False, "")
         self._volume = vedo.Volume(array)
 
     def load(self) -> np.ndarray:
@@ -229,20 +230,19 @@ class Volume(QtCore.QObject):
 
 
 class AnnotationVolume(Volume):
-    """A wrapper around the Allen Institute's annotated CCF volumes.
+    """A wrapper around the Allen Institute's annotated CCF volumes."""
 
-    Since the Allen Institute has reserved some ID ranges, there are huge gaps in the
-    values of the annotated volume. This wrapper maps the IDs present in the raw file
-    into sequential values to allow a volume of uint16 instead of uint32, freeing a lot
-    of memory and not really incurring any loading cost (around 2 seconds on my
-    machine for the 25um annotated volume).
-
-    References:
-        Algorithm for efficient value replacement: https://stackoverflow.com/a/29408060
-    """
-
-    _id_translation_table: np.ndarray
     _structure_tree: StructureTree
+
+    def __init__(
+        self,
+        path: str | Path,
+        resolution: Resolution,
+        convert_dtype: Optional[type | np.dtype] = None,
+        lazy: bool = False,
+    ) -> None:
+        self._structure_tree = get_structure_tree(Resolution.MICRONS_100)
+        super().__init__(path, resolution, convert_dtype, lazy)
 
     def get_name_from_voxel(self, coordinates: Sequence) -> str:
         """Returns the name of the brain structure at `coordinates`.
@@ -272,9 +272,7 @@ class AnnotationVolume(Volume):
 
         value = self._volume.tonumpy()[coordinates]
 
-        node_details = self._structure_tree.get_structures_by_id(
-            [self._id_translation_table[value]]
-        )[0]
+        node_details = self._structure_tree.get_structures_by_id([value])[0]
         name: str
         if node_details is not None:
             name = node_details["name"]
@@ -282,16 +280,6 @@ class AnnotationVolume(Volume):
             name = ""
 
         return name
-
-    def update_from_array(self, array: np.ndarray) -> None:
-        unique_values = np.unique(array)
-        replacement_array = np.empty(array.max() + 1, dtype=np.uint16)
-        replacement_array[unique_values] = np.arange(len(unique_values))
-
-        self._id_translation_table = unique_values
-        self._structure_tree = get_structure_tree(Resolution.MICRONS_100)
-
-        super().update_from_array(replacement_array[array])
 
     def _download(self, callback: Callable | None = None) -> bool:
         return download_annotation_volume(self.resolution, callback=callback)
@@ -323,63 +311,68 @@ class VolumeLoaderThread(QtCore.QThread):
         super().start(priority)
 
     def run(self):
-        # Shortcircuit when trying to load an already-loaded volume
         if self.volume.is_loaded:
             self.volume.downloaded.emit()
             self.volume.loaded.emit()
             return
 
         # Download
-        successful = self.volume.is_downloaded or self.volume._download(
-            self.isInterruptionRequested
-        )
-        if not successful:
-            _module_logger.debug("VolumeLoaderThread cancelled during download.")
-            return
+        process = Process(target=self.volume._ensure_downloaded)
+        process.start()
+        while process.is_alive():
+            if self.isInterruptionRequested():
+                process.kill()
+                return
+
+            time.sleep(0.1)
+
         self.volume.downloaded.emit()
 
         # Load
-        secondary_thread = _VolumeLoaderThread(self.volume)
-        secondary_thread.loaded.connect(
-            self.volume.update_from_array,
-            type=QtCore.Qt.ConnectionType.QueuedConnection,
+        queue = Queue()
+        process = Process(
+            target=_load_volume, args=(self.volume.path, queue), daemon=True
         )
 
-        secondary_thread.start()
-        while secondary_thread.isRunning():
+        _module_logger.debug("Starting volume loader process.")
+        byte_array = bytearray()
+        process.start()
+        while process.is_alive():
             if self.isInterruptionRequested():
-                secondary_thread.terminate()
-                _module_logger.debug("VolumeLoaderThread cancelled during load.")
-                secondary_thread.wait()
-                _module_logger.debug("_VolumeLoaderThread waited.")
+                _module_logger.debug("VolumeLoaderThread interrupted.")
+                process.kill()
                 return
 
-            time.sleep(0.25)
+            while not queue.empty():
+                byte_array += queue.get()
+
+                if self.isInterruptionRequested():
+                    _module_logger.debug("VolumeLoaderThread interrupted.")
+                    process.kill()
+                    return
+
+            time.sleep(0.1)
+
+        # Reconstruct the NumPy array
+        dtype = nrrd.reader._determine_datatype(nrrd.read_header(str(self.volume.path)))
+        array = np.ndarray(
+            # We can't get the shape directly from self.volume as that would force a call
+            # to `ensure_loaded` and load the volume to get the answer.
+            shape=VolumeSettings.get_shape_from_resolution(self.volume.resolution),
+            dtype=dtype,
+            buffer=byte_array,
+            order="F",
+        )
+
+        # Potentially normalise fast
+        array = io.normalise_array(array, self.volume.dtype, fast=True)
+
+        self.volume.update_from_array(array)
         self.volume.loaded.emit()
 
-
-class _VolumeLoaderThread(QtCore.QThread):
-    """A QThread used to load volumes so that the process can be interrupted."""
-
-    volume: Volume
-
-    loaded: QtCore.Signal = QtCore.Signal(object)
-
-    def __init__(self, volume: Volume, parent: Optional[QtCore.QObject] = None) -> None:
-        super().__init__(parent)
-
-        self.volume = volume
-
-    def start(
-        self,
-        priority: QtCore.QThread.Priority = QtCore.QThread.Priority.InheritPriority,
-    ):
-        _module_logger.debug(f"Starting _VolumeLoaderThread ({hex(id(self))}).")
-        super().start(priority)
-
-    def run(self):
-        array = self.volume.load()
-        self.loaded.emit(array)
+    @staticmethod
+    def _run(volume: Volume, queue: Queue) -> None:
+        queue.put(volume.load())
 
 
 class VolumeExporterThread(QtCore.QThread):
@@ -1077,3 +1070,26 @@ def alignment_directory_has_volumes(directory: Path) -> bool:
     )
 
     return has_aligned and has_interpolated
+
+
+def _load_volume(path: Path, queue: Queue) -> None:
+    _module_logger.debug("Starting to load volume.")
+
+    # Reduce chunk size to considerably reduce memory footprint of large files
+    backup_chunksize = nrrd.reader._READ_CHUNKSIZE
+    nrrd.reader._READ_CHUNKSIZE = 2**16
+
+    data, _ = nrrd.read(path)
+
+    nrrd.reader._READ_CHUNKSIZE = backup_chunksize
+
+    # Transfer as a 1D array through the queue
+    data = data.ravel(order="F")
+
+    chunk_size = 2**25  # Seems like a good trade-off between speed and memory
+    while data.shape != (0,):
+        buffer, data = data[:chunk_size], data[chunk_size:]
+
+        queue.put(buffer.tobytes())
+
+    _module_logger.debug("Finished loading volume.")
