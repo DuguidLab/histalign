@@ -36,19 +36,6 @@ class AtlasProgressDialog(QtWidgets.QProgressDialog):
         self.setMaximum(0)
         self.setCancelButton(None)  # type: ignore[arg-type]
 
-    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        # Ugly but not all platforms support having a frame and no close button
-        event.ignore()
-        return
-
-    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == QtCore.Qt.Key.Key_Escape:
-            # Disable closing dialog with Escape
-            event.accept()
-            return
-
-        super().keyPressEvent(event)
-
 
 class InvalidProjectFileDialog(QtWidgets.QMessageBox):
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
