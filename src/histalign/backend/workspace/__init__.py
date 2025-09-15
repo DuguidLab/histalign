@@ -316,59 +316,8 @@ class VolumeLoaderThread(QtCore.QThread):
             self.volume.loaded.emit()
             return
 
-        # Download
-        process = Process(target=self.volume._ensure_downloaded)
-        process.start()
-        while process.is_alive():
-            if self.isInterruptionRequested():
-                process.kill()
-                return
-
-            time.sleep(0.1)
-
-        self.volume.downloaded.emit()
-
-        # Load
-        queue = Queue()
-        process = Process(
-            target=_load_volume, args=(self.volume.path, queue), daemon=True
-        )
-
-        _module_logger.debug("Starting volume loader process.")
-        byte_array = bytearray()
-        process.start()
-        while process.is_alive():
-            if self.isInterruptionRequested():
-                _module_logger.debug("VolumeLoaderThread interrupted.")
-                process.kill()
-                return
-
-            while not queue.empty():
-                byte_array += queue.get()
-
-                if self.isInterruptionRequested():
-                    _module_logger.debug("VolumeLoaderThread interrupted.")
-                    process.kill()
-                    return
-
-            time.sleep(0.1)
-
-        # Reconstruct the NumPy array
-        dtype = nrrd.reader._determine_datatype(nrrd.read_header(str(self.volume.path)))
-        array = np.ndarray(
-            # We can't get the shape directly from self.volume as that would force a call
-            # to `ensure_loaded` and load the volume to get the answer.
-            shape=VolumeSettings.get_shape_from_resolution(self.volume.resolution),
-            dtype=dtype,
-            buffer=byte_array,
-            order="F",
-        )
-
-        # Potentially normalise fast
-        array = io.normalise_array(array, self.volume.dtype, fast=True)
-
-        self.volume.update_from_array(array)
-        self.volume.loaded.emit()
+        self.volume._ensure_downloaded()
+        self.volume._ensure_loaded()
 
     @staticmethod
     def _run(volume: Volume, queue: Queue) -> None:
