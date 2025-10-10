@@ -933,6 +933,10 @@ class Workspace(QtCore.QObject):
     def gather_image_paths(directory_path: str, only_neun: bool = True) -> list[str]:
         image_paths = []
         for path in Path(directory_path).iterdir():
+            # Ignore hidden files and weird MacOS caches
+            if path.stem.startswith("."):
+                continue
+
             if EXTENSIONS.get(path.suffix) in SUPPORTED_READ_FORMATS:
                 if only_neun and path.stem.split("-")[-1] != "neun":
                     continue
