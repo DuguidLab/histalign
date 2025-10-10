@@ -12,10 +12,13 @@ from histalign.io import DimensionOrder
 from histalign.io.image import ImageFile, register_plugin
 from histalign.io.image.metadata import OmeXml
 
+# Allow fie sizes up to 1 GiB
+Image.MAX_IMAGE_PIXELS = 1024**3
 
-class PngImagePlugin(ImageFile):
-    format: str = "PNG"
-    extensions: tuple[str, ...] = (".png",)
+
+class GenericImagePlugin(ImageFile):
+    format: str = "MISC"
+    extensions: tuple[str, ...] = (".png", ".jpg", ".jpeg")
 
     series_support = 0
 
@@ -69,9 +72,9 @@ class PngImagePlugin(ImageFile):
 
 
 register_plugin(
-    format=PngImagePlugin.format,
-    plugin=PngImagePlugin,
-    extensions=PngImagePlugin.extensions,
+    format=GenericImagePlugin.format,
+    plugin=GenericImagePlugin,
+    extensions=GenericImagePlugin.extensions,
     supports_read=True,
     supports_write=True,
 )
