@@ -932,11 +932,13 @@ class Workspace(QtCore.QObject):
     @staticmethod
     def gather_image_paths(directory_path: str, only_neun: bool = True) -> list[str]:
         image_paths = []
+        files_found = 0
         for path in Path(directory_path).iterdir():
             # Ignore hidden files and weird MacOS caches
             if path.stem.startswith("."):
                 continue
 
+            files_found += 1
             if EXTENSIONS.get(path.suffix) in SUPPORTED_READ_FORMATS:
                 if only_neun and path.stem.split("-")[-1] != "neun":
                     continue
@@ -954,6 +956,12 @@ class Workspace(QtCore.QObject):
                 int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", s)
             ]
         )
+
+        if not image_paths and files_found:
+            _module_logger.warning(
+                f"Found {files_found} files but none of them had a valid image "
+                f"extension from the supported list "
+                f"({', '.join(EXTENSIONS.keys())}).")
 
         return image_paths
 
