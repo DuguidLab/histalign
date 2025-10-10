@@ -461,7 +461,7 @@ class RegistrationWidget(QtWidgets.QWidget):
         volume_centre = compute_centre(volume_settings.shape)
         volume_origin = compute_origin(volume_centre, volume_settings)
 
-        volume_coordinates = volume_origin + rotated_coordinates
+        volume_coordinates = (volume_origin + rotated_coordinates) + 1
         volume_coordinates = np.array(list(map(int, volume_coordinates)))
 
         # Get the name of the structure at coordinates
