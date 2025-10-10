@@ -225,13 +225,16 @@ def convert_tiff_axes_to_dimension_order(axes: str) -> Optional[DimensionOrder]:
         `tifffile`'s axes legend: https://github.com/cgohlke/tifffile/blob/78b57cf84bd92528ba8877ea4972769bb4d43600/tifffile/tifffile.py#L18594-L18618
     """
     # Check axes only contains supported dimensions
-    if not re.fullmatch(r"^[XYZCS]+$", axes).group() == axes:
+    match = re.fullmatch(r"^[XYZCSQ]+$", axes)
+    if match is None:
         return None
 
-    # We cast S to C, hence ensure both aren't present
-    if "C" in axes and "S" in axes:
+    # We cast S to C and  to Q, hence ensure both versions of each aren't prevent
+    if ("C" in axes and "S" in axes) or ("Z" in axes and "Q" in axes):
         return None
-    axes = re.sub("S", "C", axes)
+
+    axes = axes.replace("S", "C")
+    axes = axes.replace("Q", "Z")
 
     return DimensionOrder(axes)
 
