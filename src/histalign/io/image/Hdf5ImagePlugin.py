@@ -97,7 +97,7 @@ class Hdf5ImagePlugin(MultiSeriesImageFile):
         # There isn't any standard for metadata packaging in an HDF5 file for scientific
         # images (in a simple manner, i.e. no NWB). This tries to mirror the OME-XML
         # standard but we are still only compatible with ourselves.
-        for attribute_name, value in metadata.model_dump().items():
+        for attribute_name, value in metadata.model_dump(mode="json").items():
             dataset.attrs[attribute_name] = json.dumps(value)
 
         # Element size compatibility with HDF5 Vibez plugin for ImageJ.
