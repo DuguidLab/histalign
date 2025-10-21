@@ -663,6 +663,7 @@ class Workspace(QtCore.QObject):
     current_aligner_image_hash: Optional[str] = None
     current_aligner_image_index: Optional[int] = None
 
+    directory_parsed: QtCore.Signal = QtCore.Signal(str)
     thumbnail_generated: QtCore.Signal = QtCore.Signal(int, Path, str)
 
     def __init__(
@@ -748,6 +749,8 @@ class Workspace(QtCore.QObject):
 
         self._file_handles = self._deserialise_handles(valid_paths)
         self.save_metadata()
+
+        self.directory_parsed.emit(directory_path)
 
     def get_image(self, index: int) -> Optional[np.ndarray]:
         if index >= len(self._file_handles):

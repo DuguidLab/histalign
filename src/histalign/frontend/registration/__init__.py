@@ -330,7 +330,7 @@ class RegistrationWidget(QtWidgets.QWidget):
     def clear_histology_state(self) -> None:
         """Clears any histology on the GUI."""
         self.alignment_widget.update_histological_slice(None)
-        self.thumbnails_widget.flush_thumbnails()
+        self.thumbnails_widget.clear()
 
     def clear_status(self) -> None:
         """Clears the temporary message on the status bar."""

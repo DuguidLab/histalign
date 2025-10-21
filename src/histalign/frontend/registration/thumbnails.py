@@ -10,14 +10,59 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from histalign.backend.workspace import Workspace
-from histalign.frontend.common_widgets import ThumbnailsContainerWidget, ThumbnailWidget
+from histalign.frontend.common_widgets import (
+    FilePathLabel,
+    ThumbnailsContainerWidget,
+    ThumbnailWidget,
+)
 from histalign.frontend.pyside_helpers import find_parent
 from histalign.language_helpers import unwrap
 
 SCROLL_THRESHOLD: int = 50
 
 
-class ThumbnailsWidget(QtWidgets.QScrollArea):
+
+class ThumbnailsWidget(QtWidgets.QWidget):
+    thumbnail_activated: QtCore.Signal = QtCore.Signal(int)
+    thumbnails_swapped: QtCore.Signal = QtCore.Signal(int, int)
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+
+        header = FilePathLabel()
+        self.header = header
+
+        thumbnails_area = _ThumbnailsWidget()
+        thumbnails_area.thumbnail_activated.connect(self.thumbnail_activated.emit)
+        thumbnails_area.thumbnails_swapped.connect(self.thumbnails_swapped.emit)
+        self.thumbnails_area = thumbnails_area
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(header)
+        layout.addWidget(thumbnails_area)
+        self.setLayout(layout)
+
+    def clear(self) -> None:
+        self.header.setText("")
+        self.thumbnails_area.flush_thumbnails()
+
+    def connect_workspace(self, workspace: Workspace) -> None:
+        # If loading a project, the workspace parses its last image directory before
+        # we're connected.
+        if workspace.last_parsed_directory is not None:
+            self.header.setText(workspace.last_parsed_directory)
+
+        workspace.directory_parsed.connect(self.header.setText)
+        self.thumbnails_area.connect_workspace(workspace)
+
+    def make_thumbnail_at_active(self, index: int) -> None:
+        self.thumbnails_area.make_thumbnail_at_active(index)
+
+    def set_thumbnail_completed(self, index: int, completed: bool) -> None:
+        self.thumbnails_area.set_thumbnail_completed(index, completed)
+
+
+class _ThumbnailsWidget(QtWidgets.QScrollArea):
     thumbnail_activated: QtCore.Signal = QtCore.Signal(int)
     thumbnails_swapped: QtCore.Signal = QtCore.Signal(int, int)
 
