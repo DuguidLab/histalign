@@ -3210,6 +3210,8 @@ class ThumbnailWidget(QtWidgets.QFrame):
         self._palette = self.palette()
         self.set_highlighted(False, False)
 
+        self.setToolTip(text)
+
         #
         pixmap_label = ResizablePixmapLabel(file_path)
 
