@@ -216,6 +216,54 @@ def _transform_series(
     transform_index = 0
 
     transform_function = get_appropriate_transform_function(transform)
+
+    # TODO: Clean this up, had to add this extra transform in a hurry!
+    if transform == "rgb2gray":
+        order = source_file.dimension_order
+        if "Z" in order.value:
+            raise ValueError("Unsupported operation: RGB2gray on Z stack.")
+        elif "C" not in order.value:
+            raise ValueError("Image does not have a channel dimension.")
+
+        channel_index = order.value.index("C")
+        transformed_image = transform_function(
+            source_file.load(), channel_index, **kwargs
+        )
+
+        if isinstance(destination_file[0], Path) or seek_first:
+            order = source_file.dimension_order
+            transformed_shape = transformed_image.shape
+
+            updated_metadata = update_metadata(
+                source_file.metadata, transformed_shape
+            )
+
+            if seek_first:
+                # Writing the first image of a new series
+                destination_file[0].seek_next_series(
+                    shape=transformed_shape,
+                    dtype=source_file.dtype,
+                    metadata=updated_metadata,
+                )
+                seek_first = False
+            else:
+                destination_plugin_class = get_appropriate_plugin_class(
+                    destination_file[0], mode="w"
+                )
+                destination_file[0] = destination_plugin_class(
+                    destination_file[0],
+                    mode="w",
+                    dimension_order=order,
+                    shape=transformed_shape,
+                    dtype=source_file.dtype,
+                    metadata=updated_metadata,
+                )
+
+        destination_file[0].write_image(transformed_image, (slice(None),) * 2)
+
+        return
+
+
     for image in source_file.iterate_images(source_file.dimension_order):
         _module_logger.info(f"Transform {transform_index}/{transform_count}.")
 
@@ -264,6 +312,9 @@ def _transform_series(
 def update_metadata(metadata: OmeXml, transformed_shape: list[int]) -> OmeXml:
     updated_metadata = metadata.model_copy(deep=True)
 
+    # TODO: Fix this to support Z (and T?)
+    should_drop_c = metadata.SizeC > 1 and len(transformed_shape) < 3
+
     x_position = updated_metadata.DimensionOrder.index("X")
     y_position = updated_metadata.DimensionOrder.index("Y")
 
@@ -278,5 +329,12 @@ def update_metadata(metadata: OmeXml, transformed_shape: list[int]) -> OmeXml:
 
     updated_metadata.PhysicalSizeX = new_x_scaling
     updated_metadata.PhysicalSizeY = new_y_scaling
+
+    if should_drop_c:
+        updated_metadata.SizeC = 1
+        updated_metadata.Channel = []
+
+        order = updated_metadata.DimensionOrder
+        updated_metadata.DimensionOrder = order.replace("C", "")
 
     return updated_metadata
