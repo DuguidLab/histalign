@@ -186,8 +186,10 @@ class Volume(QtCore.QObject):
         """Updates the wrapped volume with a `vedo.Volume` of `array`."""
         # Very ugly but override vedo's forced deep copy of the array to create a volume
         # so we don't temporarily need twice the memory.
-        vedo.utils.numpy2vtk.__defaults__ = (None, False, "")
+        defaults = vedo.utils.numpy2vtk.__defaults__
+        vedo.utils.numpy2vtk.__defaults = (*defaults[0:1], False, *defaults[2:])
         self._volume = vedo.Volume(array)
+        vedo.utils.numpy2vtk.__defaults = defaults
 
     def load(self) -> np.ndarray:
         """Loads the raw numpy array this volume points to."""
